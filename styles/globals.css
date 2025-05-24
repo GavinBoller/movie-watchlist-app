@@ -1,21 +1,66 @@
+/* styles/globals.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@layer base {
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    overscroll-behavior: none;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  button, a, input, select, textarea {
+    -webkit-user-select: none; /* Safari */
+    user-select: none;
+  }
+
+  input, select, textarea {
+    @apply text-base;
+    font-size: 16px;
+    text-size-adjust: 100%; /* Chrome, Edge */
+  }
+
+  input[type="date"] {
+    min-height: 2.5rem;
+  }
+
+  header {
+    @apply sticky top-0 z-10;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@supports (-webkit-touch-callout: none) {
+  .ios-touch-scroll {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ios-safe-area-padding {
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-top: env(safe-area-inset-top);
+  }
+
+  button, .button {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@media (hover: hover) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
 }
