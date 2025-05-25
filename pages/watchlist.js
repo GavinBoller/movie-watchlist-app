@@ -8,26 +8,29 @@ export default function Watchlist() {
   const [error, setError] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false); // Placeholder
 
+  const fetchWatchlist = async () => {
+    try {
+      console.log('Fetching watchlist');
+      const response = await axios.get('/api/watchlist', {
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      console.log('Watchlist response:', response.data);
+      setWatchlist(response.data);
+      setError(null);
+    } catch (error) {
+      console.error('Error fetching watchlist:', error.message);
+      setError('Failed to load watchlist.');
+    }
+  };
+
   useEffect(() => {
-    const fetchWatchlist = async () => {
-      try {
-        console.log('Fetching watchlist');
-        const response = await axios.get('/api/watchlist');
-        console.log('Watchlist response:', response.data);
-        setWatchlist(response.data);
-        setError(null);
-      } catch (error) {
-        console.error('Error fetching watchlist:', error.message);
-        setError('Failed to load watchlist.');
-      }
-    };
     fetchWatchlist();
   }, []);
 
   const removeFromWatchlist = async (id) => {
     try {
       await axios.delete('/api/watchlist', { data: { id } });
-      setWatchlist(watchlist.filter((item) => item.id !== id));
+      await fetchWatchlist(); // Refetch after delete
       alert('Item removed from watchlist!');
     } catch (error) {
       console.error('Error removing from watchlist:', error.message);

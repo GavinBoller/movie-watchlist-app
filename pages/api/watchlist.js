@@ -7,40 +7,33 @@ const pool = new Pool({
 });
 
 export default async function handler(req, res) {
-  console.log(`Handling ${req.method} request`);
-  if (req.method === 'POST') {
-    const { id, title, overview, poster, release_date, media_type } = req.body;
-    try {
+  try {
+    if (req.method === 'GET') {
+      console.log('Handling GET request');
+      const result = await pool.query('SELECT * FROM movies');
+      console.log('Fetch result:', result.rows);
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      return res.status(200).json(result.rows);
+    } else if (req.method === 'POST') {
+      console.log('Handling POST request');
+      const { id, title, overview, poster, release_date, media_type } = req.body;
       const result = await pool.query(
-        'INSERT INTO movies (id, title, overview, poster, release_date, media_type) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING RETURNING *',
+        'INSERT INTO movies (id, title, overview, poster, release_date, media_type) VALUES (, , , , , ) ON CONFLICT (id) DO NOTHING RETURNING *',
         [id, title, overview, poster, release_date, media_type]
       );
       console.log('Insert result:', result.rows);
-      res.status(200).json(result.rows[0] || { message: 'Item already in watchlist' });
-    } catch (error) {
-      console.error('Error adding to watchlist:', error.message);
-      res.status(500).json({ error: 'Failed to add to watchlist' });
-    }
-  } else if (req.method === 'GET') {
-    try {
-      const result = await pool.query('SELECT * FROM movies ORDER BY title');
-      console.log('Fetch result:', result.rows);
-      res.status(200).json(result.rows);
-    } catch (error) {
-      console.error('Error fetching watchlist:', error.message);
-      res.status(500).json({ error: 'Failed to fetch watchlist' });
-    }
-  } else if (req.method === 'DELETE') {
-    const { id } = req.body;
-    try {
-      const result = await pool.query('DELETE FROM movies WHERE id = $1', [id]);
+      return res.status(200).json(result.rows);
+    } else if (req.method === 'DELETE') {
+      console.log('Handling DELETE request');
+      const { id } = req.body;
+      const result = await pool.query('DELETE FROM movies WHERE id = ', [id]);
       console.log('Delete result:', result.rowCount);
-      res.status(200).json({ message: 'Item removed' });
-    } catch (error) {
-      console.error('Error removing from watchlist:', error.message);
-      res.status(500).json({ error: 'Failed to remove from watchlist' });
+      return res.status(200).json({ deleted: result.rowCount });
+    } else {
+      return res.status(405).json({ error: 'Method not allowed' });
     }
-  } else {
-    res.status(405).json({ error: 'Method not allowed' });
+  } catch (error) {
+    console.error('Database error:', error.message);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }

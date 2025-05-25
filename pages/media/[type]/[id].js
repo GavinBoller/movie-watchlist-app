@@ -43,7 +43,7 @@ export default function MediaDetail() {
         release_date: media.release_date || media.first_air_date,
         media_type: type,
       });
-      alert(`${media.title || media.name} added to watchlist!`);
+      alert(`${media.title || media.name} added to watchlist! Please refresh the watchlist page.`);
     } catch (error) {
       console.error('Error adding to watchlist:', error.message);
       alert('Failed to add to watchlist.');
