@@ -9,6 +9,7 @@ export default function MediaDetail() {
   const { type, id } = router.query;
   const [media, setMedia] = useState(null);
   const [error, setError] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // Placeholder
 
   useEffect(() => {
     if (type && id) {
@@ -54,12 +55,32 @@ export default function MediaDetail() {
   return (
     <div className="min-h-screen bg-background text-foreground py-6 px-4">
       <header className="bg-background border-b border-border mb-6">
-        <div className="container mx-auto max-w-4xl py-4 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">{media ? (media.title || media.name) : 'Media Details'}</h1>
-          <nav>
+        <div className="container mx-auto max-w-4xl py-4 flex justify-between items-center">
+          <Link href="/" className="text-2xl font-bold text-foreground">
+            Watchlist
+          </Link>
+          <nav className="flex items-center space-x-4">
             <Link href="/" className="text-primary hover:underline text-lg">
               Search
             </Link>
+            {isLoggedIn ? (
+              <>
+                <span className="text-foreground">Welcome, User</span>
+                <button
+                  onClick={() => setIsLoggedIn(false)}
+                  className="border border-border text-foreground px-4 py-2 rounded-lg hover:bg-muted text-lg"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setIsLoggedIn(true)}
+                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 text-lg"
+              >
+                Login
+              </button>
+            )}
           </nav>
         </div>
       </header>

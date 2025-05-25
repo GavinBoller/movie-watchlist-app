@@ -7,6 +7,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [error, setError] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // Placeholder
 
   const searchMedia = async (query) => {
     console.log('Search button clicked with query:', query);
@@ -34,12 +35,32 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background text-foreground py-6 px-4">
       <header className="bg-background border-b border-border mb-6">
-        <div className="container mx-auto max-w-6xl py-4 flex items-center justify-between">
-          <h1 className="text-4xl font-bold">Movie & TV Watchlist</h1>
-          <nav>
+        <div className="container mx-auto max-w-6xl py-4 flex justify-between items-center">
+          <Link href="/" className="text-2xl font-bold text-foreground">
+            Watchlist
+          </Link>
+          <nav className="flex items-center space-x-4">
             <Link href="/watchlist" className="text-primary hover:underline text-lg">
               Watchlist
             </Link>
+            {isLoggedIn ? (
+              <>
+                <span className="text-foreground">Welcome, User</span>
+                <button
+                  onClick={() => setIsLoggedIn(false)}
+                  className="border border-border text-foreground px-4 py-2 rounded-lg hover:bg-muted text-lg"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setIsLoggedIn(true)}
+                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 text-lg"
+              >
+                Login
+              </button>
+            )}
           </nav>
         </div>
       </header>
@@ -48,6 +69,7 @@ export default function Home() {
         <div className="flex justify-center mb-6">
           <div className="relative w-full max-w-lg">
             <input
+              id="search-input"
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

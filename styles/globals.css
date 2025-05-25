@@ -11,13 +11,13 @@
 
   button, a, input, select, textarea {
     -webkit-user-select: none; /* Safari */
+    -ms-user-select: none; /* Edge */
     user-select: none;
   }
 
   input, select, textarea {
     @apply text-base;
     font-size: 16px;
-    text-size-adjust: 100%; /* Chrome, Edge */
   }
 
   input[type="date"] {
@@ -25,7 +25,7 @@
   }
 
   header {
-    @apply sticky top-0 z-10;
+    @apply sticky top-0 z-10 px-4 py-4;
   }
 }
 

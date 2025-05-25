@@ -6,6 +6,7 @@ import Link from 'next/link';
 export default function Watchlist() {
   const [watchlist, setWatchlist] = useState([]);
   const [error, setError] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // Placeholder
 
   useEffect(() => {
     const fetchWatchlist = async () => {
@@ -37,12 +38,32 @@ export default function Watchlist() {
   return (
     <div className="min-h-screen bg-background text-foreground py-6 px-4">
       <header className="bg-background border-b border-border mb-6">
-        <div className="container mx-auto max-w-6xl py-4 flex items-center justify-between">
-          <h1 className="text-4xl font-bold">My Watchlist</h1>
-          <nav>
+        <div className="container mx-auto max-w-6xl py-4 flex justify-between items-center">
+          <Link href="/" className="text-2xl font-bold text-foreground">
+            Watchlist
+          </Link>
+          <nav className="flex items-center space-x-4">
             <Link href="/" className="text-primary hover:underline text-lg">
               Search
             </Link>
+            {isLoggedIn ? (
+              <>
+                <span className="text-foreground">Welcome, User</span>
+                <button
+                  onClick={() => setIsLoggedIn(false)}
+                  className="border border-border text-foreground px-4 py-2 rounded-lg hover:bg-muted text-lg"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setIsLoggedIn(true)}
+                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 text-lg"
+              >
+                Login
+              </button>
+            )}
           </nav>
         </div>
       </header>

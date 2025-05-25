@@ -1,21 +1,21 @@
 /* styles/variables.css */
 :root {
-  --background: 210 20% 10%; /* ~#212529 */
+  --background: 210 40% 6%; /* ~#0F172A */
   --foreground: 0 0% 95%; /* ~#F2F2F2 */
-  --card: 210 20% 15%; /* ~#2D3436 */
+  --card: 210 40% 12%; /* ~#1E2A44 */
   --card-foreground: 0 0% 90%; /* ~#E6E6E6 */
   --primary: 211 100% 50%; /* ~#007BFF */
   --primary-foreground: 0 0% 100%; /* #FFFFFF */
-  --secondary: 210 10% 50%; /* ~#6C757D */
+  --secondary: 210 20% 50%; /* ~#64748B */
   --secondary-foreground: 0 0% 100%; /* #FFFFFF */
-  --muted: 210 10% 30%; /* ~#495057 */
+  --muted: 210 20% 30%; /* ~#475569 */
   --muted-foreground: 0 0% 70%; /* ~#B3B3B3 */
   --accent: 142 70% 40%; /* ~#28A745 */
   --accent-foreground: 0 0% 100%; /* #FFFFFF */
   --destructive: 0 80% 50%; /* ~#DC3545 */
   --destructive-foreground: 0 0% 100%; /* #FFFFFF */
-  --border: 210 20% 20%; /* ~#343A40 */
-  --input: 210 20% 20%; /* ~#343A40 */
+  --border: 210 20% 20%; /* ~#334155 */
+  --input: 210 20% 20%; /* ~#334155 */
   --ring: 211 100% 50%; /* ~#007BFF */
   --radius: 0.5rem;
 }
