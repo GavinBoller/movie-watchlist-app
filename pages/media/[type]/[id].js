@@ -35,18 +35,22 @@ export default function MediaDetail() {
   const addToWatchlist = async () => {
     if (!media) return;
     try {
-      await axios.post('/api/watchlist', {
+      const payload = {
         id: media.id.toString(),
-        title: media.title || media.name,
-        overview: media.overview,
-        poster: media.poster_path,
-        release_date: media.release_date || media.first_air_date,
+        title: media.title || media.name || 'Untitled',
+        overview: media.overview || '',
+        poster: media.poster_path || null,
+        release_date: media.release_date || media.first_air_date || null,
         media_type: type,
-      });
-      alert(`${media.title || media.name} added to watchlist! Please refresh the watchlist page.`);
+      };
+      console.log('Adding to watchlist:', payload);
+      await axios.post('/api/watchlist', payload);
+      alert(`${media.title || media.name} added to watchlist!`);
+      // Navigate to watchlist to force refresh
+      router.push('/watchlist');
     } catch (error) {
-      console.error('Error adding to watchlist:', error.message);
-      alert('Failed to add to watchlist.');
+      console.error('Error adding to watchlist:', error.response?.data || error.message);
+      alert('Failed to add to watchlist: ' + (error.response?.data?.error || error.message));
     }
   };
 

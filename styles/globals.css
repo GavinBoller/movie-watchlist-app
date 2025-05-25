@@ -13,6 +13,7 @@
     -webkit-user-select: none; /* Safari */
     -ms-user-select: none; /* Edge */
     user-select: none;
+    @apply transition-all duration-200;
   }
 
   input, select, textarea {
@@ -21,15 +22,39 @@
   }
 
   input[type="text"] {
-    @apply rounded-lg shadow-md;
+    @apply rounded-lg shadow-md w-full;
   }
 
   header {
-    @apply sticky top-0 z-10 px-4 py-3; /* Tighter padding */
+    @apply sticky top-0 z-10 px-4 py-3;
   }
 
   .grid {
-    @apply gap-8; /* Larger gap */
+    @apply gap-8;
+  }
+
+  .shadow-lg {
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+  }
+
+  button {
+    @apply text-lg font-semibold;
+  }
+
+  /* Mobile adjustments */
+  @media (max-width: 640px) {
+    header {
+      @apply py-2;
+    }
+    .container {
+      @apply px-2;
+    }
+    button {
+      @apply text-base py-2 px-4;
+    }
+    .grid {
+      @apply gap-4;
+    }
   }
 }
 

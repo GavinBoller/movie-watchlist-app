@@ -11,7 +11,7 @@ export default function Watchlist() {
   const fetchWatchlist = async () => {
     try {
       console.log('Fetching watchlist');
-      const response = await axios.get('/api/watchlist', {
+      const response = await axios.get('/api/watchlist?t=' + new Date().getTime(), {
         headers: { 'Cache-Control': 'no-cache' }
       });
       console.log('Watchlist response:', response.data);
@@ -30,7 +30,7 @@ export default function Watchlist() {
   const removeFromWatchlist = async (id) => {
     try {
       await axios.delete('/api/watchlist', { data: { id } });
-      await fetchWatchlist(); // Refetch after delete
+      await fetchWatchlist();
       alert('Item removed from watchlist!');
     } catch (error) {
       console.error('Error removing from watchlist:', error.message);
