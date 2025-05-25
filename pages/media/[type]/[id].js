@@ -56,7 +56,7 @@ export default function MediaDetail() {
     <div className="min-h-screen bg-background text-foreground py-6 px-4">
       <header className="bg-background border-b border-border mb-6">
         <div className="container mx-auto max-w-4xl py-4 flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold text-foreground">
+          <Link href="/" className="text-2xl font-bold text-primary">
             Watchlist
           </Link>
           <nav className="flex items-center space-x-4">
@@ -103,7 +103,7 @@ export default function MediaDetail() {
               <p className="mb-4">{media.overview}</p>
               <button
                 onClick={addToWatchlist}
-                className="bg-accent text-accent-foreground py-3 px-6 rounded-lg hover:bg-accent/90 text-lg"
+                className="bg-primary text-primary-foreground py-3 px-6 rounded-lg hover:bg-primary/90 text-lg"
               >
                 Add to Watchlist
               </button>
