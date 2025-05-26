@@ -1,63 +1,59 @@
-/* pages/api/watchlist.js */
-import { Pool } from 'pg';
+import { promises as fs } from 'fs';
+import path from 'path';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+const filePath = path.join(process.cwd(), 'data', 'watchlist.json');
+
+async function readWatchlist() {
+  try {
+    const data = await fs.readFile(filePath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    return [];
+  }
+}
+
+async function writeWatchlist(data) {
+  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+}
 
 export default async function handler(req, res) {
-  try {
-    if (req.method === 'GET') {
-      console.log('Handling GET request');
-      const result = await pool.query('SELECT * FROM movies');
-      console.log('Fetch result:', result.rows);
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-      return res.status(200).json(result.rows);
-    } else if (req.method === 'POST') {
-      console.log('Handling POST request:', JSON.stringify(req.body, null, 2));
-      const { id, title, overview, poster, release_date, media_type } = req.body;
-
-      if (!id || !title || !media_type) {
-        console.error('Missing required fields:', { id, title, media_type });
-        return res.status(400).json({ error: 'Missing required fields: id, title, media_type' });
-      }
-
-      const validMediaTypes = ['movie', 'tv'];
-      if (!validMediaTypes.includes(media_type)) {
-        console.error('Invalid media_type:', media_type);
-        return res.status(400).json({ error: 'Invalid media_type' });
-      }
-
-      const query = 'INSERT INTO movies (id, title, overview, poster, release_date, media_type) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING RETURNING *';
-      const values = [id, title, overview || null, poster || null, release_date || null, media_type];
-
-      console.log('Executing query:', query);
-      console.log('Query values:', values);
-      const result = await pool.query(query, values);
-      console.log('Insert result:', result.rows);
-      return res.status(200).json(result.rows);
-    } else if (req.method === 'DELETE') {
-      console.log('Handling DELETE request:', JSON.stringify(req.body, null, 2));
-      const { id } = req.body;
-      if (!id) {
-        console.error('Missing id');
-        return res.status(400).json({ error: 'Missing id' });
-      }
-
-      const query = 'DELETE FROM movies WHERE id = $1';
-      const values = [id];
-
-      console.log('Executing query:', query);
-      console.log('Query values:', values);
-      const result = await pool.query(query, values);
-      console.log('Delete result:', result.rowCount);
-      return res.status(200).json({ deleted: result.rowCount });
-    } else {
-      return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method === 'GET') {
+    const watchlist = await readWatchlist();
+    res.status(200).json(watchlist);
+  } else if (req.method === 'POST') {
+    const newItem = req.body;
+    const watchlist = await readWatchlist();
+    const exists = watchlist.some((item) => item.id === newItem.id);
+    if (exists) {
+      res.status(400).json({ error: 'Item already in watchlist' });
+      return;
     }
-  } catch (error) {
-    console.error('Database error:', error.message, error.stack);
-    return res.status(500).json({ error: 'Internal server error', details: error.message });
+    watchlist.push({ ...newItem, added_at: new Date().toISOString() });
+    await writeWatchlist(watchlist);
+    res.status(200).json({ message: 'Item added to watchlist' });
+  } else if (req.method === 'PUT') {
+    const updatedItem = req.body;
+    const watchlist = await readWatchlist();
+    const index = watchlist.findIndex((item) => item.id === updatedItem.id);
+    if (index === -1) {
+      res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+    watchlist[index] = updatedItem;
+    await writeWatchlist(watchlist);
+    res.status(200).json({ message: 'Item updated' });
+  } else if (req.method === 'DELETE') {
+    const { id } = req.body;
+    const watchlist = await readWatchlist();
+    const updatedWatchlist = watchlist.filter((item) => item.id !== id);
+    if (updatedWatchlist.length === watchlist.length) {
+      res.status(404).json({ error: 'Item not found' });
+      return;
+    }
+    await writeWatchlist(updatedWatchlist);
+    res.status(200).json({ message: 'Item deleted' });
+  } else {
+    res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }

@@ -1,126 +1,232 @@
-/* pages/index.js */
 import { useState } from 'react';
-import axios from 'axios';
-import Link from 'next/link';
+import MovieCard from '../components/MovieCard';
+import DetailsModal from '../components/DetailsModal';
+import { Menu, Film, Tv2 } from 'lucide-react';
+import { useToast } from '../components/ToastContext';
 
 export default function Home() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [error, setError] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // Placeholder
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [mediaFilter, setMediaFilter] = useState('all');
+  const [selectedItem, setSelectedItem] = useState(null);
+  const { addToast } = useToast();
 
-  const searchMedia = async (query) => {
-    console.log('Search button clicked with query:', query);
-    console.log('NEXT_PUBLIC_TMDB_API_KEY:', process.env.NEXT_PUBLIC_TMDB_API_KEY);
-    if (!query.trim()) {
-      console.log('Empty query');
-      setError('Please enter a search term.');
-      return;
-    }
+  const mediaTypeFilters = [
+    { value: 'all', label: 'All', icon: Menu },
+    { value: 'movie', label: 'Movies', icon: Film },
+    { value: 'tv', label: 'TV Shows', icon: Tv2 },
+  ];
+
+  const handleSearch = async (searchQuery = query) => {
+    if (!searchQuery.trim()) return;
+    setLoading(true);
+    setErrorMsg('');
+    setResults([]);
     try {
-      console.log('Searching TMDB with query:', query);
-      const response = await axios.get(
-        `https://api.themoviedb.org/3/search/multi?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(query)}`
+      const res = await fetch(
+        `https://api.themoviedb.org/3/search/multi?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(searchQuery)}`
       );
-      console.log('TMDB response:', response.data);
-      const results = response.data.results.filter(item => item.media_type === 'movie' || item.media_type === 'tv');
-      setSearchResults(results);
-      setError(null);
+      if (!res.ok) throw new Error('Failed to fetch results');
+      const data = await res.json();
+      setResults(data.results || []);
     } catch (error) {
-      console.error('TMDB error:', error.response ? error.response.data : error.message);
-      setError('Failed to search media. Please try again later.');
+      setErrorMsg('Error fetching search results.');
+      setResults([]);
+      addToast({
+        id: Date.now(),
+        title: 'Error',
+        description: 'Failed to fetch search results.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleAddToWatchlist = async (result) => {
+    const media = {
+      id: String(result.id),
+      title: result.title || result.name,
+      overview: result.overview,
+      poster: result.poster_path,
+      release_date: result.release_date || result.first_air_date,
+      media_type: result.media_type,
+    };
+
+    try {
+      const res = await fetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(media),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to add to watchlist');
+      addToast({
+        id: Date.now(),
+        title: 'Success!',
+        description: `${media.title} added to watchlist`,
+      });
+    } catch (error) {
+      addToast({
+        id: Date.now(),
+        title: 'Error',
+        description: 'Failed to add to watchlist: ' + error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') handleSearch();
+  };
+
+  const filteredResults = results.filter((result) => {
+    if (mediaFilter === 'all') return true;
+    return result.media_type === mediaFilter;
+  });
+
+  const handleSuggestionClick = (term) => {
+    setQuery(term);
+    handleSearch(term);
+  };
+
+  const handleInfoClick = (item) => {
+    setSelectedItem(item);
+  };
+
   return (
-    <div className="min-h-screen bg-background text-foreground py-6 px-4">
-      <header className="bg-background border-b border-border mb-6">
-        <div className="container mx-auto max-w-6xl py-4 flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold text-primary">
-            Watchlist
-          </Link>
-          <nav className="flex items-center space-x-4">
-            <Link href="/watchlist" className="text-primary hover:underline text-lg">
-              Watchlist
-            </Link>
-            {isLoggedIn ? (
-              <>
-                <span className="text-foreground">Welcome, User</span>
-                <button
-                  onClick={() => setIsLoggedIn(false)}
-                  className="border border-border text-foreground px-4 py-2 rounded-lg hover:bg-muted text-lg"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => setIsLoggedIn(true)}
-                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 text-lg"
-              >
-                Login
-              </button>
-            )}
-          </nav>
-        </div>
-      </header>
-      <main className="container mx-auto max-w-6xl">
-        {error && <p className="text-destructive text-center mb-6">{error}</p>}
-        <div className="flex justify-center mb-6">
-          <div className="relative w-full max-w-lg">
-            <input
-              id="search-input"
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search movies or TV shows..."
-              className="w-full p-3 pl-10 bg-gray-800 text-foreground rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary text-lg"
-            />
-            <svg
-              className="absolute left-3 top-3.5 h-6 w-6 text-muted-foreground"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
+    <div className="container mx-auto p-4">
+      {/* Search Bar */}
+      <div className="mb-4 flex gap-2">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Search for movies or TV shows..."
+          className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500"
+          aria-label="Search for movies or TV shows"
+        />
+        <button
+          onClick={() => handleSearch()}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition-colors"
+          disabled={loading}
+        >
+          {loading ? 'Searching...' : 'Search'}
+        </button>
+      </div>
+
+      {/* Media Type Filters */}
+      <div className="mb-4">
+        {/* Desktop: Horizontal Buttons (Centered) */}
+        <div className="hidden sm:flex gap-2 justify-center">
+          {mediaTypeFilters.map((filter) => (
             <button
-              onClick={() => searchMedia(searchQuery)}
-              className="ml-3 p-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-lg"
+              key={filter.value}
+              onClick={() => setMediaFilter(filter.value)}
+              className={`flex items-center px-4 py-2 rounded ${
+                mediaFilter === filter.value
+                  ? 'bg-gray-700 text-[#E50914]'
+                  : 'bg-gray-800 text-white hover:bg-gray-700 hover:text-[#E50914] transition-colors'
+              }`}
             >
-              Search
+              <filter.icon className="h-4 w-4 mr-2" />
+              {filter.label}
             </button>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {searchResults.map((item) => (
-            <div key={`${item.media_type}-${item.id}`} className="bg-card text-card-foreground p-6 rounded-lg shadow-lg">
-              {item.poster_path && (
-                <img
-                  src={`https://image.tmdb.org/t/p/w500${item.poster_path}`}
-                  alt={item.title || item.name}
-                  className="w-full h-auto rounded-lg mb-4"
-                />
-              )}
-              <h2 className="text-xl font-semibold text-center mb-2">{item.title || item.name}</h2>
-              <p className="text-sm text-muted-foreground text-center mb-4">
-                {item.media_type === 'movie' ? 'Movie' : 'TV Show'}
-              </p>
-              <Link
-                href={`/media/${item.media_type}/${item.id}`}
-                className="block text-center bg-primary text-primary-foreground py-3 rounded-lg hover:bg-primary/90 text-lg"
-              >
-                More Info
-              </Link>
-            </div>
           ))}
         </div>
-      </main>
+        {/* Mobile: Dropdown (Centered) */}
+        <div className="sm:hidden flex justify-center">
+          <select
+            value={mediaFilter}
+            onChange={(e) => setMediaFilter(e.target.value)}
+            className="w-full max-w-xs p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500"
+          >
+            {mediaTypeFilters.map((filter) => (
+              <option key={filter.value} value={filter.value}>
+                {filter.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Dynamic Content Area */}
+      {query && (
+        <h2
+          className={`text-lg sm:text-xl font-bold mb-4 ${
+            query ? '' : 'hidden'
+          }`}
+        >
+          {query && `${filteredResults.length} Results for "${query}"`}
+        </h2>
+      )}
+
+      {errorMsg && (
+        <div className="mb-4 text-red-400">{errorMsg}</div>
+      )}
+
+      {!loading && !query && (
+        <div className="text-center py-8">
+          <div className="max-w-md mx-auto bg-[#292929] rounded-lg p-4">
+            <Film className="h-8 w-8 mx-auto mb-3 text-[#E50914]" />
+            <p className="text-gray-300 mb-4">
+              Enter a movie or TV show title in the search box to begin exploring
+            </p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <button
+                onClick={() => handleSuggestionClick("Marvel")}
+                className="bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors"
+              >
+                Try "Marvel"
+              </button>
+              <button
+                onClick={() => handleSuggestionClick("Star Wars")}
+                className="bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors"
+              >
+                Try "Star Wars"
+              </button>
+              <button
+                onClick={() => handleSuggestionClick("Breaking Bad")}
+                className="bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors"
+              >
+                Try "Breaking Bad"
+              </button>
+              <button
+                onClick={() => handleSuggestionClick("Stranger Things")}
+                className="bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors"
+              >
+                Try "Stranger Things"
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {filteredResults.map((result) => (
+          <MovieCard
+            key={result.id}
+            result={result}
+            onAddToWatchlist={handleAddToWatchlist}
+            onInfoClick={handleInfoClick}
+          />
+        ))}
+      </div>
+
+      {!loading && results.length === 0 && query && !errorMsg && (
+        <div className="mt-8 text-center text-gray-400">No results found.</div>
+      )}
+
+      {selectedItem && (
+        <DetailsModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onAddToWatchlist={handleAddToWatchlist}
+        />
+      )}
     </div>
   );
 }
