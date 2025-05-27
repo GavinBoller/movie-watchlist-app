@@ -1,10 +1,7 @@
-import Link from 'next/link';
-import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { useToast } from './ToastContext';
 
 export default function MovieCard({ result, onAddToWatchlist, onInfoClick }) {
-  const router = useRouter();
   const { id, title, name, release_date, first_air_date, poster_path, media_type } = result;
   const displayTitle = title || name;
   const displayDate = release_date || first_air_date;

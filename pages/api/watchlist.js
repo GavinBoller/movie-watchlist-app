@@ -1,59 +1,80 @@
-import { promises as fs } from 'fs';
-import path from 'path';
-
-const filePath = path.join(process.cwd(), 'data', 'watchlist.json');
-
-async function readWatchlist() {
-  try {
-    const data = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    return [];
-  }
-}
-
-async function writeWatchlist(data) {
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
-}
+import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req, res) {
-  if (req.method === 'GET') {
-    const watchlist = await readWatchlist();
-    res.status(200).json(watchlist);
-  } else if (req.method === 'POST') {
-    const newItem = req.body;
-    const watchlist = await readWatchlist();
-    const exists = watchlist.some((item) => item.id === newItem.id);
-    if (exists) {
-      res.status(400).json({ error: 'Item already in watchlist' });
-      return;
+  const sql = neon(process.env.DATABASE_URL);
+  const userId = 1; // Temporary; replace with auth logic
+
+  try {
+    if (req.method === 'GET') {
+      const watchlist = await sql`
+        SELECT id, movie_id, title, overview, poster, release_date, media_type, 
+               status, platform, notes, watched_date, added_at, imdb_id
+        FROM watchlist
+        WHERE user_id = ${userId}
+        ORDER BY added_at DESC
+      `;
+      const enhancedItems = await Promise.all(
+        watchlist.map(async (item) => {
+          try {
+            const tmdbRes = await fetch(
+              `https://api.themoviedb.org/3/${item.media_type}/${item.movie_id}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`
+            );
+            const tmdbData = await tmdbRes.json();
+            const externalRes = await fetch(
+              `https://api.themoviedb.org/3/${item.media_type}/${item.movie_id}/external_ids?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`
+            );
+            const externalData = await externalRes.json();
+            return {
+              ...item,
+              title: tmdbData.title || tmdbData.name || item.title,
+              overview: tmdbData.overview || item.overview,
+              poster: tmdbData.poster_path || item.poster,
+              release_date: tmdbData.release_date || tmdbData.first_air_date || item.release_date,
+              imdb_id: externalData.imdb_id || item.imdb_id,
+            };
+          } catch (error) {
+            console.error(`Error enhancing item ${item.movie_id}:`, error);
+            return item;
+          }
+        })
+      );
+      res.status(200).json(enhancedItems);
+    } else if (req.method === 'POST') {
+      const {
+        id,
+        title,
+        overview,
+        poster,
+        release_date,
+        media_type,
+        status,
+        platform,
+        notes,
+        watched_date,
+        imdb_id,
+      } = req.body;
+      if (!id || !title) {
+        return res.status(400).json({ error: 'id and title are required' });
+      }
+      const [newItem] = await sql`
+        INSERT INTO watchlist (
+          movie_id, user_id, title, overview, poster, release_date, media_type,
+          status, platform, notes, watched_date, imdb_id
+        )
+        VALUES (
+          ${String(id)}, ${userId}, ${title}, ${overview || null}, ${poster || null},
+          ${release_date || null}, ${media_type || 'movie'}, ${status || 'to_watch'},
+          ${platform || null}, ${notes || null}, ${watched_date || null}, ${imdb_id || null}
+        )
+        RETURNING *
+      `;
+      res.status(201).json(newItem);
+    } else {
+      res.setHeader('Allow', ['GET', 'POST']);
+      res.status(405).json({ error: `Method ${req.method} Not Allowed` });
     }
-    watchlist.push({ ...newItem, added_at: new Date().toISOString() });
-    await writeWatchlist(watchlist);
-    res.status(200).json({ message: 'Item added to watchlist' });
-  } else if (req.method === 'PUT') {
-    const updatedItem = req.body;
-    const watchlist = await readWatchlist();
-    const index = watchlist.findIndex((item) => item.id === updatedItem.id);
-    if (index === -1) {
-      res.status(404).json({ error: 'Item not found' });
-      return;
-    }
-    watchlist[index] = updatedItem;
-    await writeWatchlist(watchlist);
-    res.status(200).json({ message: 'Item updated' });
-  } else if (req.method === 'DELETE') {
-    const { id } = req.body;
-    const watchlist = await readWatchlist();
-    const updatedWatchlist = watchlist.filter((item) => item.id !== id);
-    if (updatedWatchlist.length === watchlist.length) {
-      res.status(404).json({ error: 'Item not found' });
-      return;
-    }
-    await writeWatchlist(updatedWatchlist);
-    res.status(200).json({ message: 'Item deleted' });
-  } else {
-    res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+  } catch (error) {
+    console.error('API error:', error);
+    res.status(500).json({ error: 'Internal Server Error', details: error.message });
   }
 }

@@ -1,24 +1,12 @@
-import Header from '../components/Header';
 import { ToastProvider } from '../components/ToastContext';
 import '../styles/globals.css';
 
-function Layout({ children }) {
-  return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <Header />
-      {children}
-    </div>
-  );
-}
-
-function MyApp({ Component, pageProps }) {
+export default function MyApp({ Component, pageProps }) {
   return (
     <ToastProvider>
-      <Layout>
+      <div className="min-h-screen bg-gray-900 text-white">
         <Component {...pageProps} />
-      </Layout>
+      </div>
     </ToastProvider>
   );
 }
-
-export default MyApp;
