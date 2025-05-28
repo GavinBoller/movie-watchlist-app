@@ -1,6 +1,10 @@
 import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req, res) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   const sql = neon(process.env.DATABASE_URL);
 
   try {
@@ -13,7 +17,7 @@ export default async function handler(req, res) {
         SELECT id, name, logo_url, is_default
         FROM platforms
         WHERE user_id = ${userId}
-        ORDER BY name
+        ORDER BY name ASC
       `;
       res.status(200).json(platforms);
     } else if (req.method === 'POST') {
@@ -29,6 +33,17 @@ export default async function handler(req, res) {
       `;
       if (existing.length > 0) {
         return res.status(400).json({ error: 'Platform already exists' });
+      }
+
+      // Check for existing default platform
+      if (isDefault) {
+        const defaultExists = await sql`
+          SELECT id FROM platforms
+          WHERE user_id = ${userId} AND is_default = true
+        `;
+        if (defaultExists.length > 0) {
+          return res.status(400).json({ error: 'A default platform already exists' });
+        }
       }
 
       // If setting as default, unset others
@@ -59,6 +74,17 @@ export default async function handler(req, res) {
       `;
       if (existing.length > 0) {
         return res.status(400).json({ error: 'Platform already exists' });
+      }
+
+      // Check for existing default platform (if setting as default)
+      if (isDefault) {
+        const defaultExists = await sql`
+          SELECT id FROM platforms
+          WHERE user_id = ${userId} AND is_default = true AND id != ${id}
+        `;
+        if (defaultExists.length > 0) {
+          return res.status(400).json({ error: 'A default platform already exists' });
+        }
       }
 
       // If setting as default, unset others

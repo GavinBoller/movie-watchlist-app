@@ -1,80 +1,157 @@
-import { neon } from '@neondatabase/serverless';
+import { Pool } from 'pg';
+
+const cache = new Map();
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
 export default async function handler(req, res) {
-  const sql = neon(process.env.DATABASE_URL);
-  const userId = 1; // Temporary; replace with auth logic
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
 
-  try {
-    if (req.method === 'GET') {
-      const watchlist = await sql`
-        SELECT id, movie_id, title, overview, poster, release_date, media_type, 
-               status, platform, notes, watched_date, added_at, imdb_id
-        FROM watchlist
-        WHERE user_id = ${userId}
-        ORDER BY added_at DESC
-      `;
-      const enhancedItems = await Promise.all(
-        watchlist.map(async (item) => {
-          try {
-            const tmdbRes = await fetch(
-              `https://api.themoviedb.org/3/${item.media_type}/${item.movie_id}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`
-            );
-            const tmdbData = await tmdbRes.json();
-            const externalRes = await fetch(
-              `https://api.themoviedb.org/3/${item.media_type}/${item.movie_id}/external_ids?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`
-            );
-            const externalData = await externalRes.json();
-            return {
-              ...item,
-              title: tmdbData.title || tmdbData.name || item.title,
-              overview: tmdbData.overview || item.overview,
-              poster: tmdbData.poster_path || item.poster,
-              release_date: tmdbData.release_date || tmdbData.first_air_date || item.release_date,
-              imdb_id: externalData.imdb_id || item.imdb_id,
-            };
-          } catch (error) {
-            console.error(`Error enhancing item ${item.movie_id}:`, error);
-            return item;
-          }
-        })
-      );
-      res.status(200).json(enhancedItems);
-    } else if (req.method === 'POST') {
-      const {
-        id,
-        title,
-        overview,
-        poster,
-        release_date,
-        media_type,
-        status,
-        platform,
-        notes,
-        watched_date,
-        imdb_id,
-      } = req.body;
-      if (!id || !title) {
-        return res.status(400).json({ error: 'id and title are required' });
+  const { method } = req;
+  const userId = 1;
+  const cacheKey = `watchlist:${userId}`;
+  const startTime = Date.now();
+
+  switch (method) {
+    case 'GET':
+      try {
+        console.log('Fetching watchlist from database...');
+        const result = await pool.query(
+          'SELECT * FROM watchlist WHERE user_id = $1',
+          [userId]
+        );
+        console.log(`Database query returned ${result.rows.length} items in ${Date.now() - startTime}ms`);
+        res.status(200).json(result.rows);
+      } catch (error) {
+        console.error('Error fetching watchlist:', error);
+        res.status(500).json({ error: 'Failed to fetch watchlist', details: error.message });
       }
-      const [newItem] = await sql`
-        INSERT INTO watchlist (
-          movie_id, user_id, title, overview, poster, release_date, media_type,
-          status, platform, notes, watched_date, imdb_id
-        )
-        VALUES (
-          ${String(id)}, ${userId}, ${title}, ${overview || null}, ${poster || null},
-          ${release_date || null}, ${media_type || 'movie'}, ${status || 'to_watch'},
-          ${platform || null}, ${notes || null}, ${watched_date || null}, ${imdb_id || null}
-        )
-        RETURNING *
-      `;
-      res.status(201).json(newItem);
-    } else {
-      res.setHeader('Allow', ['GET', 'POST']);
-      res.status(405).json({ error: `Method ${req.method} Not Allowed` });
-    }
-  } catch (error) {
-    console.error('API error:', error);
-    res.status(500).json({ error: 'Internal Server Error', details: error.message });
+      break;
+
+    case 'POST':
+      try {
+        const { id, title, overview, poster, release_date, media_type, status, platform, notes, imdb_id, vote_average } = req.body;
+        const movieId = id;
+
+        console.log(`Adding item ${movieId} to watchlist`);
+        const existing = await pool.query(
+          'SELECT id FROM watchlist WHERE user_id = $1 AND movie_id = $2',
+          [userId, movieId]
+        );
+        if (existing.rows.length > 0) {
+          return res.status(400).json({ error: 'Item already in watchlist' });
+        }
+
+        const result = await pool.query(
+          `INSERT INTO watchlist (
+            user_id, movie_id, title, overview, poster, release_date, media_type, status, platform, notes, imdb_id, vote_average
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          RETURNING *`,
+          [
+            userId,
+            movieId,
+            title,
+            overview,
+            poster,
+            release_date,
+            media_type,
+            status || 'to_watch',
+            platform || null,
+            notes || null,
+            imdb_id || null,
+            vote_average || null,
+          ]
+        );
+
+        cache.delete(cacheKey);
+        res.status(201).json(result.rows[0]);
+      } catch (error) {
+        console.error('Error adding to watchlist:', error);
+        res.status(500).json({ error: 'Failed to add to watchlist', details: error.message });
+      }
+      break;
+
+    case 'PUT':
+      try {
+        const {
+          id,
+          user_id,
+          movie_id,
+          title,
+          overview,
+          poster,
+          release_date,
+          media_type,
+          status,
+          platform,
+          notes,
+          watched_date,
+          imdb_id,
+          vote_average,
+        } = req.body;
+
+        const result = await pool.query(
+          `UPDATE watchlist
+           SET title = $1, overview = $2, poster = $3, release_date = $4, media_type = $5, status = $6,
+               platform = $7, notes = $8, watched_date = $9, imdb_id = $10, vote_average = $11
+           WHERE id = $12 AND user_id = $13
+           RETURNING *`,
+          [
+            title,
+            overview,
+            poster,
+            release_date,
+            media_type,
+            status,
+            platform || null,
+            notes || null,
+            watched_date || null,
+            imdb_id || null,
+            vote_average || null,
+            id,
+            user_id,
+          ]
+        );
+
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'Item not found' });
+        }
+
+        cache.delete(cacheKey);
+        res.status(200).json(result.rows[0]);
+      } catch (error) {
+        console.error('Error updating watchlist:', error);
+        res.status(500).json({ error: 'Failed to update watchlist', details: error.message });
+      }
+      break;
+
+    case 'DELETE':
+      try {
+        const { id } = req.body;
+        const result = await pool.query(
+          'DELETE FROM watchlist WHERE id = $1 AND user_id = $2 RETURNING *',
+          [id, userId]
+        );
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'Item not found' });
+        }
+
+        cache.delete(cacheKey);
+        res.status(200).json({ message: 'Item deleted' });
+      } catch (error) {
+        console.error('Error deleting from watchlist:', error);
+        res.status(500).json({ error: 'Failed to delete from watchlist', details: error.message });
+      }
+      break;
+
+    default:
+      res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
+      res.status(405).json({ error: `Method ${method} not allowed` });
   }
 }

@@ -13,6 +13,7 @@ export default function PlatformManagementModal({ isOpen, onClose, userId }) {
   const [editingId, setEditingId] = useState(null);
   const [editPlatform, setEditPlatform] = useState({ name: '', logoUrl: '', isDefault: false });
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -22,11 +23,13 @@ export default function PlatformManagementModal({ isOpen, onClose, userId }) {
   }, [isOpen, userId]);
 
   const fetchPlatforms = async () => {
+    setIsLoading(true);
     try {
       const res = await fetch(`/api/platforms?userId=${userId}`);
       if (!res.ok) throw new Error('Failed to fetch platforms');
       const data = await res.json();
-      setPlatforms(data);
+      setPlatforms(data.sort((a, b) => a.name.localeCompare(b.name)));
+      setError('');
     } catch (err) {
       setError('Failed to load platforms');
       addToast({
@@ -35,6 +38,8 @@ export default function PlatformManagementModal({ isOpen, onClose, userId }) {
         description: 'Failed to load platforms',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -54,7 +59,7 @@ export default function PlatformManagementModal({ isOpen, onClose, userId }) {
         throw new Error(errorData.error || 'Failed to add platform');
       }
       const platform = await res.json();
-      setPlatforms([...platforms, platform]);
+      setPlatforms([...platforms, platform].sort((a, b) => a.name.localeCompare(b.name)));
       setNewPlatform({ name: '', logoUrl: '', isDefault: false });
       setError('');
       addToast({
@@ -89,7 +94,11 @@ export default function PlatformManagementModal({ isOpen, onClose, userId }) {
         throw new Error(errorData.error || 'Failed to update platform');
       }
       const updatedPlatform = await res.json();
-      setPlatforms(platforms.map((p) => (p.id === editingId ? updatedPlatform : p)));
+      setPlatforms(
+        platforms
+          .map((p) => (p.id === editingId ? updatedPlatform : p))
+          .sort((a, b) => a.name.localeCompare(b.name))
+      );
       setEditingId(null);
       setEditPlatform({ name: '', logoUrl: '', isDefault: false });
       setError('');
@@ -135,6 +144,16 @@ export default function PlatformManagementModal({ isOpen, onClose, userId }) {
   };
 
   if (!isOpen) return null;
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-[#1a1a1a] rounded-lg p-6 max-w-lg w-full">
+          <p className="text-gray-400">Loading platforms...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
