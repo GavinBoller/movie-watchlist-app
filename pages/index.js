@@ -200,11 +200,13 @@ export default function SearchPage() {
     }
     setIsLoading(true);
     try {
+      // TMDB API supports partial matching (e.g., "Mad" should match "Mad Max")
       const res = await fetch(
         `https://api.themoviedb.org/3/search/multi?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(query)}`
       );
       if (!res.ok) throw new Error('Failed to fetch search results');
       const data = await res.json();
+      console.log(`Raw TMDB response for "${query}":`, JSON.stringify(data.results, null, 2));
       console.log(`Search query "${query}" returned ${data.results.length} results`);
       const enhancedResults = await Promise.all(
         data.results.map(async (item) => {
