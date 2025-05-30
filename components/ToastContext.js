@@ -1,12 +1,18 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import useSWR from 'swr';
 
 const ToastContext = createContext();
+const WatchlistContext = createContext();
+
+const fetcher = (url) => fetch(url).then((res) => {
+  if (!res.ok) throw new Error('Failed to fetch watchlist');
+  return res.json();
+});
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
   const addToast = (toast) => {
-    // Limit to 1 toast at a time
     setToasts((prev) => [toast]);
   };
 
@@ -22,10 +28,46 @@ export function ToastProvider({ children }) {
   );
 }
 
+export function WatchlistProvider({ children }) {
+  const [watchlist, setWatchlist] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { data, error, mutate } = useSWR('/api/watchlist', fetcher, {
+    dedupingInterval: 60000,
+    revalidateOnFocus: false,
+  });
+
+  useEffect(() => {
+    if (error) {
+      console.error('Error fetching watchlist:', error);
+      setIsLoading(false);
+    } else if (data) {
+      setWatchlist(data.map(item => ({
+        ...item,
+        vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
+      })));
+      setIsLoading(false);
+    }
+  }, [data, error]);
+
+  return (
+    <WatchlistContext.Provider value={{ watchlist, isLoading, mutate }}>
+      {children}
+    </WatchlistContext.Provider>
+  );
+}
+
 export function useToast() {
   const context = useContext(ToastContext);
   if (!context) {
     throw new Error('useToast must be used within a ToastProvider');
+  }
+  return context;
+}
+
+export function useWatchlist() {
+  const context = useContext(WatchlistContext);
+  if (!context) {
+    throw new Error('useWatchlist must be used within a WatchlistProvider');
   }
   return context;
 }
@@ -50,7 +92,7 @@ function Toast({ toast, onDismiss }) {
   useEffect(() => {
     const timer = setTimeout(() => {
       setIsVisible(false);
-    }, 5000); // Auto-dismiss after 5 seconds
+    }, 5000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -58,7 +100,7 @@ function Toast({ toast, onDismiss }) {
     if (!isVisible) {
       const timer = setTimeout(() => {
         onDismiss();
-      }, 300); // Wait for animation to finish
+      }, 300);
       return () => clearTimeout(timer);
     }
   }, [isVisible, onDismiss]);

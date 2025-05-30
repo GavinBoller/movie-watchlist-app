@@ -7,7 +7,7 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
-import { CalendarIcon, Clapperboard, Tv2, X } from 'lucide-react';
+import { CalendarIcon, Clapperboard, Tv2, X, PlayCircle, CheckCircle, Clock, Star } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
 
 export default function AddToWatchlistModal({ item, onSave, onClose }) {
@@ -23,11 +23,12 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
 
   const userId = 1;
   const mediaTypeLabel = item?.media_type === 'tv' ? 'Show' : 'Movie';
-  const displayInfo = item?.release_date
-    ? `${item.release_date.split('-')[0]} • ${item.genres || 'N/A'}`
+  const displayInfo = item?.release_date || item?.first_air_date
+    ? `${(item.release_date || item.first_air_date).split('-')[0]} • ${item.genres || 'N/A'}`
     : 'N/A';
 
   useEffect(() => {
+    console.log('AddToWatchlistModal item:', item);
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -93,13 +94,17 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
     }
     setIsLoading(true);
     try {
-      await onSave({
+      const payload = {
         ...item,
         status,
         platform: platforms.find((p) => p.id.toString() === selectedPlatformId)?.name || null,
         watched_date: status === 'watched' ? watchedDate : null,
         notes: notes || null,
-      });
+        number_of_seasons: item.media_type === 'tv' ? item.number_of_seasons || null : null,
+        number_of_episodes: item.media_type === 'tv' ? item.number_of_episodes || null : null,
+      };
+      console.log('Saving to watchlist:', payload);
+      await onSave(payload);
       onClose();
     } catch (error) {
       console.error('Error saving to watchlist:', error);
@@ -115,12 +120,13 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
   };
 
   if (!item) {
-    return null; // Prevent rendering if item is undefined
+    console.error('AddToWatchlistModal: item is undefined');
+    return null;
   }
 
-  const posterUrl = item.poster_path
-    ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${item.poster_path}`
-    : 'https://placehold.co/154x231?text=No+Image';
+  const posterUrl = item.poster_path || item.poster
+    ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${item.poster_path || item.poster}`
+    : 'https://via.placeholder.com/154x231?text=No+Image';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -198,7 +204,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
               >
                 <Clock className="h-4 w-4 text-blue-400" />
                 <div>
-                  <div className="font-medium text-white">Enqueued</div>
+                  <div className="font-medium text-white">To Watch</div>
                   <div className="text-xs text-gray-400">Save for later</div>
                 </div>
               </Label>
@@ -224,8 +230,8 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
               >
                 <CheckCircle className="h-4 w-4 text-[#E50914]" />
                 <div>
-                  <div className="font-medium text-white">Completed</div>
-                  <div className="text-xs text-gray-400">Already watched</div>
+                  <div className="font-medium text-white">Watched</div>
+                  <div className="text-xs text-gray-400">Already Watched</div>
                 </div>
               </Label>
             </div>

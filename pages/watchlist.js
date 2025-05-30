@@ -5,18 +5,21 @@ import Header from '../components/Header';
 import DetailsModal from '../components/DetailsModal';
 import AddToWatchlistModal from '../components/AddToWatchlistModal';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
-import { Menu, Film, Tv2, Clock, PlayCircle, CheckCircle, Trash2, ExternalLink, Edit, Star } from 'lucide-react';
-import { useToast } from '../components/ToastContext';
+import { Menu, Film, Tv2, Clock, PlayCircle, CheckCircle, Trash2, ExternalLink, Edit, Star, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useToast, useWatchlist } from '../components/ToastContext';
 
 export default function Watchlist() {
-  const [watchlist, setWatchlist] = useState([]);
   const [mediaFilter, setMediaFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [editItem, setEditItem] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const itemsPerPage = 50;
   const { addToast } = useToast();
+  const { watchlist, isLoading, mutate } = useWatchlist();
 
   const mediaTypeFilters = [
     { value: 'all', label: 'All', icon: Menu },
@@ -31,32 +34,6 @@ export default function Watchlist() {
     { value: 'watched', label: 'Watched', icon: CheckCircle },
   ];
 
-  useEffect(() => {
-    async function fetchWatchlist() {
-      setIsLoading(true);
-      try {
-        const res = await fetch('/api/watchlist');
-        if (!res.ok) throw new Error('Failed to fetch watchlist');
-        const data = await res.json();
-        setWatchlist(data.map(item => ({
-          ...item,
-          vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
-        })));
-      } catch (error) {
-        console.error('Error fetching watchlist:', error);
-        addToast({
-          id: Date.now(),
-          title: 'Error',
-          description: 'Failed to fetch watchlist',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    fetchWatchlist();
-  }, []);
-
   const handleDelete = async (id) => {
     try {
       const res = await fetch('/api/watchlist', {
@@ -68,7 +45,7 @@ export default function Watchlist() {
         const errorData = await res.json();
         throw new Error(errorData.error || 'Failed to delete item');
       }
-      setWatchlist(watchlist.filter((item) => item.id !== id));
+      mutate();
       addToast({
         id: Date.now(),
         title: 'Success',
@@ -86,7 +63,10 @@ export default function Watchlist() {
   };
 
   const handleEdit = (item) => {
-    setEditItem(item);
+    setEditItem({
+      ...item,
+      poster_path: item.poster, // Normalize for AddToWatchlistModal
+    });
   };
 
   const handleShowDetails = (item) => {
@@ -104,7 +84,7 @@ export default function Watchlist() {
           movie_id: updatedItem.movie_id,
           title: updatedItem.title,
           overview: updatedItem.overview,
-          poster: updatedItem.poster,
+          poster: updatedItem.poster_path || updatedItem.poster,
           release_date: updatedItem.release_date,
           media_type: updatedItem.media_type,
           status: updatedItem.status,
@@ -113,14 +93,15 @@ export default function Watchlist() {
           watched_date: updatedItem.watched_date,
           imdb_id: updatedItem.imdb_id,
           vote_average: updatedItem.vote_average,
+          number_of_seasons: updatedItem.number_of_seasons,
+          number_of_episodes: updatedItem.number_of_episodes,
         }),
       });
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || 'Failed to update item');
       }
-      const updated = await res.json();
-      setWatchlist(watchlist.map((item) => (item.id === updated.id ? updated : item)));
+      mutate();
       setEditItem(null);
       addToast({
         id: Date.now(),
@@ -145,6 +126,7 @@ export default function Watchlist() {
     return `${hours}h ${mins}m`;
   };
 
+  // Count items in entire watchlist, not paginated subset
   const getFilterCount = (mediaValue, statusValue) => {
     return watchlist.filter(
       (item) =>
@@ -156,8 +138,22 @@ export default function Watchlist() {
   const filteredWatchlist = watchlist.filter(
     (item) =>
       (mediaFilter === 'all' || item.media_type === mediaFilter) &&
-      (statusFilter === 'all' || item.status === statusFilter)
+      (statusFilter === 'all' || item.status === statusFilter) &&
+      (!searchQuery || item.title.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const totalPages = Math.ceil(filteredWatchlist.length / itemsPerPage);
+  const paginatedWatchlist = filteredWatchlist.slice(
+    (page - 1) * itemsPerPage,
+    page * itemsPerPage
+  );
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setPage(1); // Reset to first page on search
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white">
@@ -169,7 +165,7 @@ export default function Watchlist() {
             {mediaTypeFilters.map((filter) => (
               <Button
                 key={filter.value}
-                onClick={() => setMediaFilter(filter.value)}
+                onClick={() => { setMediaFilter(filter.value); setPage(1); }}
                 className={`flex items-center gap-1 ${
                   mediaFilter === filter.value
                     ? 'bg-[#E50914] hover:bg-[#f6121d]'
@@ -185,7 +181,7 @@ export default function Watchlist() {
             {statusFilters.map((filter) => (
               <Button
                 key={filter.value}
-                onClick={() => setStatusFilter(filter.value)}
+                onClick={() => { setStatusFilter(filter.value); setPage(1); }}
                 className={`flex items-center gap-1 ${
                   statusFilter === filter.value
                     ? 'bg-[#E50914] hover:bg-[#f6121d]'
@@ -196,6 +192,15 @@ export default function Watchlist() {
                 {filter.label} ({isLoading ? 0 : getFilterCount(mediaFilter, filter.value)})
               </Button>
             ))}
+          </div>
+          <div className="w-full max-w-[50%] mt-2">
+            <Input
+              type="text"
+              placeholder="Search your watchlist..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-gray-800 border-gray-700 text-white rounded-full py-2 px-4"
+            />
           </div>
         </div>
         {isLoading ? (
@@ -208,81 +213,108 @@ export default function Watchlist() {
           </div>
         ) : filteredWatchlist.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-gray-300">Your watchlist is empty. Add some movies or shows!</p>
+            <p className="text-gray-300">
+              {searchQuery ? 'No items match your search.' : 'Your watchlist is empty. Add some movies or shows!'}
+            </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-            {filteredWatchlist.map((item) => (
-              <div
-                key={item.id}
-                className="relative bg-gray-800 rounded-lg overflow-hidden group cursor-pointer"
-                onClick={() => handleShowDetails(item)}
-              >
-                <img
-                  src={item.poster ? `https://image.tmdb.org/t/p/w300${item.poster}` : 'https://placehold.co/300x450?text=No+Image'}
-                  alt={item.title}
-                  className="w-full h-auto object-cover aspect-[2/3]"
-                  loading="lazy"
-                />
-                <div className="absolute inset-0 bg-black bg-opacity-85 opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-3 flex flex-col justify-end">
-                  <h3 className="text-sm sm:text-base font-bold">{item.title}</h3>
-                  <p className="text-xs text-gray-300">
-                    Type: {item.media_type === 'tv' ? 'TV Show' : 'Movie'}
-                  </p>
-                  <p className="text-xs text-gray-300">
-                    Status: {item.status === 'to_watch' ? 'To Watch' : item.status === 'watching' ? 'Watching' : 'Watched'}
-                  </p>
-                  {item.platform && <p className="text-xs text-gray-300">Platform: {item.platform}</p>}
-                  {item.watched_date && <p className="text-xs text-gray-300">Watched: {item.watched_date}</p>}
-                  {item.notes && <p className="text-xs text-gray-300">Notes: {item.notes}</p>}
-                  <div className="flex items-center text-xs text-gray-300 mt-1">
-                    <Star className="h-3 w-3 text-[#F5C518] fill-current mr-1" />
-                    <span>{item.vote_average ? item.vote_average.toFixed(1) : 'N/A'}</span>
-                  </div>
-                  {item.media_type === 'tv' ? (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+              {paginatedWatchlist.map((item) => (
+                <div
+                  key={item.id}
+                  className="relative bg-gray-800 rounded-lg overflow-hidden group cursor-pointer"
+                  onClick={() => handleShowDetails(item)}
+                >
+                  <img
+                    src={item.poster ? `https://image.tmdb.org/t/p/w300${item.poster}` : 'https://placehold.co/300x450?text=No+Image'}
+                    alt={item.title}
+                    className="w-full h-auto object-cover aspect-[2/3]"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-85 opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-3 flex flex-col justify-end">
+                    <h3 className="text-sm sm:text-base font-bold">{item.title}</h3>
                     <p className="text-xs text-gray-300">
-                      {item.seasons || 'N/A'} seasons, {item.episodes || 'N/A'} episodes
+                      Type: {item.media_type === 'tv' ? 'TV Show' : 'Movie'}
                     </p>
-                  ) : (
                     <p className="text-xs text-gray-300">
-                      Duration: {formatRuntime(item.runtime)}
+                      Status: {item.status === 'to_watch' ? 'To Watch' : item.status === 'watching' ? 'Watching' : 'Watched'}
                     </p>
-                  )}
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {item.imdb_id && (
-                      <Button
-                        asChild
-                        className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition"
-                      >
-                        <a
-                          href={`https://www.imdb.com/title/${item.imdb_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          IMDb
-                        </a>
-                      </Button>
+                    {item.platform && <p className="text-xs text-gray-300">Platform: {item.platform}</p>}
+                    {item.watched_date && <p className="text-xs text-gray-300">Watched: {item.watched_date}</p>}
+                    {item.notes && <p className="text-xs text-gray-300">Notes: {item.notes}</p>}
+                    <div className="flex items-center text-xs text-gray-300 mt-1">
+                      <Star className="h-3 w-3 text-[#F5C518] fill-current mr-1" />
+                      <span>{item.vote_average ? item.vote_average.toFixed(1) : 'N/A'}</span>
+                    </div>
+                    {item.media_type === 'tv' ? (
+                      <p className="text-xs text-gray-300">
+                        {item.seasons || 'N/A'} seasons, {item.episodes || 'N/A'} episodes
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-300">
+                        Duration: {formatRuntime(item.runtime)}
+                      </p>
                     )}
-                    <Button
-                      onClick={(e) => { e.stopPropagation(); handleEdit(item); }}
-                      className="bg-gray-700 text-white text-xs rounded-full py-1 px-3 hover:bg-gray-600 transition"
-                    >
-                      <Edit className="h-3 w-3 mr-1" />
-                      Edit
-                    </Button>
-                    <Button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
-                      className="bg-red-700 text-white text-xs rounded-full py-1 px-3 hover:bg-red-600 transition"
-                    >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Remove
-                    </Button>
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {item.imdb_id && (
+                        <Button
+                          asChild
+                          className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition"
+                        >
+                          <a
+                            href={`https://www.imdb.com/title/${item.imdb_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            IMDb
+                          </a>
+                        </Button>
+                      )}
+                      <Button
+                        onClick={(e) => { e.stopPropagation(); handleEdit(item); }}
+                        className="bg-gray-700 text-white text-xs rounded-full py-1 px-3 hover:bg-gray-600 transition"
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        Edit
+                      </Button>
+                      <Button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                        className="bg-red-700 text-white text-xs rounded-full py-1 px-3 hover:bg-red-600 transition"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Remove
+                      </Button>
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+            {totalPages > 1 && (
+              <div className="flex justify-center gap-2 mt-4">
+                <Button
+                  onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={page === 1}
+                  className="bg-gray-700 hover:bg-gray-600"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="self-center text-gray-300">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={page === totalPages}
+                  className="bg-gray-700 hover:bg-gray-600"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
       {editItem && (
@@ -296,7 +328,7 @@ export default function Watchlist() {
         <DetailsModal
           item={selectedItem}
           onClose={() => setSelectedItem(null)}
-          onAddToWatchlist={() => setEditItem(selectedItem)}
+          onAddToWatchlist={() => setEditItem({ ...selectedItem, poster_path: selectedItem.poster })}
         />
       )}
     </div>

@@ -8,12 +8,16 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
 import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List } from 'lucide-react';
-import { useToast } from '../components/ToastContext';
+import { useToast, useWatchlist } from '../components/ToastContext';
 
 function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
   const [isHovered, setIsHovered] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const { watchlist } = useWatchlist();
+  const isInWatchlist = watchlist.some((item) => 
+    item.movie_id === movie.id.toString() || item.movie_id === movie.id
+  );
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -37,8 +41,8 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
     : 'https://placehold.co/300x450?text=No+Image';
   const badgeClass = movie.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]';
   const typeBadge = movie.media_type === 'tv' ? 'TV' : 'Movie';
-  const displayInfo = movie.release_date
-    ? `${movie.release_date.split('-')[0]} • ${movie.genres || 'N/A'}`
+  const displayInfo = movie.release_date || movie.first_air_date
+    ? `${(movie.release_date || movie.first_air_date).split('-')[0]} • ${movie.genres || 'N/A'}`
     : 'N/A';
   const voteAverage = movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A';
   const runtime = movie.runtime
@@ -46,6 +50,8 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
     : movie.episode_run_time && movie.episode_run_time[0]
     ? `${movie.episode_run_time[0]}m`
     : 'N/A';
+  const seasons = movie.media_type === 'tv' ? (movie.number_of_seasons || 'N/A') : null;
+  const episodes = movie.media_type === 'tv' ? (movie.number_of_episodes || 'N/A') : null;
 
   return (
     <div
@@ -66,7 +72,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
       >
         {typeBadge}
       </div>
-      {isMobile && !showInfo && (
+      {isMobile && !showInfo && !isInWatchlist && (
         <div className="absolute bottom-2 right-2 z-10">
           <button
             type="button"
@@ -87,7 +93,11 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
         <p className="text-xs sm:text-sm text-gray-300">{displayInfo}</p>
         <div className="flex items-center text-xs text-gray-400 mt-1">
           <Clock className="h-3 w-3 mr-1" />
-          <span>{runtime}</span>
+          <span>
+            {movie.media_type === 'tv'
+              ? `${seasons} seasons, ${episodes} episodes`
+              : runtime}
+          </span>
         </div>
         <div className="flex items-center mt-1">
           <span className="text-[#F5C518] font-bold text-xs sm:text-sm">{voteAverage}</span>
@@ -95,13 +105,15 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
         </div>
         {isMobile ? (
           <div className="flex flex-col mt-3 space-y-2">
-            <Button
-              onClick={handleAddClick}
-              className="bg-[#E50914] text-white text-sm font-medium rounded-lg py-2 px-3 hover:bg-red-700 transition flex items-center justify-center"
-            >
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Add to Watchlist
-            </Button>
+            {!isInWatchlist && (
+              <Button
+                onClick={handleAddClick}
+                className="bg-[#E50914] text-white text-sm font-medium rounded-lg py-2 px-3 hover:bg-red-700 transition flex items-center justify-center"
+              >
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add to Watchlist
+              </Button>
+            )}
             <div className="flex space-x-2">
               <Button
                 onClick={() => onShowDetails(movie)}
@@ -151,13 +163,15 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
                 </a>
               </Button>
             )}
-            <Button
-              onClick={handleAddClick}
-              className="bg-[#E50914] text-white text-xs rounded-full py-1 px-3 hover:bg-red-700 transition-colors flex-grow min-w-[120px]"
-            >
-              <PlusCircle className="h-3 w-3 mr-1" />
-              Add to Watchlist
-            </Button>
+            {!isInWatchlist && (
+              <Button
+                onClick={handleAddClick}
+                className="bg-[#E50914] text-white text-xs rounded-full py-1 px-3 hover:bg-red-700 transition-colors flex-grow min-w-[120px]"
+              >
+                <PlusCircle className="h-3 w-3 mr-1" />
+                Add to Watchlist
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -173,6 +187,11 @@ export default function SearchPage() {
   const [watchlistItem, setWatchlistItem] = useState(null);
   const [mediaFilter, setMediaFilter] = useState('all');
   const { addToast } = useToast();
+  const { mutate } = useWatchlist();
+
+  const movieCount = searchResults.filter(item => item.media_type === 'movie').length;
+  const tvCount = searchResults.filter(item => item.media_type === 'tv').length;
+  const allCount = searchResults.length;
 
   const handleSearch = async (query) => {
     if (!query.trim()) {
@@ -202,6 +221,10 @@ export default function SearchPage() {
               vote_average: details.vote_average || item.vote_average || null,
               runtime: details.runtime || (details.episode_run_time && details.episode_run_time[0]) || null,
               genres: details.genres?.map((g) => g.name).join(', ') || 'N/A',
+              first_air_date: item.media_type === 'tv' ? details.first_air_date || item.first_air_date : null,
+              release_date: item.media_type === 'movie' ? details.release_date || item.release_date : null,
+              number_of_seasons: item.media_type === 'tv' ? details.number_of_seasons || null : null,
+              number_of_episodes: item.media_type === 'tv' ? details.number_of_episodes || null : null,
             };
           } catch (error) {
             console.warn(`Failed to fetch details for ${item.id}:`, error);
@@ -227,7 +250,7 @@ export default function SearchPage() {
   };
 
   const handleAddToWatchlist = (item) => {
-    setWatchlistItem({ ...item, media_type: item.media_type || 'movie' });
+    setWatchlistItem({ ...item, media_type: item.media_type || 'movie', poster_path: item.poster_path });
   };
 
   const handleShowDetails = (item) => {
@@ -251,12 +274,15 @@ export default function SearchPage() {
           notes: item.notes,
           imdb_id: item.imdb_id,
           vote_average: item.vote_average,
+          number_of_seasons: item.number_of_seasons,
+          number_of_episodes: item.number_of_episodes,
         }),
       });
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || 'Failed to add to watchlist');
       }
+      mutate();
       addToast({
         id: Date.now(),
         title: 'Success',
@@ -302,21 +328,21 @@ export default function SearchPage() {
             className={`flex items-center gap-1 ${mediaFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
             <List className="h-4 w-4" />
-            All
+            All ({allCount})
           </Button>
           <Button
             onClick={() => setMediaFilter('movie')}
             className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
             <Film className="h-4 w-4" />
-            Movies
+            Movies ({movieCount})
           </Button>
           <Button
             onClick={() => setMediaFilter('tv')}
             className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
             <Tv className="h-4 w-4" />
-            TV Shows
+            TV Shows ({tvCount})
           </Button>
         </div>
         {isLoading ? (

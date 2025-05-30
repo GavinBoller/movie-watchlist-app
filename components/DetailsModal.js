@@ -2,43 +2,31 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { X, Star, Clock, Tv2, Clapperboard, PlusCircle, Tag } from 'lucide-react';
-import { useToast } from './ToastContext';
+import { X, Star, Clock, Tv2, Clapperboard, PlusCircle, Tag, ExternalLink } from 'lucide-react';
+import { useToast, useWatchlist } from './ToastContext';
 
 export default function DetailsModal({ item, onClose, onAddToWatchlist }) {
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const { addToast } = useToast();
+  const { watchlist, isLoading: watchlistLoading } = useWatchlist();
 
   useEffect(() => {
-    async function checkWatchlist() {
-      setIsLoading(true);
-      try {
-        const res = await fetch('/api/watchlist');
-        if (!res.ok) throw new Error('Failed to fetch watchlist');
-        const watchlist = await res.json();
-        setIsInWatchlist(watchlist.some((watchlistItem) => watchlistItem.movie_id === item.id.toString()));
-      } catch (error) {
-        console.error('Error checking watchlist:', error);
-        addToast({
-          id: Date.now(),
-          title: 'Error',
-          description: 'Failed to fetch watchlist status',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    checkWatchlist();
-  }, [item.id, addToast]);
+    console.log('DetailsModal item:', item);
+    console.log('Poster path:', item?.poster_path);
+    setIsLoading(watchlistLoading);
+    setIsInWatchlist(watchlist.some((watchlistItem) => 
+      watchlistItem.movie_id === item.id.toString() || 
+      watchlistItem.movie_id === item.id
+    ));
+  }, [item?.id, watchlist, watchlistLoading]);
 
   if (!item) return null;
 
   const title = item.title || item.name || 'Unknown';
   const posterUrl = item.poster_path
-    ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
-    : 'https://placehold.co/300x450?text=No+Image';
+    ? `https://image.tmdb.org/t/p/w300${item.poster_path}`
+    : 'https://via.placeholder.com/300x450?text=No+Image';
   const backdropUrl = item.backdrop_path
     ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}`
     : null;
@@ -51,6 +39,8 @@ export default function DetailsModal({ item, onClose, onAddToWatchlist }) {
     : item.episode_run_time && item.episode_run_time[0]
     ? `${item.episode_run_time[0]}m`
     : 'N/A';
+  const seasons = item.media_type === 'tv' ? (item.number_of_seasons || 'N/A') : null;
+  const episodes = item.media_type === 'tv' ? (item.number_of_episodes || 'N/A') : null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -95,7 +85,7 @@ export default function DetailsModal({ item, onClose, onAddToWatchlist }) {
               <span className="flex items-center gap-1">
                 {item.media_type === 'tv' ? <Tv2 className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
                 {item.media_type === 'tv'
-                  ? `${item.seasons || 'N/A'} seasons, ${item.episodes || 'N/A'} episodes`
+                  ? `${seasons} seasons, ${episodes} episodes`
                   : runtime}
               </span>
             </div>
