@@ -116,7 +116,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
       addToast({
         id: Date.now(),
         title: 'Error',
-        description: 'Failed to save to watchlist',
+        description: error.message || 'Failed to save to watchlist',
         variant: 'destructive',
       });
     } finally {
@@ -130,10 +130,10 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className={`bg-[#1a1a1a] rounded-lg ${isMobile ? 'p-4 pb-6 w-[90vw]' : 'p-6 max-w-md w-full'}`}>
+      <div className={`bg-[#1a1a1a] rounded-lg relative ${isMobile ? 'p-4 w-[90vw] max-h-[90vh] overflow-y-auto' : 'p-6 max-w-md w-full'}`}>
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white"
+          className="absolute top-4 right-4 text-gray-400 hover:text-white z-10"
           aria-label="Close"
         >
           <X className="h-5 w-5" />
@@ -297,21 +297,11 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
               onChange={(e) => setNotes(e.target.value)}
             />
           </div>
-          <div className={isMobile ? 'flex flex-col space-y-2' : 'flex justify-end space-x-2'}>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onClose}
-              className={isMobile ? 'w-full py-3 text-base text-white' : 'text-white'}
-            >
-              Cancel
-            </Button>
+          <div className="flex justify-end">
             <Button
               type="submit"
               disabled={isLoading || isPlatformsLoading}
-              className={`${
-                isMobile ? 'w-full py-3 text-base' : ''
-              } bg-[#E50914] hover:bg-[#f6121d] text-white`}
+              className={`w-full ${isMobile ? 'py-3 text-base' : ''} bg-[#E50914] hover:bg-[#f6121d] text-white`}
             >
               {isLoading
                 ? 'Saving...'

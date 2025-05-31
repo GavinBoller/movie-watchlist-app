@@ -8,6 +8,7 @@ import { useToast, useWatchlist } from './ToastContext';
 export default function DetailsModal({ item, onClose, onAddToWatchlist }) {
   const [isInWatchlist, setIsInWatchlist] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
   const { addToast } = useToast();
   const { watchlist, isLoading: watchlistLoading } = useWatchlist();
 
@@ -19,6 +20,10 @@ export default function DetailsModal({ item, onClose, onAddToWatchlist }) {
       watchlistItem.movie_id === item.id.toString() || 
       watchlistItem.movie_id === item.id
     ));
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
   }, [item?.id, watchlist, watchlistLoading]);
 
   if (!item) return null;
@@ -42,6 +47,20 @@ export default function DetailsModal({ item, onClose, onAddToWatchlist }) {
   const seasons = item.media_type === 'tv' ? (item.number_of_seasons || 'N/A') : null;
   const episodes = item.media_type === 'tv' ? (item.number_of_episodes || 'N/A') : null;
 
+  const handleImdbLink = (e) => {
+    e.preventDefault();
+    if (item.imdb_id) {
+      window.open(`https://www.imdb.com/title/${item.imdb_id}`, '_blank', 'noopener,noreferrer');
+    } else {
+      addToast({
+        id: Date.now(),
+        title: 'Error',
+        description: 'No IMDb link available',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div
@@ -56,7 +75,7 @@ export default function DetailsModal({ item, onClose, onAddToWatchlist }) {
       >
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white"
+          className="absolute top-4 right-4 text-gray-400 hover:text-white z-10"
           aria-label="Close"
         >
           <X className="h-6 w-6" />
@@ -108,10 +127,13 @@ export default function DetailsModal({ item, onClose, onAddToWatchlist }) {
               {item.imdb_id ? (
                 <Button
                   asChild
-                  className="bg-[#F5C518] text-black hover:bg-[#e6b800] flex items-center gap-1 py-3 sm:py-2"
+                  className="bg-[#F5C518] text-black hover:bg-[#e6b800] flex items-center gap-1 py-3 sm:py-2 touch-manipulation"
+                  style={{ touchAction: 'manipulation' }}
                 >
                   <a
                     href={`https://www.imdb.com/title/${item.imdb_id}`}
+                    onClick={handleImdbLink}
+                    onTouchStart={handleImdbLink}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

@@ -16,6 +16,7 @@ function WatchlistCard({ item, onEdit, onDelete }) {
   const [isHovered, setIsHovered] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const { addToast } = useToast();
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -30,6 +31,21 @@ function WatchlistCard({ item, onEdit, onDelete }) {
       if (!showInfo) {
         setShowInfo(true);
       }
+    }
+  };
+
+  const handleImdbLink = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (item.imdb_id) {
+      window.open(`https://www.imdb.com/title/${item.imdb_id}`, '_blank', 'noopener,noreferrer');
+    } else {
+      addToast({
+        id: Date.now(),
+        title: 'Error',
+        description: 'No IMDb link available',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -59,6 +75,7 @@ function WatchlistCard({ item, onEdit, onDelete }) {
       onMouseEnter={() => !isMobile && setIsHovered(true)}
       onMouseLeave={() => !isMobile && setIsHovered(false)}
       onClick={handleTap}
+      style={{ touchAction: 'manipulation' }}
       data-testid={`watchlist-${item.movie_id}`}
     >
       <img
@@ -91,10 +108,13 @@ function WatchlistCard({ item, onEdit, onDelete }) {
           {item.imdb_id && (
             <Button
               asChild
-              className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px]"
+              className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px] touch-manipulation"
+              style={{ touchAction: 'manipulation' }}
             >
               <a
                 href={`https://www.imdb.com/title/${item.imdb_id}`}
+                onClick={handleImdbLink}
+                onTouchStart={handleImdbLink}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -143,6 +163,10 @@ export default function WatchlistPage() {
     const timeoutId = setTimeout(() => setDebouncedSearch(searchQuery), 500);
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
+
+  useEffect(() => {
+    console.log('Watchlist SWR Success:', data);
+  }, [data]);
 
   const handleEdit = (item) => {
     setEditItem({

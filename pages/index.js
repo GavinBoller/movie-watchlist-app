@@ -95,6 +95,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
             className="bg-[#E50914] text-white rounded-full p-2 shadow-lg touch-manipulation"
             onClick={handleAddClick}
             aria-label="Add to watchlist"
+            disabled={isInWatchlist}
           >
             <PlusCircle className="h-6 w-6" />
           </button>
@@ -125,6 +126,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
               <Button
                 onClick={handleAddClick}
                 className="bg-[#E50914] text-white text-sm font-medium rounded-lg py-2 px-3 hover:bg-red-700 transition flex items-center justify-center"
+                disabled={isInWatchlist}
               >
                 <PlusCircle className="h-4 w-4 mr-2" />
                 Add to Watchlist
@@ -183,6 +185,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
               <Button
                 onClick={handleAddClick}
                 className="bg-[#E50914] text-white text-xs rounded-full py-1 px-3 hover:bg-red-700 transition-colors flex-grow min-w-[120px]"
+                disabled={isInWatchlist}
               >
                 <PlusCircle className="h-3 w-3 mr-1" />
                 Add to Watchlist
@@ -304,6 +307,17 @@ export default function SearchPage() {
   };
 
   const handleAddToWatchlist = (item) => {
+    const isInWatchlist = watchlist.some((wItem) => 
+      wItem.movie_id === item.id.toString() || wItem.movie_id === item.id
+    );
+    if (isInWatchlist) {
+      addToast({
+        id: Date.now(),
+        title: 'Info',
+        description: `${item.title || item.name} is already in your watchlist`,
+      });
+      return;
+    }
     setWatchlistItem({ ...item, media_type: item.media_type || 'movie', poster_path: item.poster_path });
   };
 
