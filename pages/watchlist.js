@@ -1,38 +1,141 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import useSWR from 'swr';
 import Header from '../components/Header';
-import DetailsModal from '../components/DetailsModal';
-import AddToWatchlistModal from '../components/AddToWatchlistModal';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
-import { Menu, Film, Tv2, Clock, PlayCircle, CheckCircle, Trash2, ExternalLink, Edit, Star, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useToast, useWatchlist } from '../components/ToastContext';
+import { PlusCircle, ExternalLink, Star, Clock, Film, Tv, List, Edit, Trash2 } from 'lucide-react';
+import { useToast } from '../components/ToastContext';
+import AddToWatchlistModal from '../components/AddToWatchlistModal';
 
-export default function Watchlist() {
+const fetcher = (url) => fetch(url).then((res) => res.json());
+
+function WatchlistCard({ item, onEdit, onDelete }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const title = item.title || 'Unknown';
+  const posterUrl = item.poster
+    ? `https://image.tmdb.org/t/p/w300${item.poster}`
+    : 'https://placehold.co/300x450?text=No+Image';
+  const badgeClass = item.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]';
+  const typeBadge = item.media_type === 'tv' ? 'TV' : 'Movie';
+  const displayInfo = item.release_date
+    ? `${item.release_date.split('-')[0]} • ${item.genres || 'N/A'}`
+    : 'N/A';
+  const voteAverage = typeof item.vote_average === 'number' && !isNaN(item.vote_average)
+    ? item.vote_average.toFixed(1)
+    : parseFloat(item.vote_average) && !isNaN(parseFloat(item.vote_average))
+    ? parseFloat(item.vote_average).toFixed(1)
+    : 'N/A';
+  const runtime = item.runtime
+    ? `${Math.floor(item.runtime / 60)}h ${item.runtime % 60}m`
+    : item.seasons && item.episodes
+    ? `${item.seasons} seasons, ${item.episodes} episodes`
+    : 'N/A';
+
+  return (
+    <div
+      className="movie-card relative rounded-lg overflow-hidden group cursor-pointer touch-manipulation"
+      onMouseEnter={() => !isMobile && setIsHovered(true)}
+      onMouseLeave={() => !isMobile && setIsHovered(false)}
+      data-testid={`watchlist-${item.movie_id}`}
+    >
+      <img
+        src={posterUrl}
+        alt={title}
+        className="w-full aspect-[2/3] object-cover"
+        loading="lazy"
+      />
+      <div
+        className={`absolute top-2 right-2 ${badgeClass} text-white text-xs font-bold py-1 px-2 rounded-full`}
+      >
+        {typeBadge}
+      </div>
+      <div
+        className={`movie-info absolute inset-0 bg-black bg-opacity-85 flex flex-col justify-end p-4 mx-2 transition-opacity duration-300 ${
+          isHovered ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        <h3 className="font-bold text-sm sm:text-base md:text-lg">{title}</h3>
+        <p className="text-xs sm:text-sm text-gray-300">{displayInfo}</p>
+        <div className="flex items-center text-xs text-gray-400 mt-1">
+          <Clock className="h-3 w-3 mr-1" />
+          <span>{runtime}</span>
+        </div>
+        <div className="flex items-center mt-1">
+          <span className="text-[#F5C518] font-bold text-xs sm:text-sm">{voteAverage}</span>
+          <Star className="h-3 sm:h-4 w-4 text-[#F5C518] fill-current ml-1" />
+        </div>
+        <div className="flex mt-2 space-x-2 flex-wrap gap-y-2">
+          {item.imdb_id && (
+            <Button
+              asChild
+              className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px]"
+            >
+              <a
+                href={`https://www.imdb.com/title/${item.imdb_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <ExternalLink className="h-3 w-3 mr-1" />
+                IMDb
+              </a>
+            </Button>
+          )}
+          <Button
+            onClick={() => onEdit(item)}
+            className="bg-blue-600 text-white text-xs rounded-full py-1 px-3 hover:bg-blue-700 transition-colors min-w-[80px]"
+          >
+            <Edit className="h-3 w-3 mr-1" />
+            Edit
+          </Button>
+          <Button
+            onClick={() => onDelete(item.id)}
+            className="bg-red-600 text-white text-xs rounded-full py-1 px-3 hover:bg-red-700 transition-colors min-w-[80px]"
+          >
+            <Trash2 className="h-3 w-3 mr-1" />
+            Delete
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function WatchlistPage() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [mediaFilter, setMediaFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [editItem, setEditItem] = useState(null);
-  const [selectedItem, setSelectedItem] = useState(null);
   const [page, setPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState('');
-  const itemsPerPage = 50;
+  const [editItem, setEditItem] = useState(null);
   const { addToast } = useToast();
-  const { watchlist, isLoading, mutate } = useWatchlist();
+  const limit = 50;
 
-  const mediaTypeFilters = [
-    { value: 'all', label: 'All', icon: Menu },
-    { value: 'movie', label: 'Movies', icon: Film },
-    { value: 'tv', label: 'TV Shows', icon: Tv2 },
-  ];
+  const { data, error, mutate } = useSWR(
+    `/api/watchlist?page=${page}&limit=${limit}&search=${encodeURIComponent(debouncedSearch)}&media=${mediaFilter}&status=${statusFilter}`,
+    fetcher,
+    { revalidateOnFocus: false }
+  );
 
-  const statusFilters = [
-    { value: 'all', label: 'All', icon: Menu },
-    { value: 'to_watch', label: 'To Watch', icon: Clock },
-    { value: 'watching', label: 'Watching', icon: PlayCircle },
-    { value: 'watched', label: 'Watched', icon: CheckCircle },
-  ];
+  useEffect(() => {
+    const timeoutId = setTimeout(() => setDebouncedSearch(searchQuery), 500);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  const handleEdit = (item) => {
+    setEditItem(item);
+  };
 
   const handleDelete = async (id) => {
     try {
@@ -41,169 +144,89 @@ export default function Watchlist() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to delete item');
-      }
+      if (!res.ok) throw new Error('Failed to delete item');
       mutate();
       addToast({
         id: Date.now(),
         title: 'Success',
-        description: 'Item removed from watchlist',
+        description: 'Item deleted from watchlist',
       });
     } catch (error) {
       console.error('Error deleting item:', error);
       addToast({
         id: Date.now(),
         title: 'Error',
-        description: `Failed to delete item: ${error.message}`,
+        description: 'Failed to delete item',
         variant: 'destructive',
       });
     }
   };
 
-  const handleEdit = (item) => {
-    setEditItem({
-      ...item,
-      poster_path: item.poster, // Normalize for AddToWatchlistModal
-    });
-  };
-
-  const handleShowDetails = (item) => {
-    setSelectedItem(item);
-  };
-
-  const handleSaveEdit = async (updatedItem) => {
+  const handleSaveEdit = async (item) => {
     try {
       const res = await fetch('/api/watchlist', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: updatedItem.id,
+          id: item.id,
           user_id: 1,
-          movie_id: updatedItem.movie_id,
-          title: updatedItem.title,
-          overview: updatedItem.overview,
-          poster: updatedItem.poster_path || updatedItem.poster,
-          release_date: updatedItem.release_date,
-          media_type: updatedItem.media_type,
-          status: updatedItem.status,
-          platform: updatedItem.platform,
-          notes: updatedItem.notes,
-          watched_date: updatedItem.watched_date,
-          imdb_id: updatedItem.imdb_id,
-          vote_average: updatedItem.vote_average,
-          number_of_seasons: updatedItem.number_of_seasons,
-          number_of_episodes: updatedItem.number_of_episodes,
+          movie_id: item.movie_id,
+          title: item.title,
+          overview: item.overview,
+          poster: item.poster,
+          release_date: item.release_date,
+          media_type: item.media_type,
+          status: item.status,
+          platform: item.platform,
+          notes: item.notes,
+          imdb_id: item.imdb_id,
+          vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
+          runtime: item.runtime,
+          seasons: item.seasons,
+          episodes: item.episodes,
         }),
       });
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to update item');
+        throw new Error(errorData.error || 'Failed to update watchlist');
       }
       mutate();
-      setEditItem(null);
       addToast({
         id: Date.now(),
         title: 'Success',
-        description: 'Watchlist item updated',
+        description: 'Item updated',
       });
     } catch (error) {
       console.error('Error updating item:', error);
       addToast({
         id: Date.now(),
         title: 'Error',
-        description: `Failed to update item: ${error.message}`,
+        description: error.message || 'Failed to update item',
         variant: 'destructive',
       });
     }
   };
 
-  const formatRuntime = (minutes) => {
-    if (!minutes) return 'N/A';
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
-  };
-
-  // Count items in entire watchlist, not paginated subset
-  const getFilterCount = (mediaValue, statusValue) => {
-    return watchlist.filter(
-      (item) =>
-        (mediaValue === 'all' || item.media_type === mediaValue) &&
-        (statusValue === 'all' || item.status === statusValue)
-    ).length;
-  };
-
-  const filteredWatchlist = watchlist.filter(
-    (item) =>
-      (mediaFilter === 'all' || item.media_type === mediaFilter) &&
-      (statusFilter === 'all' || item.status === statusFilter) &&
-      (!searchQuery || item.title.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
-
-  const totalPages = Math.ceil(filteredWatchlist.length / itemsPerPage);
-  const paginatedWatchlist = filteredWatchlist.slice(
-    (page - 1) * itemsPerPage,
-    page * itemsPerPage
-  );
-
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setPage(1); // Reset to first page on search
-    }, 500);
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
+    setPage(1);
+  }, [debouncedSearch, mediaFilter, statusFilter]);
 
-  return (
-    <div className="min-h-screen bg-[#1a1a1a] text-white">
-      <Header />
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4 text-center">Your Watchlist</h1>
-        <div className="mb-4 flex flex-col items-center gap-2">
-          <div className="flex gap-2">
-            {mediaTypeFilters.map((filter) => (
-              <Button
-                key={filter.value}
-                onClick={() => { setMediaFilter(filter.value); setPage(1); }}
-                className={`flex items-center gap-1 ${
-                  mediaFilter === filter.value
-                    ? 'bg-[#E50914] hover:bg-[#f6121d]'
-                    : 'bg-gray-700 hover:bg-gray-600'
-                } transition-colors`}
-              >
-                <filter.icon className="h-4 w-4" />
-                {filter.label} ({isLoading ? 0 : getFilterCount(filter.value, statusFilter)})
-              </Button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            {statusFilters.map((filter) => (
-              <Button
-                key={filter.value}
-                onClick={() => { setStatusFilter(filter.value); setPage(1); }}
-                className={`flex items-center gap-1 ${
-                  statusFilter === filter.value
-                    ? 'bg-[#E50914] hover:bg-[#f6121d]'
-                    : 'bg-gray-700 hover:bg-gray-600'
-                } transition-colors`}
-              >
-                <filter.icon className="h-4 w-4" />
-                {filter.label} ({isLoading ? 0 : getFilterCount(mediaFilter, filter.value)})
-              </Button>
-            ))}
-          </div>
-          <div className="w-full max-w-[50%] mt-2">
-            <Input
-              type="text"
-              placeholder="Search your watchlist..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-gray-800 border-gray-700 text-white rounded-full py-2 px-4"
-            />
-          </div>
+  if (error) {
+    return (
+      <div className="min-h-screen bg-[#1a1a1a] text-white">
+        <Header />
+        <div className="container mx-auto p-4 text-center">
+          <p className="text-gray-300">Failed to load watchlist: {error.message}</p>
         </div>
-        {isLoading ? (
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen bg-[#1a1a1a] text-white">
+        <Header />
+        <div className="container mx-auto p-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {[...Array(10)].map((_, index) => (
               <div key={index} className="rounded-lg overflow-hidden">
@@ -211,124 +234,120 @@ export default function Watchlist() {
               </div>
             ))}
           </div>
-        ) : filteredWatchlist.length === 0 ? (
+        </div>
+      </div>
+    );
+  }
+
+  const { items = [], total = 0, filterCounts = {} } = data;
+  const totalPages = Math.ceil(total / limit);
+
+  return (
+    <div className="min-h-screen bg-[#1a1a1a] text-white">
+      <Header />
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4 text-center">My Watchlist</h1>
+        <div className="mb-4 flex justify-center">
+          <Input
+            type="text"
+            placeholder="Search watchlist..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full max-w-[50%] bg-gray-800 border-gray-700 text-white rounded-full py-2 px-4"
+          />
+        </div>
+        <div className="mb-4 flex justify-center gap-2 flex-wrap">
+          <Button
+            onClick={() => setMediaFilter('all')}
+            className={`flex items-center gap-1 ${mediaFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            <List className="h-4 w-4" />
+            All ({filterCounts.media?.all || 0})
+          </Button>
+          <Button
+            onClick={() => setMediaFilter('movie')}
+            className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            <Film className="h-4 w-4" />
+            Movies ({filterCounts.media?.movie || 0})
+          </Button>
+          <Button
+            onClick={() => setMediaFilter('tv')}
+            className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            <Tv className="h-4 w-4" />
+            TV Shows ({filterCounts.media?.tv || 0})
+          </Button>
+          <Button
+            onClick={() => setStatusFilter('all')}
+            className={`flex items-center gap-1 ${statusFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            <List className="h-4 w-4" />
+            All Status ({filterCounts.status?.all || 0})
+          </Button>
+          <Button
+            onClick={() => setStatusFilter('to_watch')}
+            className={`flex items-center gap-1 ${statusFilter === 'to_watch' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            <List className="h-4 w-4" />
+            To Watch ({filterCounts.status?.to_watch || 0})
+          </Button>
+          <Button
+            onClick={() => setStatusFilter('watching')}
+            className={`flex items-center gap-1 ${statusFilter === 'watching' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            <List className="h-4 w-4" />
+            Watching ({filterCounts.status?.watching || 0})
+          </Button>
+          <Button
+            onClick={() => setStatusFilter('watched')}
+            className={`flex items-center gap-1 ${statusFilter === 'watched' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            <List className="h-4 w-4" />
+            Watched ({filterCounts.status?.watched || 0})
+          </Button>
+        </div>
+        {items.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-gray-300">
-              {searchQuery ? 'No items match your search.' : 'Your watchlist is empty. Add some movies or shows!'}
-            </p>
+            <p className="text-gray-300">No items in watchlist. Add some from the search page!</p>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-              {paginatedWatchlist.map((item) => (
-                <div
-                  key={item.id}
-                  className="relative bg-gray-800 rounded-lg overflow-hidden group cursor-pointer"
-                  onClick={() => handleShowDetails(item)}
-                >
-                  <img
-                    src={item.poster ? `https://image.tmdb.org/t/p/w300${item.poster}` : 'https://placehold.co/300x450?text=No+Image'}
-                    alt={item.title}
-                    className="w-full h-auto object-cover aspect-[2/3]"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-85 opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-3 flex flex-col justify-end">
-                    <h3 className="text-sm sm:text-base font-bold">{item.title}</h3>
-                    <p className="text-xs text-gray-300">
-                      Type: {item.media_type === 'tv' ? 'TV Show' : 'Movie'}
-                    </p>
-                    <p className="text-xs text-gray-300">
-                      Status: {item.status === 'to_watch' ? 'To Watch' : item.status === 'watching' ? 'Watching' : 'Watched'}
-                    </p>
-                    {item.platform && <p className="text-xs text-gray-300">Platform: {item.platform}</p>}
-                    {item.watched_date && <p className="text-xs text-gray-300">Watched: {item.watched_date}</p>}
-                    {item.notes && <p className="text-xs text-gray-300">Notes: {item.notes}</p>}
-                    <div className="flex items-center text-xs text-gray-300 mt-1">
-                      <Star className="h-3 w-3 text-[#F5C518] fill-current mr-1" />
-                      <span>{item.vote_average ? item.vote_average.toFixed(1) : 'N/A'}</span>
-                    </div>
-                    {item.media_type === 'tv' ? (
-                      <p className="text-xs text-gray-300">
-                        {item.seasons || 'N/A'} seasons, {item.episodes || 'N/A'} episodes
-                      </p>
-                    ) : (
-                      <p className="text-xs text-gray-300">
-                        Duration: {formatRuntime(item.runtime)}
-                      </p>
-                    )}
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      {item.imdb_id && (
-                        <Button
-                          asChild
-                          className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition"
-                        >
-                          <a
-                            href={`https://www.imdb.com/title/${item.imdb_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <ExternalLink className="h-3 w-3 mr-1" />
-                            IMDb
-                          </a>
-                        </Button>
-                      )}
-                      <Button
-                        onClick={(e) => { e.stopPropagation(); handleEdit(item); }}
-                        className="bg-gray-700 text-white text-xs rounded-full py-1 px-3 hover:bg-gray-600 transition"
-                      >
-                        <Edit className="h-3 w-3 mr-1" />
-                        Edit
-                      </Button>
-                      <Button
-                        onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
-                        className="bg-red-700 text-white text-xs rounded-full py-1 px-3 hover:bg-red-600 transition"
-                      >
-                        <Trash2 className="h-3 w-3 mr-1" />
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {totalPages > 1 && (
-              <div className="flex justify-center gap-2 mt-4">
-                <Button
-                  onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-                  disabled={page === 1}
-                  className="bg-gray-700 hover:bg-gray-600"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </Button>
-                <span className="self-center text-gray-300">
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-                  disabled={page === totalPages}
-                  className="bg-gray-700 hover:bg-gray-600"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
-          </>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+            {items.map((item) => (
+              <WatchlistCard
+                key={item.id}
+                item={item}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
         )}
+        <div className="flex justify-center mt-4 gap-2">
+          <Button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="bg-gray-700 text-white"
+          >
+            Previous
+          </Button>
+          <span className="self-center">
+            Page {page} of {totalPages}
+          </span>
+          <Button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="bg-gray-700 text-white"
+          >
+            Next
+          </Button>
+        </div>
       </div>
       {editItem && (
         <AddToWatchlistModal
           item={editItem}
           onSave={handleSaveEdit}
           onClose={() => setEditItem(null)}
-        />
-      )}
-      {selectedItem && (
-        <DetailsModal
-          item={selectedItem}
-          onClose={() => setSelectedItem(null)}
-          onAddToWatchlist={() => setEditItem({ ...selectedItem, poster_path: selectedItem.poster })}
         />
       )}
     </div>

@@ -9,13 +9,14 @@ import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
 import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List } from 'lucide-react';
 import { useToast, useWatchlist } from '../components/ToastContext';
+import { mutate } from 'swr';
 
 function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
   const [isHovered, setIsHovered] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const { watchlist } = useWatchlist();
-  const isInWatchlist = watchlist.some((item) => 
+  const isInWatchlist = Array.isArray(watchlist) && watchlist.some((item) => 
     item.movie_id === movie.id.toString() || item.movie_id === movie.id
   );
 
@@ -44,7 +45,11 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
   const displayInfo = movie.release_date || movie.first_air_date
     ? `${(movie.release_date || movie.first_air_date).split('-')[0]} • ${movie.genres || 'N/A'}`
     : 'N/A';
-  const voteAverage = movie.vote_average ? movie.vote_average.toFixed(1) : 'N/A';
+  const voteAverage = typeof movie.vote_average === 'number' && !isNaN(movie.vote_average) 
+    ? movie.vote_average.toFixed(1) 
+    : parseFloat(movie.vote_average) && !isNaN(parseFloat(movie.vote_average))
+    ? parseFloat(movie.vote_average).toFixed(1)
+    : 'N/A';
   const runtime = movie.runtime
     ? `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m`
     : movie.episode_run_time && movie.episode_run_time[0]
@@ -187,7 +192,7 @@ export default function SearchPage() {
   const [watchlistItem, setWatchlistItem] = useState(null);
   const [mediaFilter, setMediaFilter] = useState('all');
   const { addToast } = useToast();
-  const { mutate } = useWatchlist();
+  const { watchlist, mutate: mutateWatchlist, error: watchlistError } = useWatchlist();
 
   const movieCount = searchResults.filter(item => item.media_type === 'movie').length;
   const tvCount = searchResults.filter(item => item.media_type === 'tv').length;
@@ -200,16 +205,20 @@ export default function SearchPage() {
     }
     setIsLoading(true);
     try {
-      // TMDB API supports partial matching (e.g., "Mad" should match "Mad Max")
-      const res = await fetch(
-        `https://api.themoviedb.org/3/search/multi?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(query)}`
-      );
-      if (!res.ok) throw new Error('Failed to fetch search results');
-      const data = await res.json();
-      console.log(`Raw TMDB response for "${query}":`, JSON.stringify(data.results, null, 2));
-      console.log(`Search query "${query}" returned ${data.results.length} results`);
+      let allResults = [];
+      const searchTerm = query.trim(); // Remove wildcard
+      for (let page = 1; page <= 2; page++) {
+        const url = `https://api.themoviedb.org/3/search/multi?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(searchTerm)}&page=${page}`;
+        console.log(`Fetching TMDB URL: ${url}`);
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to fetch search results');
+        const data = await res.json();
+        console.log(`Raw TMDB response for "${query}" (page ${page}):`, JSON.stringify(data.results, null, 2));
+        console.log(`Search query "${query}" page ${page} returned ${data.results.length} results, total: ${data.total_results}, pages: ${data.total_pages}`);
+        allResults = [...allResults, ...data.results];
+      }
       const enhancedResults = await Promise.all(
-        data.results.map(async (item) => {
+        allResults.map(async (item) => {
           if (item.media_type !== 'movie' && item.media_type !== 'tv') return null;
           try {
             const detailsRes = await fetch(
@@ -220,7 +229,7 @@ export default function SearchPage() {
             return {
               ...item,
               imdb_id: details.external_ids?.imdb_id || null,
-              vote_average: details.vote_average || item.vote_average || null,
+              vote_average: details.vote_average ? parseFloat(details.vote_average) : null,
               runtime: details.runtime || (details.episode_run_time && details.episode_run_time[0]) || null,
               genres: details.genres?.map((g) => g.name).join(', ') || 'N/A',
               first_air_date: item.media_type === 'tv' ? details.first_air_date || item.first_air_date : null,
@@ -235,7 +244,7 @@ export default function SearchPage() {
         })
       );
       const filteredResults = enhancedResults
-        .filter((item) => item && (item.media_type === 'movie' || item.media_type === 'tv'))
+        .filter((item) => item)
         .filter((item) => mediaFilter === 'all' || item.media_type === mediaFilter);
       setSearchResults(filteredResults);
     } catch (error) {
@@ -275,16 +284,17 @@ export default function SearchPage() {
           platform: item.platform,
           notes: item.notes,
           imdb_id: item.imdb_id,
-          vote_average: item.vote_average,
-          number_of_seasons: item.number_of_seasons,
-          number_of_episodes: item.number_of_episodes,
+          vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
+          seasons: item.number_of_seasons,
+          episodes: item.number_of_episodes,
         }),
       });
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || 'Failed to add to watchlist');
       }
-      mutate();
+      mutate('/api/watchlist?page=1&limit=50');
+      mutateWatchlist();
       addToast({
         id: Date.now(),
         title: 'Success',
@@ -309,6 +319,17 @@ export default function SearchPage() {
   useEffect(() => {
     handleSearch(searchQuery);
   }, [mediaFilter]);
+
+  if (watchlistError) {
+    return (
+      <div className="min-h-screen bg-[#1a1a1a] text-white">
+        <Header />
+        <div className="container mx-auto p-4 text-center">
+          <p className="text-gray-300">Failed to load watchlist: {watchlistError.message}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white">

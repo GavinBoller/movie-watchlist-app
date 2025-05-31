@@ -13,31 +13,109 @@ export default async function handler(req, res) {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
 
-  const { method } = req;
+  const { method, query, body } = req;
   const userId = 1;
-  const cacheKey = `watchlist:${userId}`;
+  const page = parseInt(query.page) || 1;
+  const limit = parseInt(query.limit) || 50;
+  const mediaType = query.media || 'all';
+  const status = query.status || 'all';
+  const search = query.search || '';
+  const cacheKey = `watchlist:${userId}:${page}:${mediaType}:${status}:${search}`;
   const startTime = Date.now();
 
   switch (method) {
     case 'GET':
       try {
+        const offset = (page - 1) * limit;
+
+        if (cache.has(cacheKey)) {
+          console.log(`Cache hit for ${cacheKey} in ${Date.now() - startTime}ms`);
+          return res.status(200).json(cache.get(cacheKey));
+        }
+
         console.log('Fetching watchlist from database...');
-        const result = await pool.query(
-          'SELECT * FROM watchlist WHERE user_id = $1',
-          [userId]
-        );
+        let whereClause = 'WHERE user_id = $1';
+        const params = [userId];
+        let paramIndex = 2;
+
+        if (mediaType !== 'all') {
+          whereClause += ` AND media_type = $${paramIndex++}`;
+          params.push(mediaType);
+        }
+        if (status !== 'all') {
+          whereClause += ` AND status = $${paramIndex++}`;
+          params.push(status);
+        }
+        if (search) {
+          whereClause += ` AND title ILIKE $${paramIndex++}`;
+          params.push(`%${search}%`);
+        }
+
+        const queryText = `
+          SELECT id, movie_id, title, overview, poster, release_date, media_type, status, platform, notes, watched_date, added_at, imdb_id, vote_average, runtime, seasons, episodes
+          FROM watchlist
+          ${whereClause}
+          ORDER BY added_at DESC
+          LIMIT $${paramIndex++} OFFSET $${paramIndex}
+        `;
+        const countQuery = `
+          SELECT 
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE media_type = 'movie') AS movie_count,
+            COUNT(*) FILTER (WHERE media_type = 'tv') AS tv_count,
+            COUNT(*) FILTER (WHERE status = 'to_watch') AS to_watch_count,
+            COUNT(*) FILTER (WHERE status = 'watching') AS watching_count,
+            COUNT(*) FILTER (WHERE status = 'watched') AS watched_count
+          FROM watchlist
+          ${whereClause}
+        `;
+
+        console.time(`Database query page ${page}`);
+        const [result, countResult] = await Promise.all([
+          pool.query(queryText, [...params, limit, offset]),
+          pool.query(countQuery, params),
+        ]);
+        console.timeEnd(`Database query page ${page}`);
+
+        const response = {
+          items: result.rows,
+          total: parseInt(countResult.rows[0].total),
+          pages: Math.ceil(countResult.rows[0].total / limit),
+          filterCounts: {
+            media: {
+              all: parseInt(countResult.rows[0].total),
+              movie: parseInt(countResult.rows[0].movie_count),
+              tv: parseInt(countResult.rows[0].tv_count),
+            },
+            status: {
+              all: parseInt(countResult.rows[0].total),
+              to_watch: parseInt(countResult.rows[0].to_watch_count),
+              watching: parseInt(countResult.rows[0].watching_count),
+              watched: parseInt(countResult.rows[0].watched_count),
+            },
+          },
+        };
         console.log(`Database query returned ${result.rows.length} items in ${Date.now() - startTime}ms`);
-        res.status(200).json(result.rows);
+
+        cache.set(cacheKey, response);
+        res.status(200).json(response);
       } catch (error) {
         console.error('Error fetching watchlist:', error);
-        res.status(500).json({ error: 'Failed to fetch watchlist', details: error.message });
+        res.status(500).json({
+          error: 'Failed to fetch watchlist',
+          details: error.message,
+          items: [],
+          total: 0,
+          pages: 0,
+          filterCounts: { media: {}, status: {} },
+        });
       }
       break;
 
     case 'POST':
       try {
-        const { id, title, overview, poster, release_date, media_type, status, platform, notes, imdb_id, vote_average } = req.body;
-        const movieId = id;
+        const { id, title, overview, poster, release_date, media_type, status, platform, notes, imdb_id, vote_average, seasons, episodes } = body;
+        const movieId = id.toString().split('-')[0];
 
         console.log(`Adding item ${movieId} to watchlist`);
         const existing = await pool.query(
@@ -50,8 +128,8 @@ export default async function handler(req, res) {
 
         const result = await pool.query(
           `INSERT INTO watchlist (
-            user_id, movie_id, title, overview, poster, release_date, media_type, status, platform, notes, imdb_id, vote_average
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            user_id, movie_id, title, overview, poster, release_date, media_type, status, platform, notes, imdb_id, vote_average, seasons, episodes
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
           RETURNING *`,
           [
             userId,
@@ -65,11 +143,13 @@ export default async function handler(req, res) {
             platform || null,
             notes || null,
             imdb_id || null,
-            vote_average || null,
+            vote_average ? parseFloat(vote_average) : null,
+            seasons || null,
+            episodes || null,
           ]
         );
 
-        cache.delete(cacheKey);
+        cache.clear();
         res.status(201).json(result.rows[0]);
       } catch (error) {
         console.error('Error adding to watchlist:', error);
@@ -94,15 +174,19 @@ export default async function handler(req, res) {
           watched_date,
           imdb_id,
           vote_average,
-        } = req.body;
+          seasons,
+          episodes,
+        } = body;
 
         const result = await pool.query(
           `UPDATE watchlist
-           SET title = $1, overview = $2, poster = $3, release_date = $4, media_type = $5, status = $6,
-               platform = $7, notes = $8, watched_date = $9, imdb_id = $10, vote_average = $11
-           WHERE id = $12 AND user_id = $13
+           SET movie_id = $1, title = $2, overview = $3, poster = $4, release_date = $5, media_type = $6,
+               status = $7, platform = $8, notes = $9, watched_date = $10, imdb_id = $11, vote_average = $12,
+               seasons = $13, episodes = $14
+           WHERE id = $15 AND user_id = $16
            RETURNING *`,
           [
+            movie_id,
             title,
             overview,
             poster,
@@ -113,7 +197,9 @@ export default async function handler(req, res) {
             notes || null,
             watched_date || null,
             imdb_id || null,
-            vote_average || null,
+            vote_average ? parseFloat(vote_average) : null,
+            seasons || null,
+            episodes || null,
             id,
             user_id,
           ]
@@ -123,7 +209,7 @@ export default async function handler(req, res) {
           return res.status(404).json({ error: 'Item not found' });
         }
 
-        cache.delete(cacheKey);
+        cache.clear();
         res.status(200).json(result.rows[0]);
       } catch (error) {
         console.error('Error updating watchlist:', error);
@@ -133,7 +219,7 @@ export default async function handler(req, res) {
 
     case 'DELETE':
       try {
-        const { id } = req.body;
+        const { id } = body;
         const result = await pool.query(
           'DELETE FROM watchlist WHERE id = $1 AND user_id = $2 RETURNING *',
           [id, userId]
@@ -142,7 +228,7 @@ export default async function handler(req, res) {
           return res.status(404).json({ error: 'Item not found' });
         }
 
-        cache.delete(cacheKey);
+        cache.clear();
         res.status(200).json({ message: 'Item deleted' });
       } catch (error) {
         console.error('Error deleting from watchlist:', error);

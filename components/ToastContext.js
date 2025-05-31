@@ -1,19 +1,25 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext } from 'react';
 import useSWR from 'swr';
 
 const ToastContext = createContext();
 const WatchlistContext = createContext();
 
-const fetcher = (url) => fetch(url).then((res) => {
-  if (!res.ok) throw new Error('Failed to fetch watchlist');
+const fetcher = async (url) => {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const error = new Error('Failed to fetch watchlist');
+    error.info = await res.json();
+    error.status = res.status;
+    throw error;
+  }
   return res.json();
-});
+};
 
 export function ToastProvider({ children }) {
-  const [toasts, setToasts] = useState([]);
+  const [toasts, setToasts] = React.useState([]);
 
   const addToast = (toast) => {
-    setToasts((prev) => [toast]);
+    setToasts((prev) => [{ ...toast, id: Date.now() }]);
   };
 
   const dismissToast = (id) => {
@@ -29,28 +35,23 @@ export function ToastProvider({ children }) {
 }
 
 export function WatchlistProvider({ children }) {
-  const [watchlist, setWatchlist] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const { data, error, mutate } = useSWR('/api/watchlist', fetcher, {
+  const { data, error, mutate } = useSWR('/api/watchlist?page=1&limit=1000', fetcher, {
     dedupingInterval: 60000,
     revalidateOnFocus: false,
+    revalidateIfStale: false,
+    onError: (err) => console.error('Watchlist SWR Error:', err, err.info),
+    onSuccess: (data) => console.log('Watchlist SWR Success:', { itemsCount: data?.items?.length, total: data?.total }),
   });
 
-  useEffect(() => {
-    if (error) {
-      console.error('Error fetching watchlist:', error);
-      setIsLoading(false);
-    } else if (data) {
-      setWatchlist(data.map(item => ({
+  const watchlist = Array.isArray(data?.items)
+    ? data.items.map((item) => ({
         ...item,
         vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
-      })));
-      setIsLoading(false);
-    }
-  }, [data, error]);
+      }))
+    : [];
 
   return (
-    <WatchlistContext.Provider value={{ watchlist, isLoading, mutate }}>
+    <WatchlistContext.Provider value={{ watchlist, isLoading: !data && !error, error, mutate }}>
       {children}
     </WatchlistContext.Provider>
   );
@@ -87,16 +88,16 @@ function Toaster({ toasts, dismissToast }) {
 }
 
 function Toast({ toast, onDismiss }) {
-  const [isVisible, setIsVisible] = useState(true);
+  const [isVisible, setIsVisible] = React.useState(true);
 
-  useEffect(() => {
+  React.useEffect(() => {
     const timer = setTimeout(() => {
       setIsVisible(false);
     }, 5000);
     return () => clearTimeout(timer);
   }, []);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!isVisible) {
       const timer = setTimeout(() => {
         onDismiss();
