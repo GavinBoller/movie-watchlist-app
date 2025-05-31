@@ -263,9 +263,32 @@ export default function SearchPage() {
           }
         })
       );
-      const filteredResults = enhancedResults
+      let filteredResults = enhancedResults
         .filter((item) => item)
         .filter((item) => mediaFilter === 'all' || item.media_type === mediaFilter);
+
+      // Sort results to prioritize exact or near-exact matches for the search query
+      filteredResults = filteredResults.sort((a, b) => {
+        const aTitle = (a.title || a.name || '').toLowerCase();
+        const bTitle = (b.title || b.name || '').toLowerCase();
+        const queryLower = searchTerm.toLowerCase();
+
+        // Exact match
+        if (aTitle === queryLower && bTitle !== queryLower) return -1;
+        if (bTitle === queryLower && aTitle !== queryLower) return 1;
+
+        // Starts with query
+        if (aTitle.startsWith(queryLower) && !bTitle.startsWith(queryLower)) return -1;
+        if (bTitle.startsWith(queryLower) && !aTitle.startsWith(queryLower)) return 1;
+
+        // Contains query
+        if (aTitle.includes(queryLower) && !bTitle.includes(queryLower)) return -1;
+        if (bTitle.includes(queryLower) && !aTitle.includes(queryLower)) return 1;
+
+        // Fallback to popularity
+        return (b.popularity || 0) - (a.popularity || 0);
+      });
+
       setSearchResults(filteredResults);
     } catch (error) {
       console.error('Error searching:', error);

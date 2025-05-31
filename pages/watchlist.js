@@ -14,6 +14,7 @@ const fetcher = (url) => fetch(url).then((res) => res.json());
 
 function WatchlistCard({ item, onEdit, onDelete }) {
   const [isHovered, setIsHovered] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -22,6 +23,15 @@ function WatchlistCard({ item, onEdit, onDelete }) {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  const handleTap = (e) => {
+    if (isMobile) {
+      e.preventDefault();
+      if (!showInfo) {
+        setShowInfo(true);
+      }
+    }
+  };
 
   const title = item.title || 'Unknown';
   const posterUrl = item.poster
@@ -48,6 +58,7 @@ function WatchlistCard({ item, onEdit, onDelete }) {
       className="movie-card relative rounded-lg overflow-hidden group cursor-pointer touch-manipulation"
       onMouseEnter={() => !isMobile && setIsHovered(true)}
       onMouseLeave={() => !isMobile && setIsHovered(false)}
+      onClick={handleTap}
       data-testid={`watchlist-${item.movie_id}`}
     >
       <img
@@ -63,7 +74,7 @@ function WatchlistCard({ item, onEdit, onDelete }) {
       </div>
       <div
         className={`movie-info absolute inset-0 bg-black bg-opacity-85 flex flex-col justify-end p-4 mx-2 transition-opacity duration-300 ${
-          isHovered ? 'opacity-100' : 'opacity-0'
+          isMobile ? (showInfo ? 'opacity-100' : 'opacity-0') : isHovered ? 'opacity-100' : 'opacity-0'
         }`}
       >
         <h3 className="font-bold text-sm sm:text-base md:text-lg">{title}</h3>
@@ -93,14 +104,14 @@ function WatchlistCard({ item, onEdit, onDelete }) {
             </Button>
           )}
           <Button
-            onClick={() => onEdit(item)}
+            onClick={(e) => { e.stopPropagation(); onEdit(item); }}
             className="bg-blue-600 text-white text-xs rounded-full py-1 px-3 hover:bg-blue-700 transition-colors min-w-[80px]"
           >
             <Edit className="h-3 w-3 mr-1" />
             Edit
           </Button>
           <Button
-            onClick={() => onDelete(item.id)}
+            onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
             className="bg-red-600 text-white text-xs rounded-full py-1 px-3 hover:bg-red-700 transition-colors min-w-[80px]"
           >
             <Trash2 className="h-3 w-3 mr-1" />

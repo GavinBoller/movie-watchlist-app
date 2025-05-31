@@ -1,4 +1,6 @@
-import React, { createContext, useContext } from 'react';
+'use client';
+
+import React, { createContext, useContext, useState, useCallback } from 'react';
 import useSWR from 'swr';
 
 const ToastContext = createContext();
@@ -16,15 +18,15 @@ const fetcher = async (url) => {
 };
 
 export function ToastProvider({ children }) {
-  const [toasts, setToasts] = React.useState([]);
+  const [toasts, setToasts] = useState([]);
 
-  const addToast = (toast) => {
-    setToasts((prev) => [{ ...toast, id: Date.now() }]);
-  };
+  const addToast = useCallback((toast) => {
+    setToasts((prev) => [...prev, { ...toast, id: toast.id || Date.now() }]);
+  }, []);
 
-  const dismissToast = (id) => {
+  const dismissToast = useCallback((id) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  };
+  }, []);
 
   return (
     <ToastContext.Provider value={{ addToast, dismissToast }}>
@@ -35,12 +37,12 @@ export function ToastProvider({ children }) {
 }
 
 export function WatchlistProvider({ children }) {
-  const { data, error, mutate } = useSWR('/api/watchlist?page=1&limit=1000', fetcher, {
+  const { data, error, mutate } = useSWR('/api/watchlist?page=1&limit=50', fetcher, {
     dedupingInterval: 60000,
     revalidateOnFocus: false,
     revalidateIfStale: false,
     onError: (err) => console.error('Watchlist SWR Error:', err, err.info),
-    onSuccess: (data) => console.log('Watchlist SWR Success:', { itemsCount: data?.items?.length, total: data?.total }),
+    onSuccess: (data) => console.log('Watchlist SWR Success:', { itemsCount: data?.items?.length || 0, total: data?.total }),
   });
 
   const watchlist = Array.isArray(data?.items)
@@ -88,7 +90,7 @@ function Toaster({ toasts, dismissToast }) {
 }
 
 function Toast({ toast, onDismiss }) {
-  const [isVisible, setIsVisible] = React.useState(true);
+  const [isVisible, setIsVisible] = useState(true);
 
   React.useEffect(() => {
     const timer = setTimeout(() => {

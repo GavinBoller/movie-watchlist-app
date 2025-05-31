@@ -126,7 +126,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
 
   const posterUrl = item.poster_path || item.poster
     ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${item.poster_path || item.poster}`
-    : 'https://via.placeholder.com/154x231?text=No+Image';
+    : 'https://placehold.co/154x231?text=No+Image';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
