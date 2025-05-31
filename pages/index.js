@@ -11,6 +11,9 @@ import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List } from 'luc
 import { useToast, useWatchlist } from '../components/ToastContext';
 import { mutate } from 'swr';
 
+// Client-side cache for TMDB search results
+const searchCache = new Map();
+
 function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
   const [isHovered, setIsHovered] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -28,7 +31,15 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
   }, []);
 
   const handleTap = () => {
-    if (isMobile) setShowInfo(!showInfo);
+    if (isMobile) {
+      if (!showInfo) {
+        setShowInfo(true);
+      } else {
+        onShowDetails(movie); // Open modal on second tap
+      }
+    } else {
+      onShowDetails(movie); // Open modal on click for desktop
+    }
   };
 
   const handleAddClick = (e) => {
@@ -121,7 +132,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
             )}
             <div className="flex space-x-2">
               <Button
-                onClick={() => onShowDetails(movie)}
+                onClick={(e) => { e.stopPropagation(); onShowDetails(movie); }}
                 className="bg-gray-700 text-white text-sm rounded-lg py-2 flex-1 hover:bg-gray-600 transition flex items-center justify-center max-w-[50%]"
               >
                 <Info className="h-4 w-4 mr-1" />
@@ -147,7 +158,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
         ) : (
           <div className="flex mt-2 space-x-2 flex-wrap gap-y-2">
             <Button
-              onClick={() => onShowDetails(movie)}
+              onClick={(e) => { e.stopPropagation(); onShowDetails(movie); }}
               className="bg-gray-700 text-white text-xs rounded-full py-1 px-3 hover:bg-gray-600 transition-colors min-w-[80px]"
             >
               <Info className="h-3 w-3 mr-1" />
@@ -206,17 +217,26 @@ export default function SearchPage() {
     setIsLoading(true);
     try {
       let allResults = [];
-      const searchTerm = query.trim(); // Remove wildcard
-      for (let page = 1; page <= 2; page++) {
-        const url = `https://api.themoviedb.org/3/search/multi?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(searchTerm)}&page=${page}`;
-        console.log(`Fetching TMDB URL: ${url}`);
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Failed to fetch search results');
-        const data = await res.json();
-        console.log(`Raw TMDB response for "${query}" (page ${page}):`, JSON.stringify(data.results, null, 2));
-        console.log(`Search query "${query}" page ${page} returned ${data.results.length} results, total: ${data.total_results}, pages: ${data.total_pages}`);
-        allResults = [...allResults, ...data.results];
+      const searchTerm = query.trim();
+      const cacheKey = `search:${searchTerm.toLowerCase()}`;
+      
+      if (searchCache.has(cacheKey)) {
+        console.log(`Cache hit for ${cacheKey}`);
+        allResults = searchCache.get(cacheKey);
+      } else {
+        for (let page = 1; page <= 2; page++) {
+          const url = `https://api.themoviedb.org/3/search/multi?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(searchTerm)}&page=${page}`;
+          console.log(`Fetching TMDB URL: ${url}`);
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Failed to fetch search results');
+          const data = await res.json();
+          console.log(`Raw TMDB response for "${query}" (page ${page}):`, JSON.stringify(data.results, null, 2));
+          console.log(`Search query "${query}" page ${page} returned ${data.results.length} results, total: ${data.total_results}, pages: ${data.total_pages}`);
+          allResults = [...allResults, ...data.results];
+        }
+        searchCache.set(cacheKey, allResults);
       }
+
       const enhancedResults = await Promise.all(
         allResults.map(async (item) => {
           if (item.media_type !== 'movie' && item.media_type !== 'tv') return null;
@@ -336,7 +356,7 @@ export default function SearchPage() {
       <Header />
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-4 text-center">Search Movies & TV Shows</h1>
-        <div className="mb-4 flex justify-center">
+        <div className="mb-4 flex justify-center relative">
           <Input
             type="text"
             placeholder="Search for movies or TV shows..."
@@ -345,6 +365,11 @@ export default function SearchPage() {
             className="w-full max-w-[50%] bg-gray-800 border-gray-700 text-white rounded-full py-2 px-4"
           />
         </div>
+        {searchQuery.toLowerCase().includes('mad') && !searchQuery.toLowerCase().includes('mad max') && searchResults.length > 0 && !searchResults.some((item) => (item.title || item.name)?.toLowerCase().includes('mad max')) && (
+          <p className="text-gray-300 mb-4 text-center">
+            No Mad Max titles found. Try searching “Mad Max” for the franchise.
+          </p>
+        )}
         <div className="mb-4 flex justify-center gap-2">
           <Button
             onClick={() => setMediaFilter('all')}

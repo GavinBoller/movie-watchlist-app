@@ -11,6 +11,11 @@ import { CalendarIcon, Clapperboard, Tv2, X, PlayCircle, CheckCircle, Clock, Sta
 import { useToast } from '../components/ToastContext';
 
 export default function AddToWatchlistModal({ item, onSave, onClose }) {
+  if (!item) {
+    console.warn('AddToWatchlistModal: item is undefined');
+    return null;
+  }
+
   const [status, setStatus] = useState(item?.status || 'to_watch');
   const [watchedDate, setWatchedDate] = useState(item?.watched_date || '');
   const [selectedPlatformId, setSelectedPlatformId] = useState('none');
@@ -42,7 +47,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
     } else if (status !== 'watched' && watchedDate) {
       setWatchedDate('');
     }
-  }, [status, watchedDate]);
+  }, [status]);
 
   useEffect(() => {
     async function fetchPlatforms() {
@@ -118,11 +123,6 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
       setIsLoading(false);
     }
   };
-
-  if (!item) {
-    console.error('AddToWatchlistModal: item is undefined');
-    return null;
-  }
 
   const posterUrl = item.poster_path || item.poster
     ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${item.poster_path || item.poster}`

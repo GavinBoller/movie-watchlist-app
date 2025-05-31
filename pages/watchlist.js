@@ -134,7 +134,16 @@ export default function WatchlistPage() {
   }, [searchQuery]);
 
   const handleEdit = (item) => {
-    setEditItem(item);
+    setEditItem({
+      ...item,
+      media_type: item.media_type || 'movie',
+      poster_path: item.poster,
+      title: item.title,
+      name: item.title,
+      vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
+      number_of_seasons: item.seasons,
+      number_of_episodes: item.episodes,
+    });
   };
 
   const handleDelete = async (id) => {
@@ -170,20 +179,21 @@ export default function WatchlistPage() {
         body: JSON.stringify({
           id: item.id,
           user_id: 1,
-          movie_id: item.movie_id,
-          title: item.title,
+          movie_id: item.movie_id || item.id.toString(),
+          title: item.title || item.name,
           overview: item.overview,
-          poster: item.poster,
-          release_date: item.release_date,
-          media_type: item.media_type,
-          status: item.status,
-          platform: item.platform,
-          notes: item.notes,
-          imdb_id: item.imdb_id,
+          poster: item.poster || item.poster_path,
+          release_date: item.release_date || item.first_air_date,
+          media_type: item.media_type || 'movie',
+          status: item.status || 'to_watch',
+          platform: item.platform || null,
+          notes: item.notes || null,
+          watched_date: item.watched_date || null,
+          imdb_id: item.imdb_id || null,
           vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
-          runtime: item.runtime,
-          seasons: item.seasons,
-          episodes: item.episodes,
+          runtime: item.runtime || null,
+          seasons: item.number_of_seasons || item.seasons || null,
+          episodes: item.number_of_episodes || item.episodes || null,
         }),
       });
       if (!res.ok) {

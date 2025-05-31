@@ -16,11 +16,11 @@ export default async function handler(req, res) {
   const { method, query, body } = req;
   const userId = 1;
   const page = parseInt(query.page) || 1;
-  const limit = parseInt(query.limit) || 50;
+  const limit = 50; // Hardcode limit to 50
   const mediaType = query.media || 'all';
   const status = query.status || 'all';
   const search = query.search || '';
-  const cacheKey = `watchlist:${userId}:${page}:${mediaType}:${status}:${search}`;
+  const cacheKey = `watchlist:${userId}:${page}:${limit}:${mediaType}:${status}:${search}`;
   const startTime = Date.now();
 
   switch (method) {
@@ -56,11 +56,15 @@ export default async function handler(req, res) {
           FROM watchlist
           ${whereClause}
           ORDER BY added_at DESC
-          LIMIT $${paramIndex++} OFFSET $${paramIndex}
+          LIMIT $${paramIndex++} OFFSET $${paramIndex++}
         `;
-        const countQuery = `
+        const totalCountQuery = `
+          SELECT COUNT(*) AS total
+          FROM watchlist
+          ${whereClause}
+        `;
+        const filterCountQuery = `
           SELECT 
-            COUNT(*) AS total,
             COUNT(*) FILTER (WHERE media_type = 'movie') AS movie_count,
             COUNT(*) FILTER (WHERE media_type = 'tv') AS tv_count,
             COUNT(*) FILTER (WHERE status = 'to_watch') AS to_watch_count,
@@ -71,27 +75,29 @@ export default async function handler(req, res) {
         `;
 
         console.time(`Database query page ${page}`);
-        const [result, countResult] = await Promise.all([
+        const [result, totalCountResult, filterCountResult] = await Promise.all([
           pool.query(queryText, [...params, limit, offset]),
-          pool.query(countQuery, params),
+          pool.query(totalCountQuery, params),
+          pool.query(filterCountQuery, params),
         ]);
         console.timeEnd(`Database query page ${page}`);
 
         const response = {
           items: result.rows,
-          total: parseInt(countResult.rows[0].total),
-          pages: Math.ceil(countResult.rows[0].total / limit),
+          total: parseInt(totalCountResult.rows[0].total),
+          pages: Math.ceil(parseInt(totalCountResult.rows[0].total) / limit),
+          page,
           filterCounts: {
             media: {
-              all: parseInt(countResult.rows[0].total),
-              movie: parseInt(countResult.rows[0].movie_count),
-              tv: parseInt(countResult.rows[0].tv_count),
+              all: parseInt(totalCountResult.rows[0].total),
+              movie: parseInt(filterCountResult.rows[0].movie_count),
+              tv: parseInt(filterCountResult.rows[0].tv_count),
             },
             status: {
-              all: parseInt(countResult.rows[0].total),
-              to_watch: parseInt(countResult.rows[0].to_watch_count),
-              watching: parseInt(countResult.rows[0].watching_count),
-              watched: parseInt(countResult.rows[0].watched_count),
+              all: parseInt(totalCountResult.rows[0].total),
+              to_watch: parseInt(filterCountResult.rows[0].to_watch_count),
+              watching: parseInt(filterCountResult.rows[0].watching_count),
+              watched: parseInt(filterCountResult.rows[0].watched_count),
             },
           },
         };
@@ -186,13 +192,13 @@ export default async function handler(req, res) {
            WHERE id = $15 AND user_id = $16
            RETURNING *`,
           [
-            movie_id,
-            title,
+            movie_id || null,
+            title || null,
             overview,
-            poster,
-            release_date,
-            media_type,
-            status,
+            poster || null,
+            release_date || null,
+            media_type || 'movie',
+            status || 'to_watch',
             platform || null,
             notes || null,
             watched_date || null,
@@ -201,7 +207,7 @@ export default async function handler(req, res) {
             seasons || null,
             episodes || null,
             id,
-            user_id,
+            user_id || 1,
           ]
         );
 
