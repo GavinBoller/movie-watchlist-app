@@ -109,7 +109,29 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
         number_of_episodes: item.media_type === 'tv' ? item.number_of_episodes || null : null,
       };
       console.log('Saving to watchlist:', payload);
+
+      const res = await fetch('/api/watchlist', {
+        method: item.id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        if (errorData.error === 'Item already in watchlist') {
+          // Suppress duplicate error toast
+          onClose();
+          return;
+        }
+        throw new Error(errorData.error || 'Failed to save');
+      }
+
       await onSave(payload);
+      addToast({
+        id: Date.now(),
+        title: 'Success',
+        description: item.id ? 'Item updated' : 'Added to watchlist',
+      });
       onClose();
     } catch (error) {
       console.error('Error saving to watchlist:', error);
@@ -268,7 +290,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
                 value={selectedPlatformId}
                 onValueChange={(value) => setSelectedPlatformId(value !== 'none' ? value : 'none')}
               >
-                <SelectTrigger className="w-full bg-gray-800 border-gray-700 text-white">
+                <SelectTrigger className="w-full bg-gray-800 border-gray-600 text-white">
                   <SelectValue placeholder="Select platform (optional)" />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-600 text-white">

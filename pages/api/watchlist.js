@@ -2,7 +2,12 @@ import { Pool } from '@neondatabase/serverless';
 import NodeCache from 'node-cache';
 
 const cache = new NodeCache({ stdTTL: 300 });
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 20, // Increase max connections
+  idleTimeoutMillis: 30000, // 30s idle timeout
+  connectionTimeoutMillis: 10000, // 10s connection timeout
+});
 
 export default async function handler(req, res) {
   const userId = 1; // Hardcoded for simplicity
@@ -13,6 +18,7 @@ export default async function handler(req, res) {
       const { page = 1, limit = 50, search = '', media = 'all', status = 'all' } = req.query;
       const offset = (parseInt(page) - 1) * parseInt(limit);
       const cacheKey = `watchlist:${userId}:${page}:${limit}:${media}:${status}:${search}`;
+      const timerLabel = `Database query page ${page} ${Date.now()}`; // Unique label
 
       const cached = cache.get(cacheKey);
       if (cached) {
@@ -20,7 +26,7 @@ export default async function handler(req, res) {
         return res.status(200).json(cached.data);
       }
 
-      console.time(`Database query page ${page}`);
+      console.time(timerLabel);
       const start = Date.now();
 
       let query = `
@@ -82,7 +88,7 @@ export default async function handler(req, res) {
 
         const { rows: [{ total, movie, tv, to_watch, watching, watched }] } = await client.query(countQuery, countParams);
 
-        console.timeEnd(`Database query page ${page}`);
+        console.timeEnd(timerLabel);
         console.log(`Database query returned ${rows.length} items in ${Date.now() - start}ms`);
 
         const data = {

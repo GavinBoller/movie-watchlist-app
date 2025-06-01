@@ -156,7 +156,7 @@ export default function WatchlistPage() {
   const { data, error, mutate } = useSWR(
     `/api/watchlist?page=${page}&limit=${limit}&search=${encodeURIComponent(debouncedSearch)}&media=${mediaFilter}&status=${statusFilter}`,
     fetcher,
-    { revalidateOnFocus: false }
+    { revalidateOnFocus: false, fallbackData: { items: [], total: 0, filterCounts: {} } }
   );
 
   useEffect(() => {
