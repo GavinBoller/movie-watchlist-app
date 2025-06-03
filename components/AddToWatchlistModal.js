@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
 import { CalendarIcon, Clapperboard, Tv2, X, PlayCircle, CheckCircle, Clock, Star } from 'lucide-react';
-import { useToast } from '../components/ToastContext';
+import { useToast } from './ToastContext';
 
 export default function AddToWatchlistModal({ item, onSave, onClose }) {
   if (!item) {
@@ -28,17 +28,20 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
 
   const userId = 1;
   const mediaTypeLabel = item?.media_type === 'tv' ? 'Show' : 'Movie';
+  const title = item.title || item.name || 'Untitled';
+  const movieId = item.movie_id || item.id?.toString();
+  const watchlistId = item.watchlistId?.toString();
   const displayInfo = item?.release_date || item?.first_air_date
     ? `${(item.release_date || item.first_air_date).split('-')[0]} • ${item.genres || 'N/A'}`
     : 'N/A';
 
   useEffect(() => {
-    console.log('AddToWatchlistModal item:', item);
+    console.log('AddToWatchlistModal item:', { movie_id: movieId, title, watchlistId });
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  }, [movieId, title, watchlistId]);
 
   useEffect(() => {
     if (status === 'watched' && !watchedDate) {
@@ -97,41 +100,39 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
       });
       return;
     }
+    if (!movieId || !title || !userId) {
+      addToast({
+        id: Date.now(),
+        title: 'Error',
+        description: 'Movie ID, title, and user ID are required',
+        variant: 'destructive',
+      });
+      return;
+    }
     setIsLoading(true);
     try {
       const payload = {
-        ...item,
+        id: watchlistId,
+        movie_id: movieId,
+        title,
+        user_id: userId,
+        media_type: item.media_type || 'movie',
         status,
         platform: platforms.find((p) => p.id.toString() === selectedPlatformId)?.name || null,
         watched_date: status === 'watched' ? watchedDate : null,
         notes: notes || null,
+        poster: item.poster_path || item.poster || null,
+        overview: item.overview || null,
+        release_date: item.release_date || item.first_air_date || null,
+        imdb_id: item.imdb_id || null,
+        vote_average: item.vote_average || null,
+        runtime: item.runtime || null,
         number_of_seasons: item.media_type === 'tv' ? item.number_of_seasons || null : null,
         number_of_episodes: item.media_type === 'tv' ? item.number_of_episodes || null : null,
       };
       console.log('Saving to watchlist:', payload);
 
-      const res = await fetch('/api/watchlist', {
-        method: item.id ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        if (errorData.error === 'Item already in watchlist') {
-          // Suppress duplicate error toast
-          onClose();
-          return;
-        }
-        throw new Error(errorData.error || 'Failed to save');
-      }
-
       await onSave(payload);
-      addToast({
-        id: Date.now(),
-        title: 'Success',
-        description: item.id ? 'Item updated' : 'Added to watchlist',
-      });
       onClose();
     } catch (error) {
       console.error('Error saving to watchlist:', error);
@@ -177,8 +178,9 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
           <div className={isMobile ? 'relative mx-auto mb-3' : 'relative'}>
             <img
               src={posterUrl}
-              alt={item.title || item.name}
+              alt={title}
               className={`rounded ${isMobile ? 'h-36' : 'w-24'}`}
+              loading="lazy"
             />
             <div
               className={`absolute top-2 right-2 text-white text-xs font-bold py-1 px-2 rounded-full ${
@@ -189,7 +191,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
             </div>
           </div>
           <div className={isMobile ? 'text-center' : 'ml-4'}>
-            <h4 className="font-bold text-lg text-white">{item.title || item.name || 'Untitled'}</h4>
+            <h4 className="font-bold text-lg text-white">{title}</h4>
             <div
               className={`flex items-center text-sm text-gray-300 ${isMobile ? 'justify-center' : ''}`}
             >
@@ -253,7 +255,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
                 <CheckCircle className="h-4 w-4 text-[#E50914]" />
                 <div>
                   <div className="font-medium text-white">Watched</div>
-                  <div className="text-xs text-gray-400">Already Watched</div>
+                  <div className="text-xs text-gray-400">Already watched</div>
                 </div>
               </Label>
             </div>

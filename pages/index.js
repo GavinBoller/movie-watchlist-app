@@ -7,20 +7,20 @@ import AddToWatchlistModal from '../components/AddToWatchlistModal';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
-import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List } from 'lucide-react';
+import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv } from 'lucide-react';
 import { useToast, useWatchlist } from '../components/ToastContext';
-import { mutate } from 'swr';
 
-// Client-side cache for TMDB search results
-const searchCache = new Map();
+// Client-side cache for TMDB requests
+const tmdbCache = new Map();
 
 function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
   const [isHovered, setIsHovered] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const { watchlist } = useWatchlist();
+  const [imdbId, setImdbId] = useState(null);
+  const { watchlist, addToast } = useWatchlist();
   const isInWatchlist = Array.isArray(watchlist) && watchlist.some((item) => 
-    item.movie_id === movie.id.toString() || item.movie_id === movie.id
+    item.movie_id === movie.id.toString()
   );
 
   useEffect(() => {
@@ -30,15 +30,44 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  useEffect(() => {
+    const fetchImdbId = async () => {
+      try {
+        const endpoint = movie.media_type === 'movie'
+          ? `https://api.themoviedb.org/3/movie/${movie.id}/external_ids`
+          : `https://api.themoviedb.org/3/tv/${movie.id}/external_ids`;
+        const cacheKey = `${endpoint}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`;
+        if (tmdbCache.has(cacheKey)) {
+          setImdbId(tmdbCache.get(cacheKey).imdb_id || null);
+          return;
+        }
+        const res = await fetch(`${endpoint}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}`);
+        if (!res.ok) throw new Error('Failed to fetch IMDb ID');
+        const data = await res.json();
+        tmdbCache.set(cacheKey, data);
+        setImdbId(data.imdb_id || null);
+      } catch (error) {
+        console.error(`Failed to fetch IMDb ID for ${movie.id}:`, error);
+        addToast({
+          id: Date.now(),
+          title: 'Error',
+          description: 'Failed to fetch IMDb ID.',
+          variant: 'destructive',
+        });
+      }
+    };
+    fetchImdbId();
+  }, [movie.id, movie.media_type, addToast]);
+
   const handleTap = () => {
     if (isMobile) {
       if (!showInfo) {
         setShowInfo(true);
       } else {
-        onShowDetails(movie); // Open modal on second tap
+        onShowDetails(movie);
       }
     } else {
-      onShowDetails(movie); // Open modal on click for desktop
+      onShowDetails(movie);
     }
   };
 
@@ -68,6 +97,9 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
     : 'N/A';
   const seasons = movie.media_type === 'tv' ? (movie.number_of_seasons || 'N/A') : null;
   const episodes = movie.media_type === 'tv' ? (movie.number_of_episodes || 'N/A') : null;
+  const imdbUrl = imdbId
+    ? `https://www.imdb.com/title/${imdbId}`
+    : `https://www.imdb.com/find/?q=${encodeURIComponent(title)}&s=tt`;
 
   return (
     <div
@@ -112,7 +144,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
           <Clock className="h-3 w-3 mr-1" />
           <span>
             {movie.media_type === 'tv'
-              ? `${seasons} seasons, ${episodes} episodes`
+              ? `${seasons} season${seasons !== 1 ? 's' : ''}, ${episodes} episode${episodes !== 1 ? 's' : ''}`
               : runtime}
           </span>
         </div>
@@ -140,21 +172,16 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
                 <Info className="h-4 w-4 mr-1" />
                 Details
               </Button>
-              {movie.imdb_id && (
-                <Button
-                  asChild
-                  className="bg-[#F5C518] text-black text-sm rounded-lg py-2 flex-1 hover:bg-yellow-400 transition flex items-center justify-center max-w-[50%]"
-                >
-                  <a
-                    href={`https://www.imdb.com/title/${movie.imdb_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    IMDb
-                  </a>
-                </Button>
-              )}
+              <Button
+                asChild
+                className="bg-[#F5C518] text-black text-sm rounded-lg py-2 flex-1 hover:bg-yellow-400 transition flex items-center justify-center max-w-[50%]"
+                disabled={!imdbId}
+              >
+                <a href={imdbUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  IMDb
+                </a>
+              </Button>
             </div>
           </div>
         ) : (
@@ -166,21 +193,16 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
               <Info className="h-3 w-3 mr-1" />
               Details
             </Button>
-            {movie.imdb_id && (
-              <Button
-                asChild
-                className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px]"
-              >
-                <a
-                  href={`https://www.imdb.com/title/${movie.imdb_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink className="h-3 w-3 mr-1" />
-                  IMDb
-                </a>
-              </Button>
-            )}
+            <Button
+              asChild
+              className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px]"
+              disabled={!imdbId}
+            >
+              <a href={imdbUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-3 w-3 mr-1" />
+                IMDb
+              </a>
+            </Button>
             {!isInWatchlist && (
               <Button
                 onClick={handleAddClick}
@@ -212,6 +234,18 @@ export default function SearchPage() {
   const tvCount = searchResults.filter(item => item.media_type === 'tv').length;
   const allCount = searchResults.length;
 
+  const fetchTmdb = async (url) => {
+    if (tmdbCache.has(url)) {
+      console.log(`Cache hit for TMDB: ${url}`);
+      return tmdbCache.get(url);
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch TMDB: ${res.statusText}`);
+    const data = await res.json();
+    tmdbCache.set(url, data);
+    return data;
+  };
+
   const handleSearch = async (query) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -219,223 +253,192 @@ export default function SearchPage() {
     }
     setIsLoading(true);
     try {
-      let allResults = [];
-      const searchTerm = query.trim();
-      const cacheKey = `search:${searchTerm.toLowerCase()}`;
-      
-      if (searchCache.has(cacheKey)) {
-        console.log(`Cache hit for ${cacheKey}`);
-        allResults = searchCache.get(cacheKey);
-      } else {
-        for (let page = 1; page <= 2; page++) {
-          const url = `https://api.themoviedb.org/3/search/multi?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(searchTerm)}&page=${page}`;
-          console.log(`Fetching TMDB URL: ${url}`);
-          const res = await fetch(url);
-          if (!res.ok) throw new Error('Failed to fetch search results');
-          const data = await res.json();
-          console.log(`Raw TMDB response for "${query}" (page ${page}):`, JSON.stringify(data.results, null, 2));
-          console.log(`Search query "${query}" page ${page} returned ${data.results.length} results, total: ${data.total_results}, pages: ${data.total_pages}`);
-          allResults = [...allResults, ...data.results];
-        }
-        searchCache.set(cacheKey, allResults);
-      }
+      const searchUrl = `https://api.themoviedb.org/3/search/multi?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(query)}&page=1`;
+      console.log(`Fetching TMDB URL: ${searchUrl}`);
+      const searchData = await fetchTmdb(searchUrl);
+      console.log(`Raw TMDB response for "${query}" (page 1):`, searchData.results);
+      const filteredResults = searchData.results.filter(
+        (item) => item.media_type === 'movie' || item.media_type === 'tv'
+      );
 
       const enhancedResults = await Promise.all(
-        allResults.map(async (item) => {
-          if (item.media_type !== 'movie' && item.media_type !== 'tv') return null;
+        filteredResults.map(async (item) => {
           try {
-            const detailsRes = await fetch(
-              `https://api.themoviedb.org/3/${item.media_type}/${item.id}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&append_to_response=external_ids`
-            );
-            const details = await detailsRes.json();
-            console.log(`Item ${item.id} external_ids:`, JSON.stringify(details.external_ids));
+            const detailUrl = `https://api.themoviedb.org/3/${item.media_type}/${item.id}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&append_to_response=external_ids`;
+            const details = await fetchTmdb(detailUrl);
             return {
               ...item,
               imdb_id: details.external_ids?.imdb_id || null,
               vote_average: details.vote_average ? parseFloat(details.vote_average) : null,
               runtime: details.runtime || (details.episode_run_time && details.episode_run_time[0]) || null,
               genres: details.genres?.map((g) => g.name).join(', ') || 'N/A',
-              first_air_date: item.media_type === 'tv' ? details.first_air_date || item.first_air_date : null,
               release_date: item.media_type === 'movie' ? details.release_date || item.release_date : null,
+              first_air_date: item.media_type === 'tv' ? details.first_air_date || item.first_air_date : null,
               number_of_seasons: item.media_type === 'tv' ? details.number_of_seasons || null : null,
               number_of_episodes: item.media_type === 'tv' ? details.number_of_episodes || null : null,
             };
           } catch (error) {
             console.warn(`Failed to fetch details for ${item.id}:`, error);
-            return item;
+            return {
+              ...item,
+              genres: 'N/A',
+              runtime: null,
+              imdb_id: null,
+            };
           }
         })
       );
-      let filteredResults = enhancedResults
-        .filter((item) => item)
-        .filter((item) => mediaFilter === 'all' || item.media_type === mediaFilter);
 
-      // Sort results to prioritize exact or near-exact matches for the search query
-      filteredResults = filteredResults.sort((a, b) => {
+      const sortedResults = enhancedResults.sort((a, b) => {
         const aTitle = (a.title || a.name || '').toLowerCase();
         const bTitle = (b.title || b.name || '').toLowerCase();
-        const queryLower = searchTerm.toLowerCase();
+        const queryLower = query.toLowerCase();
 
-        // Exact match
         if (aTitle === queryLower && bTitle !== queryLower) return -1;
         if (bTitle === queryLower && aTitle !== queryLower) return 1;
-
-        // Starts with query
         if (aTitle.startsWith(queryLower) && !bTitle.startsWith(queryLower)) return -1;
         if (bTitle.startsWith(queryLower) && !aTitle.startsWith(queryLower)) return 1;
-
-        // Contains query
         if (aTitle.includes(queryLower) && !bTitle.includes(queryLower)) return -1;
         if (bTitle.includes(queryLower) && !aTitle.includes(queryLower)) return 1;
-
-        // Fallback to popularity
         return (b.popularity || 0) - (a.popularity || 0);
       });
 
-      setSearchResults(filteredResults);
+      setSearchResults(sortedResults);
+      console.log(`Search query "${query}" page 1 returned ${sortedResults.length} results, total: ${searchData.total_results}, pages: ${searchData.total_pages}`);
     } catch (error) {
-      console.error('Error searching:', error);
+      console.error('Search error:', error);
       addToast({
         id: Date.now(),
         title: 'Error',
-        description: 'Failed to load search results',
+        description: 'Failed to fetch search results. Please try again.',
         variant: 'destructive',
       });
+      setSearchResults([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAddToWatchlist = (item) => {
-    const isInWatchlist = watchlist.some((wItem) => 
-      wItem.movie_id === item.id.toString() || wItem.movie_id === item.id
-    );
-    if (isInWatchlist) {
-      addToast({
-        id: Date.now(),
-        title: 'Info',
-        description: `${item.title || item.name} is already in your watchlist`,
-      });
-      return;
-    }
-    setWatchlistItem({ ...item, media_type: item.media_type || 'movie', poster_path: item.poster_path });
-  };
-
-  const handleShowDetails = (item) => {
-    setSelectedItem({ ...item, media_type: item.media_type || 'movie' });
-  };
-
-  const handleSaveToWatchlist = async (item) => {
+  const handleSaveToWatchlist = async (payload) => {
     try {
-      const res = await fetch('/api/watchlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: item.id,
-          title: item.title || item.name,
-          overview: item.overview,
-          poster: item.poster_path,
-          release_date: item.release_date || item.first_air_date,
-          media_type: item.media_type,
-          status: item.status,
-          platform: item.platform,
-          notes: item.notes,
-          imdb_id: item.imdb_id,
-          vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
-          seasons: item.number_of_seasons,
-          episodes: item.number_of_episodes,
-        }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to add to watchlist');
+      if (!payload.movie_id || !payload.title || !payload.user_id) {
+        throw new Error('movie_id, title, and user_id are required');
       }
-      mutate('/api/watchlist?page=1&limit=50');
-      mutateWatchlist();
+      const response = await fetch('/api/watchlist', {
+        method: payload.id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save to watchlist');
+      }
+      await mutateWatchlist(async (currentWatchlist) => {
+        const updatedWatchlist = Array.isArray(currentWatchlist) ? [...currentWatchlist] : [];
+        if (payload.id) {
+          const index = updatedWatchlist.findIndex((item) => item.id === payload.id);
+          if (index !== -1) {
+            updatedWatchlist[index] = { ...updatedWatchlist[index], ...payload };
+          }
+        } else {
+          updatedWatchlist.push({ ...payload, id: Date.now().toString() });
+        }
+        return updatedWatchlist;
+      }, { revalidate: true });
       addToast({
         id: Date.now(),
         title: 'Success',
         description: 'Added to watchlist',
+        variant: 'default',
       });
     } catch (error) {
-      console.error('Error adding to watchlist:', error);
+      console.error('Error saving to watchlist:', error);
       addToast({
         id: Date.now(),
         title: 'Error',
-        description: error.message || 'Failed to add to watchlist',
+        description: error.message || 'Failed to update watchlist',
         variant: 'destructive',
       });
     }
   };
 
+  const handleAddToWatchlist = (item) => {
+    const watchlistEntry = watchlist.find((w) => w.movie_id === item.id.toString());
+    setWatchlistItem({
+      ...item,
+      watchlistId: watchlistEntry?.id,
+      status: watchlistEntry?.status || 'to_watch',
+      platform: watchlistEntry?.platform || null,
+      watched_date: watchlistEntry?.watched_date || null,
+      notes: watchlistEntry?.notes || null,
+      movie_id: item.id.toString(),
+      user_id: 1, // Adjust based on your auth system
+    });
+  };
+
   useEffect(() => {
-    const timeoutId = setTimeout(() => handleSearch(searchQuery), 500);
-    return () => clearTimeout(timeoutId);
+    if (searchQuery.trim()) {
+      const timeoutId = setTimeout(() => handleSearch(searchQuery), 500);
+      return () => clearTimeout(timeoutId);
+    }
   }, [searchQuery]);
 
   useEffect(() => {
     handleSearch(searchQuery);
   }, [mediaFilter]);
 
-  if (watchlistError) {
-    return (
-      <div className="min-h-screen bg-[#1a1a1a] text-white">
-        <Header />
-        <div className="container mx-auto p-4 text-center">
-          <p className="text-gray-300">Failed to load watchlist: {watchlistError.message}</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#1a1a1a] text-white">
+    <div className="min-h-screen bg-[#121212] text-white">
       <Header />
-      <div className="container mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-4 text-center">Search Movies & TV Shows</h1>
-        <div className="mb-4 flex justify-center relative">
+      <main className="container mx-auto px-4 py-8">
+        <h1 className="text-2xl sm:text-3xl font-bold text-center mb-6">Search Movies & TV Shows</h1>
+        <div className="flex flex-col items-center gap-4 mb-6">
           <Input
             type="text"
-            placeholder="Search for movies or TV shows..."
+            placeholder="Search for a movie or TV show..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full max-w-[50%] bg-gray-800 border-gray-700 text-white rounded-full py-2 px-4"
+            className="w-full max-w-2xl bg-[#1a1a1a] border-gray-600 text-white"
           />
+          <div className="flex gap-2 justify-center">
+            <Button
+              onClick={() => setMediaFilter('all')}
+              className={`${
+                mediaFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'
+              } text-white flex items-center gap-1`}
+            >
+              <Film className="h-4 w-4" />
+              All ({allCount})
+            </Button>
+            <Button
+              onClick={() => setMediaFilter('movie')}
+              className={`${
+                mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'
+              } text-white flex items-center gap-1`}
+            >
+              <Film className="h-4 w-4" />
+              Movies ({movieCount})
+            </Button>
+            <Button
+              onClick={() => setMediaFilter('tv')}
+              className={`${
+                mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'
+              } text-white flex items-center gap-1`}
+            >
+              <Tv className="h-4 w-4" />
+              Shows ({tvCount})
+            </Button>
+          </div>
         </div>
         {searchQuery.toLowerCase().includes('mad') && !searchQuery.toLowerCase().includes('mad max') && searchResults.length > 0 && !searchResults.some((item) => (item.title || item.name)?.toLowerCase().includes('mad max')) && (
           <p className="text-gray-300 mb-4 text-center">
             No Mad Max titles found. Try searching “Mad Max” for the franchise.
           </p>
         )}
-        <div className="mb-4 flex justify-center gap-2">
-          <Button
-            onClick={() => setMediaFilter('all')}
-            className={`flex items-center gap-1 ${mediaFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
-          >
-            <List className="h-4 w-4" />
-            All ({allCount})
-          </Button>
-          <Button
-            onClick={() => setMediaFilter('movie')}
-            className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
-          >
-            <Film className="h-4 w-4" />
-            Movies ({movieCount})
-          </Button>
-          <Button
-            onClick={() => setMediaFilter('tv')}
-            className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
-          >
-            <Tv className="h-4 w-4" />
-            TV Shows ({tvCount})
-          </Button>
-        </div>
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-            {[...Array(10)].map((_, index) => (
-              <div key={index} className="rounded-lg overflow-hidden">
-                <Skeleton className="w-full aspect-[2/3]" />
-              </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {[...Array(10)].map((_, i) => (
+              <Skeleton key={i} className="h-[300px] w-full bg-gray-800 rounded-lg" />
             ))}
           </div>
         ) : !searchQuery && searchResults.length === 0 ? (
@@ -450,13 +453,13 @@ export default function SearchPage() {
                   Try "Marvel"
                 </Button>
                 <Button onClick={() => { setSearchQuery("Star Wars"); handleSearch("Star Wars"); }}>
-                  Try "Star Wars"
+                  Star Wars
                 </Button>
                 <Button onClick={() => { setSearchQuery("Breaking Bad"); handleSearch("Breaking Bad"); }}>
                   Try "Breaking Bad"
                 </Button>
                 <Button onClick={() => { setSearchQuery("Stranger Things"); handleSearch("Stranger Things"); }}>
-                  Try "Stranger Things"
+                  Stranger Things
                 </Button>
               </div>
             </div>
@@ -466,18 +469,20 @@ export default function SearchPage() {
             <p className="text-gray-300">No results found. Try a different search term.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-            {searchResults.map((item) => (
-              <MovieCard
-                key={item.id}
-                movie={item}
-                onAddToWatchlist={() => handleAddToWatchlist(item)}
-                onShowDetails={handleShowDetails}
-              />
-            ))}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {searchResults
+              .filter((item) => mediaFilter === 'all' || item.media_type === mediaFilter)
+              .map((item) => (
+                <MovieCard
+                  key={item.id}
+                  movie={item}
+                  onAddToWatchlist={() => handleAddToWatchlist(item)}
+                  onShowDetails={() => setSelectedItem(item)}
+                />
+              ))}
           </div>
         )}
-      </div>
+      </main>
       {selectedItem && (
         <DetailsModal
           item={selectedItem}

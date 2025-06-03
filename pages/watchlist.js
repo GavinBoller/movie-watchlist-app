@@ -12,11 +12,14 @@ import AddToWatchlistModal from '../components/AddToWatchlistModal';
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
-function WatchlistCard({ item, onEdit, onDelete }) {
+function WatchlistCard({ item, enhancedItems, onEdit, onDelete }) {
   const [isHovered, setIsHovered] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const { addToast } = useToast();
+
+  // Find enhanced item with TMDB data, fall back to original item
+  const enhancedItem = enhancedItems.find(e => e.id === item.id) || item;
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -37,8 +40,9 @@ function WatchlistCard({ item, onEdit, onDelete }) {
   const handleImdbLink = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (item.imdb_id) {
-      window.open(`https://www.imdb.com/title/${item.imdb_id}`, '_blank', 'noopener,noreferrer');
+    const imdbId = enhancedItem.imdb_id || item.imdb_id;
+    if (imdbId) {
+      window.open(`https://www.imdb.com/title/${imdbId}`, '_blank', 'noopener,noreferrer');
     } else {
       addToast({
         id: Date.now(),
@@ -49,24 +53,26 @@ function WatchlistCard({ item, onEdit, onDelete }) {
     }
   };
 
-  const title = item.title || 'Unknown';
-  const posterUrl = item.poster
-    ? `https://image.tmdb.org/t/p/w300${item.poster}`
+  const title = enhancedItem.title || 'Unknown';
+  const posterUrl = enhancedItem.poster
+    ? `https://image.tmdb.org/t/p/w300${enhancedItem.poster}`
     : 'https://placehold.co/300x450?text=No+Image';
-  const badgeClass = item.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]';
-  const typeBadge = item.media_type === 'tv' ? 'TV' : 'Movie';
-  const displayInfo = item.release_date
-    ? `${item.release_date.split('-')[0]} • ${item.genres || 'N/A'}`
+  const badgeClass = enhancedItem.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]';
+  const typeBadge = enhancedItem.media_type === 'tv' ? 'TV' : 'Movie';
+  const displayInfo = enhancedItem.release_date || enhancedItem.first_air_date
+    ? `${(enhancedItem.release_date || enhancedItem.first_air_date).split('-')[0]} • ${enhancedItem.genres || 'N/A'}`
     : 'N/A';
-  const voteAverage = typeof item.vote_average === 'number' && !isNaN(item.vote_average)
-    ? item.vote_average.toFixed(1)
-    : parseFloat(item.vote_average) && !isNaN(parseFloat(item.vote_average))
-    ? parseFloat(item.vote_average).toFixed(1)
+  const voteAverage = typeof enhancedItem.vote_average === 'number' && !isNaN(enhancedItem.vote_average)
+    ? enhancedItem.vote_average.toFixed(1)
+    : parseFloat(enhancedItem.vote_average) && !isNaN(parseFloat(enhancedItem.vote_average))
+    ? parseFloat(enhancedItem.vote_average).toFixed(1)
     : 'N/A';
-  const runtime = item.runtime
-    ? `${Math.floor(item.runtime / 60)}h ${item.runtime % 60}m`
-    : item.seasons && item.episodes
-    ? `${item.seasons} seasons, ${item.episodes} episodes`
+  const runtime = enhancedItem.runtime
+    ? `${Math.floor(enhancedItem.runtime / 60)}h ${enhancedItem.runtime % 60}m`
+    : enhancedItem.seasons && enhancedItem.episodes
+    ? `${enhancedItem.seasons} season${enhancedItem.seasons !== 1 ? 's' : ''}, ${enhancedItem.episodes} episode${enhancedItem.episodes !== 1 ? 's' : ''}`
+    : enhancedItem.number_of_seasons && enhancedItem.number_of_episodes
+    ? `${enhancedItem.number_of_seasons} season${enhancedItem.number_of_seasons !== 1 ? 's' : ''}, ${enhancedItem.number_of_episodes} episode${enhancedItem.number_of_episodes !== 1 ? 's' : ''}`
     : 'N/A';
 
   return (
@@ -105,14 +111,14 @@ function WatchlistCard({ item, onEdit, onDelete }) {
           <Star className="h-3 sm:h-4 w-4 text-[#F5C518] fill-current ml-1" />
         </div>
         <div className="flex mt-2 space-x-2 flex-wrap gap-y-2">
-          {item.imdb_id && (
+          {(enhancedItem.imdb_id || item.imdb_id) && (
             <Button
               asChild
               className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px] touch-manipulation"
               style={{ touchAction: 'manipulation' }}
             >
               <a
-                href={`https://www.imdb.com/title/${item.imdb_id}`}
+                href={`https://www.imdb.com/title/${enhancedItem.imdb_id || item.imdb_id}`}
                 onClick={handleImdbLink}
                 onTouchStart={handleImdbLink}
                 target="_blank"
@@ -150,8 +156,23 @@ export default function WatchlistPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [editItem, setEditItem] = useState(null);
+  const [enhancedItems, setEnhancedItems] = useState([]);
   const { addToast } = useToast();
   const limit = 50;
+
+  const tmdbCache = new Map();
+
+  const fetchTmdb = async (url) => {
+    if (tmdbCache.has(url)) {
+      console.log(`Cache hit for TMDB: ${url}`);
+      return tmdbCache.get(url);
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch TMDB: ${res.statusText}`);
+    const data = await res.json();
+    tmdbCache.set(url, data);
+    return data;
+  };
 
   const { data, error, mutate } = useSWR(
     `/api/watchlist?page=${page}&limit=${limit}&search=${encodeURIComponent(debouncedSearch)}&media=${mediaFilter}&status=${statusFilter}`,
@@ -168,16 +189,59 @@ export default function WatchlistPage() {
     console.log('Watchlist SWR Success:', data);
   }, [data]);
 
+  useEffect(() => {
+    const enhanceItems = async () => {
+      if (!data?.items || data.items.length === 0) {
+        setEnhancedItems([]);
+        return;
+      }
+
+      const enhanced = await Promise.all(
+        data.items.map(async (item) => {
+          try {
+            const detailUrl = `https://api.themoviedb.org/3/${item.media_type}/${item.movie_id}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&append_to_response=external_ids`;
+            const details = await fetchTmdb(detailUrl);
+            return {
+              ...item,
+              genres: details.genres?.map(g => g.name).join(', ') || item.genres || 'N/A',
+              runtime: details.runtime || (details.episode_run_time && details.episode_run_time[0]) || item.runtime || null,
+              vote_average: details.vote_average ? parseFloat(details.vote_average) : item.vote_average || null,
+              release_date: item.media_type === 'movie' ? details.release_date || item.release_date : item.release_date,
+              first_air_date: item.media_type === 'tv' ? details.first_air_date || item.first_air_date : item.first_air_date,
+              imdb_id: details.external_ids?.imdb_id || item.imdb_id || null,
+              number_of_seasons: item.media_type === 'tv' ? details.number_of_seasons || item.seasons : item.seasons,
+              number_of_episodes: item.media_type === 'tv' ? details.number_of_episodes || item.episodes : item.episodes,
+            };
+          } catch (error) {
+            console.warn(`Failed to fetch TMDB details for ${item.movie_id}:`, error);
+            return {
+              ...item,
+              genres: item.genres || 'N/A',
+              runtime: item.runtime || null,
+            };
+          }
+        })
+      );
+      setEnhancedItems(enhanced);
+    };
+
+    enhanceItems();
+  }, [data?.items]);
+
   const handleEdit = (item) => {
+    const enhancedItem = enhancedItems.find(e => e.id === item.id) || item;
     setEditItem({
-      ...item,
-      media_type: item.media_type || 'movie',
-      poster_path: item.poster,
-      title: item.title,
-      name: item.title,
-      vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
-      number_of_seasons: item.seasons,
-      number_of_episodes: item.episodes,
+      ...enhancedItem,
+      media_type: enhancedItem.media_type || 'movie',
+      poster_path: enhancedItem.poster,
+      title: enhancedItem.title,
+      name: enhancedItem.title,
+      vote_average: enhancedItem.vote_average ? parseFloat(enhancedItem.vote_average) : null,
+      number_of_seasons: enhancedItem.number_of_seasons || enhancedItem.seasons,
+      number_of_episodes: enhancedItem.number_of_episodes || enhancedItem.episodes,
+      id: enhancedItem.id,
+      movie_id: enhancedItem.movie_id || enhancedItem.id?.toString(),
+      user_id: 1,
     });
   };
 
@@ -188,19 +252,23 @@ export default function WatchlistPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id }),
       });
-      if (!res.ok) throw new Error('Failed to delete item');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to delete item');
+      }
       mutate();
       addToast({
         id: Date.now(),
         title: 'Success',
         description: 'Item deleted from watchlist',
+        variant: 'default',
       });
     } catch (error) {
       console.error('Error deleting item:', error);
       addToast({
         id: Date.now(),
         title: 'Error',
-        description: 'Failed to delete item',
+        description: error.message || 'Failed to delete item',
         variant: 'destructive',
       });
     }
@@ -208,28 +276,30 @@ export default function WatchlistPage() {
 
   const handleSaveEdit = async (item) => {
     try {
+      const payload = {
+        id: item.id,
+        user_id: 1,
+        movie_id: item.movie_id || item.id?.toString(),
+        title: item.title || item.name,
+        overview: item.overview || null,
+        poster: item.poster || item.poster_path || null,
+        release_date: item.release_date || item.first_air_date || null,
+        media_type: item.media_type || 'movie',
+        status: item.status || 'to_watch',
+        platform: item.platform || null,
+        notes: item.notes || null,
+        watched_date: item.watched_date || null,
+        imdb_id: item.imdb_id || null,
+        vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
+        runtime: item.runtime || null,
+        seasons: item.number_of_seasons || item.seasons || null,
+        episodes: item.number_of_episodes || item.episodes || null,
+      };
+
       const res = await fetch('/api/watchlist', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: item.id,
-          user_id: 1,
-          movie_id: item.movie_id || item.id.toString(),
-          title: item.title || item.name,
-          overview: item.overview,
-          poster: item.poster || item.poster_path,
-          release_date: item.release_date || item.first_air_date,
-          media_type: item.media_type || 'movie',
-          status: item.status || 'to_watch',
-          platform: item.platform || null,
-          notes: item.notes || null,
-          watched_date: item.watched_date || null,
-          imdb_id: item.imdb_id || null,
-          vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
-          runtime: item.runtime || null,
-          seasons: item.number_of_seasons || item.seasons || null,
-          episodes: item.number_of_episodes || item.episodes || null,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const errorData = await res.json();
@@ -240,6 +310,7 @@ export default function WatchlistPage() {
         id: Date.now(),
         title: 'Success',
         description: 'Item updated',
+        variant: 'default',
       });
     } catch (error) {
       console.error('Error updating item:', error);
@@ -275,7 +346,7 @@ export default function WatchlistPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {[...Array(10)].map((_, index) => (
               <div key={index} className="rounded-lg overflow-hidden">
-                <Skeleton className="w-full aspect-[2/3]" />
+                <Skeleton className="w-full aspect-[2/3] bg-gray-800" />
               </div>
             ))}
           </div>
@@ -362,6 +433,7 @@ export default function WatchlistPage() {
               <WatchlistCard
                 key={item.id}
                 item={item}
+                enhancedItems={enhancedItems}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
               />
@@ -372,7 +444,7 @@ export default function WatchlistPage() {
           <Button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="bg-gray-700 text-white"
+            className="bg-gray-700 text-white hover:bg-gray-600"
           >
             Previous
           </Button>
@@ -382,7 +454,7 @@ export default function WatchlistPage() {
           <Button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="bg-gray-700 text-white"
+            className="bg-gray-700 text-white hover:bg-gray-600"
           >
             Next
           </Button>
@@ -391,7 +463,10 @@ export default function WatchlistPage() {
       {editItem && (
         <AddToWatchlistModal
           item={editItem}
-          onSave={handleSaveEdit}
+          onSave={async (payload) => {
+            await handleSaveEdit(payload);
+            setEditItem(null);
+          }}
           onClose={() => setEditItem(null)}
         />
       )}

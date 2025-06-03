@@ -1,16 +1,16 @@
 import { Pool } from '@neondatabase/serverless';
 import NodeCache from 'node-cache';
 
-const cache = new NodeCache({ stdTTL: 300 });
+const cache = new NodeCache({ stdTTL: 600 }); // 10 minutes TTL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20, // Increase max connections
-  idleTimeoutMillis: 30000, // 30s idle timeout
-  connectionTimeoutMillis: 10000, // 10s connection timeout
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
 });
 
 export default async function handler(req, res) {
-  const userId = 1; // Hardcoded for simplicity
+  const userId = 1; // Adjust based on auth system
   console.log(`${req.method} ${req.url}`);
 
   try {
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
       const { page = 1, limit = 50, search = '', media = 'all', status = 'all' } = req.query;
       const offset = (parseInt(page) - 1) * parseInt(limit);
       const cacheKey = `watchlist:${userId}:${page}:${limit}:${media}:${status}:${search}`;
-      const timerLabel = `Database query page ${page} ${Date.now()}`; // Unique label
+      const timerLabel = `Database query page ${page} ${Date.now()}`;
 
       const cached = cache.get(cacheKey);
       if (cached) {
@@ -39,8 +39,16 @@ export default async function handler(req, res) {
       const params = [userId];
 
       if (search) {
-        query += ` AND title_tsv @@ to_tsquery($2)`;
-        params.push(search.replace(/\s+/g, ' & '));
+        const sanitizedSearch = search
+          .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
+          .trim()
+          .split(/\s+/)
+          .filter(word => word.length > 0)
+          .join(' & ');
+        if (sanitizedSearch) {
+          query += ` AND title_tsv @@ to_tsquery($${params.length + 1})`;
+          params.push(sanitizedSearch);
+        }
       }
 
       if (media !== 'all') {
@@ -77,12 +85,12 @@ export default async function handler(req, res) {
             COUNT(*) FILTER (WHERE status = 'watched') AS watched
           FROM watchlist
           WHERE user_id = $1
-          ${search ? `AND title_tsv @@ to_tsquery($2)` : ''}
-          ${media !== 'all' ? `AND media_type = $${search ? 3 : 2}` : ''}
-          ${status !== 'all' ? `AND status = $${search ? (media !== 'all' ? 4 : 3) : (media !== 'all' ? 3 : 2)}` : ''}
+          ${search && sanitizedSearch ? `AND title_tsv @@ to_tsquery($2)` : ''}
+          ${media !== 'all' ? `AND media_type = $${search && sanitizedSearch ? 3 : 2}` : ''}
+          ${status !== 'all' ? `AND status = $${search && sanitizedSearch ? (media !== 'all' ? 4 : 3) : (media !== 'all' ? 3 : 2)}` : ''}
         `;
         const countParams = [userId];
-        if (search) countParams.push(search.replace(/\s+/g, ' & '));
+        if (search && sanitizedSearch) countParams.push(sanitizedSearch);
         if (media !== 'all') countParams.push(media);
         if (status !== 'all') countParams.push(status);
 
@@ -109,70 +117,6 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const {
-        id,
-        title,
-        overview,
-        poster,
-        release_date,
-        media_type,
-        status,
-        platform,
-        notes,
-        imdb_id,
-        vote_average,
-        seasons,
-        episodes,
-      } = req.body;
-
-      console.log(`Adding item ${id} to watchlist`);
-
-      const client = await pool.connect();
-      try {
-        const exists = await client.query(
-          `SELECT 1 FROM watchlist WHERE user_id = $1 AND movie_id = $2`,
-          [userId, id.toString()]
-        );
-        if (exists.rows.length > 0) {
-          return res.status(400).json({ error: 'Item already in watchlist' });
-        }
-
-        await client.query(
-          `
-          INSERT INTO watchlist (
-            user_id, movie_id, title, overview, poster, release_date, media_type,
-            status, platform, notes, imdb_id, vote_average, seasons, episodes, added_at
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW()
-          )
-        `,
-          [
-            userId,
-            id.toString(),
-            title,
-            overview || null,
-            poster || null,
-            release_date || null,
-            media_type || 'movie',
-            status || 'to_watch',
-            platform || null,
-            notes || null,
-            imdb_id || null,
-            vote_average ? parseFloat(vote_average) : null,
-            seasons || null,
-            episodes || null,
-          ]
-        );
-        cache.flushAll();
-        return res.status(200).json({ message: 'Added to watchlist' });
-      } finally {
-        client.release();
-      }
-    }
-
-    if (req.method === 'PUT') {
-      const {
-        id,
-        user_id,
         movie_id,
         title,
         overview,
@@ -190,30 +134,109 @@ export default async function handler(req, res) {
         episodes,
       } = req.body;
 
+      if (!movie_id || !title) {
+        return res.status(400).json({ error: 'movie_id and title are required' });
+      }
+
+      console.log(`Adding item ${movie_id} to watchlist`);
+
+      const client = await pool.connect();
+      try {
+        const exists = await client.query(
+          `SELECT 1 FROM watchlist WHERE user_id = $1 AND movie_id = $2`,
+          [userId, movie_id.toString()]
+        );
+        if (exists.rows.length > 0) {
+          return res.status(400).json({ error: 'Item already in watchlist' });
+        }
+
+        await client.query(
+          `
+          INSERT INTO watchlist (
+            user_id, movie_id, title, overview, poster, release_date, media_type,
+            status, platform, notes, watched_date, imdb_id, vote_average, runtime,
+            seasons, episodes, added_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW()
+          )
+        `,
+          [
+            userId,
+            movie_id.toString(),
+            title,
+            overview || null,
+            poster || null,
+            release_date || null,
+            media_type || 'movie',
+            status || 'to_watch',
+            platform || null,
+            notes || null,
+            watched_date || null,
+            imdb_id || null,
+            vote_average ? parseFloat(vote_average) : null,
+            runtime || null,
+            seasons || null,
+            episodes || null,
+          ]
+        );
+        cache.flushAll();
+        return res.status(200).json({ message: 'Added to watchlist' });
+      } finally {
+        client.release();
+      }
+    }
+
+    if (req.method === 'PUT') {
+      const {
+        id,
+        movie_id,
+        title,
+        overview,
+        poster,
+        release_date,
+        media_type,
+        status,
+        platform,
+        notes,
+        watched_date,
+        imdb_id,
+        vote_average,
+        runtime,
+        seasons,
+        episodes,
+        user_id,
+      } = req.body;
+
+      if (!id || !movie_id || !title || !user_id) {
+        return res.status(400).json({ error: 'id, movie_id, title, and user_id are required' });
+      }
+
       const client = await pool.connect();
       try {
         const result = await client.query(
           `
           UPDATE watchlist
           SET
-            title = $1,
-            overview = $2,
-            poster = $3,
-            release_date = $4,
-            media_type = $5,
-            status = $6,
-            platform = $7,
-            notes = $8,
-            watched_date = $9,
-            imdb_id = $10,
-            vote_average = $11,
-            runtime = $12,
-            seasons = $13,
-            episodes = $14
-          WHERE id = $15 AND user_id = $16
+            movie_id = $1,
+            title = $2,
+            overview = $3,
+            poster = $4,
+            release_date = $5,
+            media_type = $6,
+            status = $7,
+            platform = $8,
+            notes = $9,
+            watched_date = $10,
+            imdb_id = $11,
+            vote_average = $12,
+            runtime = $13,
+            seasons = $14,
+            episodes = $15
+          WHERE id = $16 AND user_id = $17
           RETURNING *
         `,
           [
+            movie_id.toString(),
             title,
             overview || null,
             poster || null,
@@ -247,6 +270,10 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const { id } = req.body;
+
+      if (!id) {
+        return res.status(400).json({ error: 'id is required' });
+      }
 
       const client = await pool.connect();
       try {
