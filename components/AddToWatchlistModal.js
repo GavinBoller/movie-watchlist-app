@@ -30,7 +30,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
   const mediaTypeLabel = item?.media_type === 'tv' ? 'Show' : 'Movie';
   const title = item.title || item.name || 'Untitled';
   const movieId = item.movie_id || item.id?.toString();
-  const watchlistId = item.watchlistId?.toString();
+  const watchlistId = item.watchlistId?.toString() || item.id?.toString();
   const displayInfo = item?.release_date || item?.first_air_date
     ? `${(item.release_date || item.first_air_date).split('-')[0]} • ${item.genres || 'N/A'}`
     : 'N/A';
@@ -110,36 +110,57 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
       return;
     }
     setIsLoading(true);
+
+    const payload = {
+      id: watchlistId,
+      movie_id: movieId,
+      title,
+      user_id: userId,
+      media_type: item.media_type || 'movie',
+      status,
+      platform: platforms.find((p) => p.id.toString() === selectedPlatformId)?.name || null,
+      watched_date: status === 'watched' ? watchedDate : null,
+      notes: notes || null,
+      poster: item.poster_path || item.poster || null,
+      overview: item.overview || null,
+      release_date: item.release_date || item.first_air_date || null,
+      imdb_id: item.imdb_id || null,
+      vote_average: item.vote_average || null,
+      runtime: item.runtime || null,
+      seasons: item.number_of_seasons || item.seasons || null,
+      episodes: item.number_of_episodes || item.episodes || null,
+    };
+
     try {
-      const payload = {
-        id: watchlistId,
-        movie_id: movieId,
-        title,
-        user_id: userId,
-        media_type: item.media_type || 'movie',
-        status,
-        platform: platforms.find((p) => p.id.toString() === selectedPlatformId)?.name || null,
-        watched_date: status === 'watched' ? watchedDate : null,
-        notes: notes || null,
-        poster: item.poster_path || item.poster || null,
-        overview: item.overview || null,
-        release_date: item.release_date || item.first_air_date || null,
-        imdb_id: item.imdb_id || null,
-        vote_average: item.vote_average || null,
-        runtime: item.runtime || null,
-        number_of_seasons: item.media_type === 'tv' ? item.number_of_seasons || null : null,
-        number_of_episodes: item.media_type === 'tv' ? item.number_of_episodes || null : null,
-      };
-      console.log('Saving to watchlist:', payload);
+      const isEdit = !!watchlistId;
+      const method = isEdit ? 'PUT' : 'POST';
+      console.log(`Submitting ${method} to watchlist:`, payload);
+
+      const response = await fetch('/api/watchlist', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to ${isEdit ? 'update' : 'save to'} watchlist`);
+      }
 
       await onSave(payload);
+      addToast({
+        id: Date.now(),
+        title: 'Success',
+        description: isEdit ? 'Item updated' : 'Added to watchlist',
+        variant: 'default',
+      });
       onClose();
     } catch (error) {
-      console.error('Error saving to watchlist:', error);
+      console.error(`Error ${watchlistId ? 'updating' : 'saving to'} watchlist:`, error);
       addToast({
         id: Date.now(),
         title: 'Error',
-        description: error.message || 'Failed to save to watchlist',
+        description: error.message || `Failed to ${watchlistId ? 'update' : 'save to'} watchlist`,
         variant: 'destructive',
       });
     } finally {

@@ -29,6 +29,13 @@ export default async function handler(req, res) {
       console.time(timerLabel);
       const start = Date.now();
 
+      let sanitizedSearch = search
+        .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
+        .trim()
+        .split(/\s+/)
+        .filter(word => word.length > 0)
+        .join(' & ');
+
       let query = `
         SELECT id, movie_id, title, overview, poster, release_date, media_type,
                status, platform, notes, watched_date, imdb_id, vote_average,
@@ -38,17 +45,9 @@ export default async function handler(req, res) {
       `;
       const params = [userId];
 
-      if (search) {
-        const sanitizedSearch = search
-          .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
-          .trim()
-          .split(/\s+/)
-          .filter(word => word.length > 0)
-          .join(' & ');
-        if (sanitizedSearch) {
-          query += ` AND title_tsv @@ to_tsquery($${params.length + 1})`;
-          params.push(sanitizedSearch);
-        }
+      if (sanitizedSearch) {
+        query += ` AND title_tsv @@ to_tsquery($${params.length + 1})`;
+        params.push(sanitizedSearch);
       }
 
       if (media !== 'all') {
@@ -85,12 +84,12 @@ export default async function handler(req, res) {
             COUNT(*) FILTER (WHERE status = 'watched') AS watched
           FROM watchlist
           WHERE user_id = $1
-          ${search && sanitizedSearch ? `AND title_tsv @@ to_tsquery($2)` : ''}
-          ${media !== 'all' ? `AND media_type = $${search && sanitizedSearch ? 3 : 2}` : ''}
-          ${status !== 'all' ? `AND status = $${search && sanitizedSearch ? (media !== 'all' ? 4 : 3) : (media !== 'all' ? 3 : 2)}` : ''}
+          ${sanitizedSearch ? `AND title_tsv @@ to_tsquery($2)` : ''}
+          ${media !== 'all' ? `AND media_type = $${sanitizedSearch ? 3 : 2}` : ''}
+          ${status !== 'all' ? `AND status = $${sanitizedSearch ? (media !== 'all' ? 4 : 3) : (media !== 'all' ? 3 : 2)}` : ''}
         `;
         const countParams = [userId];
-        if (search && sanitizedSearch) countParams.push(sanitizedSearch);
+        if (sanitizedSearch) countParams.push(sanitizedSearch);
         if (media !== 'all') countParams.push(media);
         if (status !== 'all') countParams.push(status);
 

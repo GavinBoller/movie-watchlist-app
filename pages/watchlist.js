@@ -168,7 +168,10 @@ export default function WatchlistPage() {
       return tmdbCache.get(url);
     }
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`Failed to fetch TMDB: ${res.statusText}`);
+    if (!res.ok) {
+      console.warn(`TMDB fetch failed for ${url}: ${res.status} ${res.statusText}`);
+      throw new Error(`Failed to fetch TMDB: ${res.statusText}`);
+    }
     const data = await res.json();
     tmdbCache.set(url, data);
     return data;
@@ -242,6 +245,7 @@ export default function WatchlistPage() {
       id: enhancedItem.id,
       movie_id: enhancedItem.movie_id || enhancedItem.id?.toString(),
       user_id: 1,
+      watchlistId: enhancedItem.id,
     });
   };
 
@@ -277,7 +281,7 @@ export default function WatchlistPage() {
   const handleSaveEdit = async (item) => {
     try {
       const payload = {
-        id: item.id,
+        id: item.id || item.watchlistId,
         user_id: 1,
         movie_id: item.movie_id || item.id?.toString(),
         title: item.title || item.name,
@@ -295,6 +299,8 @@ export default function WatchlistPage() {
         seasons: item.number_of_seasons || item.seasons || null,
         episodes: item.number_of_episodes || item.episodes || null,
       };
+
+      console.log('Saving edit to watchlist:', payload);
 
       const res = await fetch('/api/watchlist', {
         method: 'PUT',
@@ -410,7 +416,7 @@ export default function WatchlistPage() {
           </Button>
           <Button
             onClick={() => setStatusFilter('watching')}
-            className={`flex items-center gap-1 ${statusFilter === 'watching' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+            className={`flex items-center gap-1 ${statusFilter === 'watching' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-600 hover:bg-gray-700'}`}
           >
             <List className="h-4 w-4" />
             Watching ({filterCounts.status?.watching || 0})
@@ -424,8 +430,8 @@ export default function WatchlistPage() {
           </Button>
         </div>
         {items.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-300">No items in watchlist. Add some from the search page!</p>
+          <div class="text-center py-8">
+            <p class="text-gray-300">No items in watchlist. Add some from the search page!</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
@@ -434,7 +440,7 @@ export default function WatchlistPage() {
                 key={item.id}
                 item={item}
                 enhancedItems={enhancedItems}
-                onEdit={handleEdit}
+                onEdit={onEdit}
                 onDelete={handleDelete}
               />
             ))}
@@ -454,6 +460,7 @@ export default function WatchlistPage() {
           <Button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
+            className="bg-gray-700 text-white"
             className="bg-gray-700 text-white hover:bg-gray-600"
           >
             Next
@@ -469,7 +476,7 @@ export default function WatchlistPage() {
           }}
           onClose={() => setEditItem(null)}
         />
-      )}
+      ))}
     </div>
   );
 }
