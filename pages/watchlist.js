@@ -416,7 +416,7 @@ export default function WatchlistPage() {
           </Button>
           <Button
             onClick={() => setStatusFilter('watching')}
-            className={`flex items-center gap-1 ${statusFilter === 'watching' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-600 hover:bg-gray-700'}`}
+            className={`flex items-center gap-1 ${statusFilter === 'watching' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
             <List className="h-4 w-4" />
             Watching ({filterCounts.status?.watching || 0})
@@ -430,8 +430,8 @@ export default function WatchlistPage() {
           </Button>
         </div>
         {items.length === 0 ? (
-          <div class="text-center py-8">
-            <p class="text-gray-300">No items in watchlist. Add some from the search page!</p>
+          <div className="text-center py-8">
+            <p className="text-gray-300">No items in watchlist. Add some from the search page!</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
@@ -440,7 +440,7 @@ export default function WatchlistPage() {
                 key={item.id}
                 item={item}
                 enhancedItems={enhancedItems}
-                onEdit={onEdit}
+                onEdit={handleEdit}
                 onDelete={handleDelete}
               />
             ))}
@@ -460,7 +460,6 @@ export default function WatchlistPage() {
           <Button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="bg-gray-700 text-white"
             className="bg-gray-700 text-white hover:bg-gray-600"
           >
             Next
@@ -476,7 +475,7 @@ export default function WatchlistPage() {
           }}
           onClose={() => setEditItem(null)}
         />
-      ))}
+      )}
     </div>
   );
 }
