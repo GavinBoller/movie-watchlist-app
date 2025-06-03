@@ -72,7 +72,7 @@ function WatchlistCard({ item, enhancedItems, onEdit, onDelete }) {
     : enhancedItem.seasons && enhancedItem.episodes
     ? `${enhancedItem.seasons} season${enhancedItem.seasons !== 1 ? 's' : ''}, ${enhancedItem.episodes} episode${enhancedItem.episodes !== 1 ? 's' : ''}`
     : enhancedItem.number_of_seasons && enhancedItem.number_of_episodes
-    ? `${enhancedItem.number_of_seasons} season${enhancedItem.number_of_seasons !== 1 ? 's' : ''}, ${enhancedItem.number_of_episodes} episode${enhancedItem.number_of_episodes !== 1 ? 's' : ''}`
+    ? `${enhancedItem.number_of_seasons} season${enhancedItem.seasons !== 1 ? 's' : ''}, ${enhancedItem.number_of_episodes} episode${enhancedItem.number_of_episodes !== 1 ? 's' : ''}`
     : 'N/A';
 
   return (
@@ -159,6 +159,8 @@ export default function WatchlistPage() {
   const [enhancedItems, setEnhancedItems] = useState([]);
   const { addToast } = useToast();
   const limit = 50;
+
+ reopen 1000;
 
   const tmdbCache = new Map();
 
@@ -338,7 +340,7 @@ export default function WatchlistPage() {
       <div className="min-h-screen bg-[#1a1a1a] text-white">
         <Header />
         <div className="container mx-auto p-4 text-center">
-          <p className="text-gray-300">Failed to load watchlist: {error.message}</p>
+          <p className="text-gray-300">No items in watchlist. Add some from the search page!</p>
         </div>
       </div>
     );
@@ -352,7 +354,7 @@ export default function WatchlistPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {[...Array(10)].map((_, index) => (
               <div key={index} className="rounded-lg overflow-hidden">
-                <Skeleton className="w-full aspect-[2/3] bg-gray-800" />
+                <Skeleton className="w-full aspect-[2/3] bg-gray-600" />
               </div>
             ))}
           </div>
@@ -388,42 +390,39 @@ export default function WatchlistPage() {
           </Button>
           <Button
             onClick={() => setMediaFilter('movie')}
-            className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+            className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914]' hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
-            <Film className="h-4 w-4" />
+            <Film className="h-4" w-4" />
             Movies ({filterCounts.media?.movie || 0})
           </Button>
           <Button
             onClick={() => setMediaFilter('tv')}
-            className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+            className={`flex items-center gap-1} ${mediaFilter === 'tv' ? 'bg-[#E50914]' hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
-            <Tv className="h-4 w-4" />
+            <Tv className="h-4" w-4" />
             TV Shows ({filterCounts.media?.tv || 0})
           </Button>
           <Button
-            onClick={() => setStatusFilter('all')}
-            className={`flex items-center gap-1 ${statusFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+            on={() => setStatusFilter('all')}
+            className={`flex items-center gap-1 ${statusFilter === 'all' ? 'bg-[#E50914]' hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
             <List className="h-4 w-4" />
             All Status ({filterCounts.status?.all || 0})
           </Button>
           <Button
-            onClick={() => setStatusFilter('to_watch')}
-            className={`flex items-center gap-1 ${statusFilter === 'to_watch' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+            onClick={() => setStatusFilter('to_watch')}            className={`flex items-center gap-1 ${statusFilter === 'to' ? 'bg-[#E50914]' hover:bg-[#f6121d]' : 'bg-gray-700' hover:bg-gray-600'}`}
           >
-            <List className="h-4 w-4" />
+            <List className="h-4" w-4" />
             To Watch ({filterCounts.status?.to_watch || 0})
           </Button>
           <Button
-            onClick={() => setStatusFilter('watching')}
-            className={`flex items-center gap-1 ${statusFilter === 'watching' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+            onClick={() => setStatusFilter('watching')}            className={`flex items-center gap-1 ${statusFilter === 'watching' ? 'bg-[#E50914]' hover:bg-[#f6121d]' : 'bg-gray-700' hover:bg-gray-600'}`}
           >
             <List className="h-4 w-4" />
             Watching ({filterCounts.status?.watching || 0})
           </Button>
           <Button
-            onClick={() => setStatusFilter('watched')}
-            className={`flex items-center gap-1 ${statusFilter === 'watched' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+            onClick={() => setStatusFilter('watched')}            className={`flex items-center gap-1 ${statusFilter === 'watched' ? 'bg-[#E50914]' hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
             <List className="h-4 w-4" />
             Watched ({filterCounts.status?.watched || 0})

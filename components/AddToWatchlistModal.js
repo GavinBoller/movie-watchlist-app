@@ -104,7 +104,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
       addToast({
         id: Date.now(),
         title: 'Error',
-        description: 'Movie ID, title, and user ID are required',
+        description: 'Movie ID, title, and user are required',
         variant: 'destructive',
       });
       return;
@@ -118,10 +118,10 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
       user_id: userId,
       media_type: item.media_type || 'movie',
       status,
-      platform: platforms.find((p) => p.id.toString() === selectedPlatformId)?.name || null,
+      platform: platforms.find((p) => p.id.toString() === selectedPlatformId)?.name || '',
       watched_date: status === 'watched' ? watchedDate : null,
-      notes: notes || null,
-      poster: item.poster_path || item.poster || null,
+      notes: notes || '',
+      poster: item.poster_path || item.poster || '',
       overview: item.overview || null,
       release_date: item.release_date || item.first_air_date || null,
       imdb_id: item.imdb_id || null,
@@ -245,7 +245,8 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
               <RadioGroupItem value="to_watch" id="status-to-watch" />
               <Label
                 htmlFor="status-to-watch"
-                className="flex items-center gap-2 cursor-pointer flex-1">
+                className="flex items-center gap-2 cursor-pointer flex-1"
+              >
                 <Clock className="h-4 w-4 text-blue-400" />
                 <div>
                   <div className="font-medium text-white">To Watch</div>
@@ -257,11 +258,12 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
               <RadioGroupItem value="watching" id="status-watching" />
               <Label
                 htmlFor="status-watching"
-                className="flex items-center gap-2 cursor-pointer flex-1">
+                className="flex items-center gap-2 cursor-pointer flex-1"
+              >
                 <PlayCircle className="h-4 w-4 text-green-400" />
                 <div>
                   <div className="font-medium text-white">Currently Watching</div>
-                  <div className="text-xs text-gray-400">Started but not finished watching yet</div>
+                  <div className="text-xs text-gray-400">Started but not finished</div>
                 </div>
               </Label>
             </div>
@@ -269,11 +271,12 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
               <RadioGroupItem value="watched" id="status-watched" />
               <Label
                 htmlFor="status-watched"
-                className="flex items-center gap-2 cursor-pointer flex-1">
+                className="flex items-center gap-2 cursor-pointer flex-1"
+              >
                 <CheckCircle className="h-4 w-4 text-[#E50914]" />
                 <div>
                   <div className="font-medium text-white">Watched</div>
-                  <div className="text-xs text-gray-400">Already watched item</div>
+                  <div className="text-xs text-gray-400">Already watched</div>
                 </div>
               </Label>
             </div>
@@ -289,7 +292,8 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
                   type="date"
                   id="watch-date"
                   className={`w-full bg-gray-700 text-white rounded-lg pl-10 pr-3 py-3 border-gray-600 ${
-                    isMobile ? 'text-base' : '' }`}
+                    isMobile ? 'text-base' : ''
+                  }`}
                   value={watchedDate}
                   onChange={(e) => setWatchedDate(e.target.value)}
                 />
@@ -298,59 +302,59 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
           )}
           <div className="mb-4">
             <Label htmlFor="platform-select" className="text-sm font-medium text-white block mb-2">
-              Platform (optional)</Label>
-            <div>
-              {isPlatformsLoading ? (
-                <p className="text-gray-400 text-sm">Loading platforms...</p>
-              ) : platforms.length === 0 ? (
-                <p class="text-gray-400 text-sm">No platforms available</p>
-              ) : (
-                <Select
-                  value={selectedPlatformId}
-                  onValueChange={(value) => setSelectedPlatformId(value !== 'none' ? value : 'none')}
-                >
-                  <SelectTrigger className="w-full bg-gray-800 border-gray-600 text-white">
-                    <SelectValue placeholder="Select platform (optional)" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-800 border-gray-600 text-white">
-                    <SelectItem value="none">No platform</SelectItem>
-                    {platforms.map((platform) => (
-                      <SelectItem key={platform.id} value={platform.id.toString()}>
-                        {platform.name} {platform.is_default && '(Default)'}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+              Platform (optional)
+            </Label>
+            {isPlatformsLoading ? (
+              <p className="text-gray-400 text-sm">Loading platforms...</p>
+            ) : platforms.length === 0 ? (
+              <p className="text-gray-400 text-sm">No platforms available</p>
+            ) : (
+              <Select
+                value={selectedPlatformId}
+                onValueChange={(value) => setSelectedPlatformId(value !== 'none' ? value : 'none')}
+              >
+                <SelectTrigger className="w-full bg-gray-800 border-gray-600 text-white">
+                  <SelectValue placeholder="Select platform (optional)" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-600 text-white">
+                  <SelectItem value="none">No platform</SelectItem>
+                  {platforms.map((platform) => (
+                    <SelectItem key={platform.id} value={platform.id.toString()}>
+                      {platform.name} {platform.is_default && '(Default)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="mb-4">
-            <Label htmlFor="watch-notes" id="watch-notes" className="text-sm font-medium text-white block mb-2">
+            <Label htmlFor="watch-notes" className="text-sm font-medium text-white block mb-2">
               Notes (optional)
             </Label>
             <Textarea
+              id="watch-notes"
               rows={3}
               className={`w-full bg-gray-700 text-white rounded-lg px-3 py-2 border-gray-600 ${
                 isMobile ? 'text-base' : ''
               }`}
               placeholder={`Add your thoughts about the ${item.media_type === 'tv' ? 'show' : 'movie'}...`}
               value={notes}
-              onChange={(e => setNotes(e.target.value)}
+              onChange={(e) => setNotes(e.target.value)}
             />
           </div>
           <div className="flex justify-end">
             <Button
               type="submit"
               disabled={isLoading || isPlatformsLoading}
-              className={`w-full ${isMobile ? 'py-3 text-base' : ''} bg-[#E50914] hover:bg-[#f6121d] text-white'`}
+              className={`w-full ${isMobile ? 'py-3 text-base' : ''} bg-[#E50914] hover:bg-[#f6121d] text-white`}
             >
               {isLoading
                 ? 'Saving...'
                 : status === 'to_watch'
-                    ? 'Add to Watchlist'
-                    : status === 'watching'
-                    ? 'Add to Currently Watching'
-                    : 'Add to Watched'}
+                ? 'Add to Watchlist'
+                : status === 'watching'
+                ? 'Add to Currently Watching'
+                : 'Add to Watched'}
             </Button>
           </div>
         </form>

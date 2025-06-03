@@ -1,7 +1,7 @@
 import { Pool } from '@neondatabase/serverless';
 import NodeCache from 'node-cache';
 
-const cache = new NodeCache({ stdTTL: 10 }); // 10 minutes TTL
+const cache = new NodeCache({ stdTTL: 600 }); // 10 minutes TTL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 20,
@@ -11,181 +11,289 @@ const pool = new Pool({
 
 export default async function handler(req, res) {
   const userId = 1; // Adjust based on auth system
-  console.log(`[${req.method}] ${req.url}`);
+  console.log(`${req.method} ${req.url}`);
 
   try {
     if (req.method === 'GET') {
       const { page = 1, limit = 50, search = '', media = 'all', status = 'all' } = req.query;
       const offset = (parseInt(page) - 1) * parseInt(limit);
-      const cacheKey = `watchlist:${userId}:${page}:${media}:${limit}:${search}`;
+      const cacheKey = `watchlist:${userId}:${page}:${limit}:${media}:${status}:${search}`;
       const timerLabel = `Database query page ${page} ${Date.now()}`;
 
       const cached = cache.get(cacheKey);
       if (cached) {
-        console.log(`Cache hit for ${cacheKey} in ${Date.now() - cached.startTime}ms`);
+        console.log(`Cache hit for ${cacheKey} in ${Date.now() - cached.start}ms`);
         return res.status(200).json(cached.data);
       }
 
       console.time(timerLabel);
+      const start = Date.now();
+
+      let sanitizedSearch = search
+        .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
+        .trim()
+        .split(/\s+/)
+        .filter(word => word.length > 0)
+        .join(' & ');
+
+      let query = `
+        SELECT id, movie_id, title, overview, poster, release_date, media_type,
+               status, platform, notes, watched_date, imdb_id, vote_average,
+               runtime, seasons, episodes, added_at
+        FROM watchlist
+        WHERE user_id = $1
+      `;
+      const params = [userId];
+
+      if (sanitizedSearch) {
+        query += ` AND title_tsv @@ to_tsquery($${params.length + 1})`;
+        params.push(sanitizedSearch);
+      }
+
+      if (media !== 'all') {
+        query += ` AND media_type = $${params.length + 1}`;
+        params.push(media);
+      }
+
+      if (status !== 'all') {
+        query += ` AND status = $${params.length + 1}`;
+        params.push(status);
+      }
+
+      query += `
+        ORDER BY added_at DESC
+        LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+      `;
+      params.push(parseInt(limit), offset);
+
+      const client = await pool.connect();
       try {
-        let sanitizedSearch = search
-          .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special chars
-          .trim()
-          .split(/\s+/)
-          .filter(word => word.length > 0)
-          .join(' & ');
+        const explainQuery = `EXPLAIN ANALYZE ${query}`;
+        const explainResult = await client.query(explainQuery, params);
+        console.log('Query plan:', explainResult.rows.map(row => row['QUERY PLAN']).join('\n'));
 
-        let query = `
-          SELECT 
-            id, movie_id, title, poster, media_type,
-                  status, platform, notes, watched_date, runtime,
-                  imdb_id,
-                  vote_average,
-                  seasons, runtime,
-                  episodes, added_at,
-                  overview,
-                  release_date,
-                  runtime
-          FROM watchlist
-          WHERE user_id = $1
-        `;
-        const params = [userId];
-
-        if (sanitizedSearch) {
-          query += ` AND title_tsv @@ to_tsquery($${params.length + 1})`;
-          params.push(sanitizedSearch);
-        }
-
-        if (media !== 'all') {
-          query += ` AND media_type = $${params.length + 1}`;
-          params.push(media);}
-
-        if (status !== 'all') {
-          query += ` AND status = $${params.length + 1}`;
-          params.push(status);
-        }
-
-        query += `
-          ORDER BY id DESC
-          LIMIT $${params.length + 1} OFFSET $${params.length + 2}
-        `;
-          params.push(parseInt(limit), offset);
-
-        const client = await pool.connect();
-
-        const explainQuery = await client.query(`EXPLAIN ${query}`, params);
-        console.log('Query plan:', JSON.stringify(explainQuery.rows));
-
-        const results = await client.query(query, params);
+        const { rows } = await client.query(query, params);
 
         const countQuery = `
-          SELECT 
-                    COUNT(*) AS total,
-                    COUNT(*) FILTER (WHERE media_type IS = 'movie') AS movie,
-                    COUNT(*) FILTER (WHERE media_type IS = 'tv') AS tv,
-                    COUNT(*) FILTER (WHERE count IS = 'count') AS total_count,
-                    COUNT(*) FILTER (WHERE status IS = 'to_watched') AS to_watched,
-                    COUNT(*) FILTER (WHERE status IS = 'watch') AS status,
-                    COUNT(*) FILTER (WHERE count IS = 'count') AS count
-                  FROM watchlist
-                WHERE user_id = $1
-                ${sanitizedSearch ? `AND title_tsv @@ to_tsquery($2)` : ''}
-                ${media !== 'all' ? `AND media_type = $${sanitizedSearch ? 3 : 2}` : ''}
-                ${status !== 'all' ? `AND status = $${sanitizedSearch ? (media !== 'all' ? 4 : 3) : (media !== 'all' ? 3 : 2)}` : ''}
-              `;
-              const countParams = [userId];
-              if (sanitizedSearch) countParams.push(sanitizedSearch);
-              if (media !== 'all') countParams.push(media); else if (status !== 'all') countParams.push(status);
+          SELECT
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE media_type = 'movie') AS movie,
+            COUNT(*) FILTER (WHERE media_type = 'tv') AS tv,
+            COUNT(*) FILTER (WHERE status = 'to_watch') AS to_watch,
+            COUNT(*) FILTER (WHERE status = 'watching') AS watching,
+            COUNT(*) FILTER (WHERE status = 'watched') AS watched
+          FROM watchlist
+          WHERE user_id = $1
+          ${sanitizedSearch ? `AND title_tsv @@ to_tsquery($2)` : ''}
+          ${media !== 'all' ? `AND media_type = $${sanitizedSearch ? 3 : 2}` : ''}
+          ${status !== 'all' ? `AND status = $${sanitizedSearch ? (media !== 'all' ? 4 : 3) : (media !== 'all' ? 3 : 2)}` : ''}
+        `;
+        const countParams = [userId];
+        if (sanitizedSearch) countParams.push(sanitizedSearch);
+        if (media !== 'all') countParams.push(media);
+        if (status !== 'all') countParams.push(status);
 
-        const countResults = await client.query(countQuery, countParams);
-        const { total: rows: [{total, movie, tv, tnt: total_count, tnt: watched, tnt: status, tnt: count}]} = countResults;
+        const { rows: [{ total, movie, tv, to_watch, watching, watched }] } = await client.query(countQuery, countParams);
 
         console.timeEnd(timerLabel);
-        console.log(`Database query returned ${results.rows.length} items in ${Date.now() - startTime}ms`);
+        console.log(`Database query returned ${rows.length} items in ${Date.now() - start}ms`);
 
         const data = {
-          items: results.rows,
+          items: rows,
           total: parseInt(total),
           filterCounts: {
-            media: { all: parseInt(total), movie: parseInt(movie), tv: parseInt(tnt)},
-            status: { all: parseInt(total), to_watched: parseInt(tnt_watched), watch: tnt, status: tnt(count)},
+            media: { all: parseInt(total), movie: parseInt(movie), tv: parseInt(tv) },
+            status: { all: parseInt(total), to_watch: parseInt(to_watch), watching: parseInt(watching), watched: parseInt(watched) },
           },
-        items: total };
+        };
 
-        cache.set(cacheKey, { data, startTime: Date.now() });
-        res.status(200).json(data);
+        cache.set(cacheKey, { data, start: Date.now() });
+        return res.status(200).json(data);
       } finally {
         client.release();
       }
     }
 
     if (req.method === 'POST') {
-      const {movie_id, title, user_id, status, poster, release_date, rating, media_type, notes, platform, seasons, watched_date, runtime, imdb_id, duration} episodes,
+      const {
+        movie_id,
+        title,
+        overview,
+        poster,
+        release_date,
+        media_type,
+        status,
+        platform,
+        notes,
+        watched_date,
+        imdb_id,
+        vote_average,
         runtime,
+        seasons,
+        episodes,
       } = req.body;
 
-      if (!movie_id || !title || !user_id) {
-        return res.status(400).json({ error: 'Invalid request: missing required fields' });
+      if (!movie_id || !title) {
+        return res.status(400).json({ error: 'movie_id and title are required' });
       }
 
-      console.log(`Adding item ${movie_id} to to watchlist`);
+      console.log(`Adding item ${movie_id} to watchlist`);
 
       const client = await pool.connect();
       try {
-        const result = await client.query(`
-          INSERT INTO title_tsv (movie_id, title, user_id, status,
- watchlist_id,
- status_id, platform, notes, rating,
- release_date, duration, runtime,
- seasons, id, imdb_id,
-          added_at, media_type,
-          poster,
-          overview,
- runtime,
-          status,
-          runtime,
-          ) VALUES ($1, $2,$3,$3,$5,$4,$6,$7,$8,$9,$11,$10,$12,$12,$14,$14,$15, now()),
-          now(),
+        const exists = await client.query(
+          `SELECT 1 FROM watchlist WHERE user_id = $1 AND movie_id = $2`,
+          [userId, movie_id.toString()]
+        );
+        if (exists.rows.length > 0) {
+          return res.status(400).json({ error: 'Item already in watchlist' });
+        }
+
+        await client.query(
+          `
+          INSERT INTO watchlist (
+            user_id, movie_id, title, overview, poster, release_date, media_type,
+            status, platform, notes, watched_date, imdb_id, vote_average, runtime,
+            seasons, episodes, added_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW()
           )
         `,
           [
-            movie_id,
+            userId,
+            movie_id.toString(),
             title,
-            user_id,
-            user_id,
-            status,
-            movie_id || null,
-            title,
-            platform || null,
-            notes,
-            null,
+            overview || null,
+            poster || null,
             release_date || null,
-            rating || null,
-            duration || null,
+            media_type || 'movie',
+            status || 'to_watch',
+            platform || null,
+            notes || null,
+            watched_date || null,
+            imdb_id || null,
+            vote_average ? parseFloat(vote_average) : null,
             runtime || null,
             seasons || null,
-            imdb_id || null,
-            media_type || 'movie',
-            null,
-            null,
-            null,
+            episodes || null,
           ]
-          );
-
+        );
         cache.flushAll();
-        return res.status(201).json({ message: 'Item added to watchlist' });
-      } catch (error) {
-        console.error('Error adding item:', error);
-        return res.status(500).json({ error: 'Failed to add item' });
-      }
+        return res.status(200).json({ message: 'Added to watchlist' });
       } finally {
         client.release();
       }
     }
 
-    return res.status(405).json({ error: 'Method not allowed' });
+    if (req.method === 'PUT') {
+      const {
+        id,
+        movie_id,
+        title,
+        overview,
+        poster,
+        release_date,
+        media_type,
+        status,
+        platform,
+        notes,
+        watched_date,
+        imdb_id,
+        vote_average,
+        runtime,
+        seasons,
+        episodes,
+        user_id,
+      } = req.body;
+
+      if (!id || !movie_id || !title || !user_id) {
+        return res.status(400).json({ error: 'id, movie_id, title, and user_id are required' });
+      }
+
+      const client = await pool.connect();
+      try {
+        const result = await client.query(
+          `
+          UPDATE watchlist
+          SET
+            movie_id = $1,
+            title = $2,
+            overview = $3,
+            poster = $4,
+            release_date = $5,
+            media_type = $6,
+            status = $7,
+            platform = $8,
+            notes = $9,
+            watched_date = $10,
+            imdb_id = $11,
+            vote_average = $12,
+            runtime = $13,
+            seasons = $14,
+            episodes = $15
+          WHERE id = $16 AND user_id = $17
+          RETURNING *
+        `,
+          [
+            movie_id.toString(),
+            title,
+            overview || null,
+            poster || null,
+            release_date || null,
+            media_type || 'movie',
+            status || 'to_watch',
+            platform || null,
+            notes || null,
+            watched_date || null,
+            imdb_id || null,
+            vote_average ? parseFloat(vote_average) : null,
+            runtime || null,
+            seasons || null,
+            episodes || null,
+            id,
+            user_id,
+          ]
+        );
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'Item not found' });
+        }
+        cache.flushAll();
+        return res.status(200).json({ message: 'Updated watchlist' });
+      } catch (error) {
+        console.error('Error updating watchlist:', error);
+        return res.status(500).json({ error: error.message || 'Failed to update watchlist' });
+      } finally {
+        client.release();
+      }
+    }
+
+    if (req.method === 'DELETE') {
+      const { id } = req.body;
+
+      if (!id) {
+        return res.status(400).json({ error: 'id is required' });
+      }
+
+      const client = await pool.connect();
+      try {
+        const result = await client.query(
+          `DELETE FROM watchlist WHERE id = $1 AND user_id = $2 RETURNING *`,
+          [id, userId]
+        );
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: 'Item not found' });
+        }
+        cache.flushAll();
+        return res.status(200).json({ message: 'Deleted from watchlist' });
+      } finally {
+        client.release();
+      }
+    }
+
+    res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
+    return res.status(405).end(`Method ${req.method} Not Allowed`);
   } catch (error) {
-    console.error('Unexpected error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error('Error:', error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
-});
+}
