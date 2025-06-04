@@ -170,7 +170,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
 
   const posterUrl = item.poster_path || item.poster
     ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${item.poster_path || item.poster}`
-    : 'https://via.placeholder.com/154x231?text=No+Image';
+    : 'https://placehold.it/154x231?text=No+Image';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -291,70 +291,69 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
                 <Input
                   type="date"
                   id="watch-date"
-                  className={`w-full bg-gray-700 text-white rounded-lg pl-10 pr-3 py-3 border-gray-600 ${
-                    isMobile ? 'text-base' : ''
-                  }`}
+                  className={`w-full bg-gray-700 text-white rounded-lg pl-10 pr-3 py-3 border-gray-600`}
                   value={watchedDate}
                   onChange={(e) => setWatchedDate(e.target.value)}
+                  required
                 />
               </div>
             </div>
           )}
           <div className="mb-4">
-            <Label htmlFor="platform-select" className="text-sm font-medium text-white block mb-2">
-              Platform (optional)
+            <Label htmlFor="platform" className="text-sm font-medium text-white block mb-2">
+              Where will you watch?
             </Label>
-            {isPlatformsLoading ? (
-              <p className="text-gray-400 text-sm">Loading platforms...</p>
-            ) : platforms.length === 0 ? (
-              <p className="text-gray-400 text-sm">No platforms available</p>
-            ) : (
-              <Select
-                value={selectedPlatformId}
-                onValueChange={(value) => setSelectedPlatformId(value !== 'none' ? value : 'none')}
-              >
-                <SelectTrigger className="w-full bg-gray-800 border-gray-600 text-white">
-                  <SelectValue placeholder="Select platform (optional)" />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-600 text-white">
-                  <SelectItem value="none">No platform</SelectItem>
-                  {platforms.map((platform) => (
-                    <SelectItem key={platform.id} value={platform.id.toString()}>
-                      {platform.name} {platform.is_default && '(Default)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <Select
+              value={selectedPlatformId}
+              onValueChange={setSelectedPlatformId}
+              disabled={isPlatformsLoading}
+            >
+              <SelectTrigger className="w-full bg-gray-700 text-white border-gray-600 rounded-lg">
+                <SelectValue placeholder={isPlatformsLoading ? 'Loading platforms...' : 'Select a platform'} />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-700 text-white border-gray-600">
+                <SelectItem value="none" className="text-gray-400">None</SelectItem>
+                {platforms.map((platform) => (
+                  <SelectItem
+                    key={platform.id}
+                    value={platform.id.toString()}
+                    className="hover:bg-gray-600"
+                  >
+                    {platform.name}
+                    {platform.is_default && ' (default)'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="mb-4">
-            <Label htmlFor="watch-notes" className="text-sm font-medium text-white block mb-1">
-              Notes (optional)
+            <Label htmlFor="notes" className="text-sm font-medium text-white block mb-2">
+              Notes
             </Label>
             <Textarea
-              id="watch-notes"
-              rows={3}
-              className={`w-full bg-gray-700 text-white rounded-lg px-3 py-2 border-gray-600 ${
-                isMobile ? 'text-base' : ''
-              }`}
-              placeholder={`Add your thoughts about the ${item?.media_type === 'tv' ? 'show' : 'movie'}...`}
+              id="notes"
+              className="w-full bg-gray-700 text-white rounded-lg border-gray-600"
+              rows={isMobile ? 3 : 4}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add any notes (e.g., recommended by a friend)"
             />
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              onClick={onClose}
+              className="bg-gray-600 text-white hover:bg-gray-500"
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
             <Button
               type="submit"
-              disabled={isLoading || isPlatformsLoading}
-              className={`w-full ${isMobile ? 'py-3 text-base' : ''} bg-[#E50914] hover:bg-[#f6121d] text-white`}
+              className="bg-[#E50914] text-white hover:bg-[#f6121d]"
+              disabled={isLoading}
             >
-              {isLoading
-                ? 'Saving...'
-                : status === 'to_watch'
-                ? 'Add to Watchlist'
-                : status === 'watching'
-                ? 'Add to Watching'
-                : 'Add to Watched'}
+              {isLoading ? 'Saving...' : watchlistId ? 'Update' : 'Add'}
             </Button>
           </div>
         </form>

@@ -56,7 +56,7 @@ function WatchlistCard({ item, enhancedItems, onEdit, onDelete }) {
   const title = enhancedItem.title || 'Unknown';
   const posterUrl = enhancedItem.poster
     ? `https://image.tmdb.org/t/p/w300${enhancedItem.poster}`
-    : 'https://via.placeholder.com/300x450?text=No+Image';
+    : 'https://placehold.it/300x450?text=No+Image';
   const badgeClass = enhancedItem.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]';
   const typeBadge = enhancedItem.media_type === 'tv' ? 'TV' : 'Movie';
   const displayInfo = enhancedItem.release_date || enhancedItem.first_air_date
@@ -187,10 +187,6 @@ export default function WatchlistPage() {
     const timeoutId = setTimeout(() => setDebouncedSearch(searchQuery), 500);
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
-
-  useEffect(() => {
-    console.log('Watchlist SWR Success:', data);
-  }, [data]);
 
   useEffect(() => {
     const enhanceItems = async () => {

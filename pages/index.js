@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
 import Header from '../components/Header';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -63,7 +63,7 @@ function MovieCard({ item, onAdd, isInWatchlist }) {
   const title = item.title || item.name || 'Untitled';
   const posterUrl = item.poster_path
     ? `https://image.tmdb.org/t/p/w300${item.poster_path}`
-    : 'https://via.placeholder.com/300x450?text=No+Image';
+    : 'https://placehold.it/300x450?text=No+Image';
   const badgeClass = item.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]';
   const typeBadge = item.media_type === 'tv' ? 'TV' : 'Movie';
   const genresMap = item.media_type === 'tv' ? tvGenres : movieGenres;
@@ -138,24 +138,22 @@ function MovieCard({ item, onAdd, isInWatchlist }) {
           <Star className="h-3 sm:h-4 w-4 text-[#F5C518] fill-current ml-1" />
         </div>
         <div className="flex mt-2 space-x-2 flex-wrap gap-y-2">
-          {item.imdb_id && (
-            <Button
-              asChild
-              className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px] touch-manipulation"
-              style={{ touchAction: 'manipulation' }}
+          <Button
+            asChild
+            className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px] touch-manipulation"
+            style={{ touchAction: 'manipulation' }}
+          >
+            <a
+              href={item.imdb_id ? `https://www.imdb.com/title/${item.imdb_id}` : '#'}
+              onClick={handleImdbLink}
+              onTouchStart={handleImdbLink}
+              target="_blank"
+              rel="noopener noreferrer"
             >
-              <a
-                href={`https://www.imdb.com/title/${item.imdb_id}`}
-                onClick={handleImdbLink}
-                onTouchStart={handleImdbLink}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ExternalLink className="h-3 w-3 mr-1" />
-                IMDb
-              </a>
-            </Button>
-          )}
+              <ExternalLink className="h-3 w-3 mr-1" />
+              IMDb
+            </a>
+          </Button>
           {!isInWatchlist && (
             <Button
               onClick={(e) => {
@@ -208,13 +206,41 @@ export default function SearchPage() {
     { revalidateOnFocus: false }
   );
 
-  // Fetch watchlist to check if items are already added
+  // Fetch watchlist
   const { data: watchlistData } = useSWR(
     '/api/watchlist?page=1&limit=1000',
     fetcher,
-    { revalidateOnFocus: false }
+    { revalidateOnFocus: false, revalidateOnMount: true }
   );
   const watchlistIds = watchlistData?.items?.map(item => item.movie_id) || [];
+
+  // Enhance search results with TMDB details (e.g., imdb_id)
+  const [enhancedResults, setEnhancedResults] = useState([]);
+
+  useEffect(() => {
+    const enhanceResults = async () => {
+      if (!data?.results) return;
+
+      const filteredResults = data.results.filter(item => item.media_type === 'movie' || item.media_type === 'tv');
+      const enhanced = await Promise.all(
+        filteredResults.map(async (item) => {
+          try {
+            const detailUrl = `https://api.themoviedb.org/3/${item.media_type}/${item.id}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&append_to_response=external_ids`;
+            const details = await fetchTmdb(detailUrl);
+            return {
+              ...item,
+              imdb_id: details.external_ids?.imdb_id || null,
+            };
+          } catch (error) {
+            console.warn(`Failed to fetch TMDB details for ${item.id}:`, error);
+            return item;
+          }
+        })
+      );
+      setEnhancedResults(enhanced);
+    };
+    enhanceResults();
+  }, [data?.results]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => setDebouncedSearch(searchQuery), 500);
@@ -252,6 +278,8 @@ export default function SearchPage() {
         number_of_seasons: details.number_of_seasons || null,
         number_of_episodes: details.number_of_episodes || null,
       });
+      // Revalidate watchlist after adding
+      mutate('/api/watchlist?page=1&limit=1000');
     } catch (error) {
       console.error('Error fetching TMDB details:', error);
       addToast({
@@ -265,6 +293,7 @@ export default function SearchPage() {
 
   const handleSave = async (payload) => {
     // No additional logic needed here; handled by AddToWatchlistModal
+    mutate('/api/watchlist?page=1&limit=1000');
   };
 
   if (error) {
@@ -278,9 +307,8 @@ export default function SearchPage() {
     );
   }
 
-  const results = data?.results
-    ?.filter(item => item.media_type === 'movie' || item.media_type === 'tv')
-    ?.filter(item => mediaFilter === 'all' || item.media_type === mediaFilter) || [];
+  const results = enhancedResults
+    .filter(item => mediaFilter === 'all' || item.media_type === mediaFilter);
   const totalPages = data?.total_pages || 1;
 
   return (

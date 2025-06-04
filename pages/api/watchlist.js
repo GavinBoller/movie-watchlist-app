@@ -29,14 +29,23 @@ export default async function handler(req, res) {
       console.time(timerLabel);
       const start = Date.now();
 
-      let sanitizedSearch = search
-        .toLowerCase() // Case-insensitive
-        .replace(/[^a-z0-9\s]/g, '') // Remove special characters
-        .trim()
-        .split(/\s+/)
-        .filter(word => word.length > 0)
-        .map(word => `${word}:*`) // Prefix matching
-        .join(' | '); // OR operator for flexible matching
+      let sanitizedSearch = '';
+      if (search) {
+        const cleanSearch = search
+          .toLowerCase() // Case-insensitive
+          .replace(/[^a-z0-9\s]/g, '') // Remove special characters
+          .trim();
+        if (cleanSearch) {
+          const words = cleanSearch.split(/\s+/).filter(word => word.length > 0);
+          if (words.length === 1) {
+            // Single-word search: use plainto_tsquery for better stop word handling
+            sanitizedSearch = cleanSearch;
+          } else {
+            // Multi-word search: use to_tsquery with & for AND matching
+            sanitizedSearch = words.map(word => `${word}:*`).join(' & ');
+          }
+        }
+      }
 
       let query = `
         SELECT id, movie_id, title, overview, poster, release_date, media_type,
@@ -48,7 +57,7 @@ export default async function handler(req, res) {
       const params = [userId];
 
       if (sanitizedSearch) {
-        query += ` AND title_tsv @@ to_tsquery($${params.length + 1})`;
+        query += ` AND title_tsv @@ ${words.length === 1 ? 'plainto_tsquery' : 'to_tsquery'}($${params.length + 1})`;
         params.push(sanitizedSearch);
       }
 
@@ -86,7 +95,7 @@ export default async function handler(req, res) {
             COUNT(*) FILTER (WHERE status = 'watched') AS watched
           FROM watchlist
           WHERE user_id = $1
-          ${sanitizedSearch ? `AND title_tsv @@ to_tsquery($2)` : ''}
+          ${sanitizedSearch ? `AND title_tsv @@ ${words.length === 1 ? 'plainto_tsquery' : 'to_tsquery'}($2)` : ''}
           ${media !== 'all' ? `AND media_type = $${sanitizedSearch ? 3 : 2}` : ''}
           ${status !== 'all' ? `AND status = $${sanitizedSearch ? (media !== 'all' ? 4 : 3) : (media !== 'all' ? 3 : 2)}` : ''}
         `;
