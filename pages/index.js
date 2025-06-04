@@ -85,9 +85,7 @@ function MovieCard({ item, onAdd, isInWatchlist }) {
   const handleTap = (e) => {
     if (isMobile) {
       e.preventDefault();
-      if (!showInfo) {
-        setShowInfo(true);
-      }
+      setShowInfo(prev => !prev); // Toggle info panel on tap
     }
   };
 

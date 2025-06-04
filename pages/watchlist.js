@@ -31,9 +31,7 @@ function WatchlistCard({ item, enhancedItems, onEdit, onDelete }) {
   const handleTap = (e) => {
     if (isMobile) {
       e.preventDefault();
-      if (!showInfo) {
-        setShowInfo(true);
-      }
+      setShowInfo(prev => !prev); // Toggle info panel on tap
     }
   };
 

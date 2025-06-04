@@ -30,13 +30,14 @@ export default async function handler(req, res) {
       const start = Date.now();
 
       let sanitizedSearch = '';
+      let words = [];
       if (search) {
         const cleanSearch = search
           .toLowerCase() // Case-insensitive
           .replace(/[^a-z0-9\s]/g, '') // Remove special characters
           .trim();
         if (cleanSearch) {
-          const words = cleanSearch.split(/\s+/).filter(word => word.length > 0);
+          words = cleanSearch.split(/\s+/).filter(word => word.length > 0);
           if (words.length === 1) {
             // Single-word search: use plainto_tsquery for better stop word handling
             sanitizedSearch = cleanSearch;

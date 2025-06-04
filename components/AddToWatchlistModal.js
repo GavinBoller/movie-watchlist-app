@@ -327,7 +327,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
             </Select>
           </div>
           <div className="mb-4">
-            <Label htmlFor="notes" className="text-sm font-medium text-white block mb-2">
+            <Label htmlFor="notes" className="text-sm font-medium text-white mb-2">
               Notes
             </Label>
             <Textarea
