@@ -30,11 +30,13 @@ export default async function handler(req, res) {
       const start = Date.now();
 
       let sanitizedSearch = search
-        .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
+        .toLowerCase() // Case-insensitive
+        .replace(/[^a-z0-9\s]/g, '') // Remove special characters
         .trim()
         .split(/\s+/)
         .filter(word => word.length > 0)
-        .join(' & ');
+        .map(word => `${word}:*`) // Prefix matching
+        .join(' | '); // OR operator for flexible matching
 
       let query = `
         SELECT id, movie_id, title, overview, poster, release_date, media_type,
@@ -258,7 +260,7 @@ export default async function handler(req, res) {
           return res.status(404).json({ error: 'Item not found' });
         }
         cache.flushAll();
-        return res.status(200).json({ message: 'Updated watchlist' });
+        return res.status(200).json({ message: 'Success' });
       } catch (error) {
         console.error('Error updating watchlist:', error);
         return res.status(500).json({ error: error.message || 'Failed to update watchlist' });
@@ -277,21 +279,24 @@ export default async function handler(req, res) {
       const client = await pool.connect();
       try {
         const result = await client.query(
-          `DELETE FROM watchlist WHERE id = $1 AND user_id = $2 RETURNING *`,
+          `DELETE FROM watchlist WHERE id = $1 AND user_id = $2 RETURNING id`,
           [id, userId]
         );
         if (result.rows.length === 0) {
           return res.status(404).json({ error: 'Item not found' });
         }
         cache.flushAll();
-        return res.status(200).json({ message: 'Deleted from watchlist' });
+        return res.status(200).json({ message: 'success' });
+      } catch (e) {
+        console.error(e);
+        return res.status(500).json({ error: 'Internal server error' });
       } finally {
         client.release();
       }
     }
 
     res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
+    return res.status(405).end();
   } catch (error) {
     console.error('Error:', error);
     return res.status(500).json({ error: error.message || 'Internal server error' });

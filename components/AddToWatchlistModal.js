@@ -30,7 +30,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
   const mediaTypeLabel = item?.media_type === 'tv' ? 'Show' : 'Movie';
   const title = item.title || item.name || 'Untitled';
   const movieId = item.movie_id || item.id?.toString();
-  const watchlistId = item.watchlistId?.toString() || item.id?.toString();
+  const watchlistId = item.watchlistId?.toString() || null;
   const displayInfo = item?.release_date || item?.first_air_date
     ? `${(item.release_date || item.first_air_date).split('-')[0]} • ${item.genres || 'N/A'}`
     : 'N/A';
@@ -170,7 +170,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
 
   const posterUrl = item.poster_path || item.poster
     ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${item.poster_path || item.poster}`
-    : 'https://placehold.co/154x231?text=No+Image';
+    : 'https://via.placeholder.com/154x231?text=No+Image';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -192,7 +192,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
           </h2>
           <p className="text-gray-400 text-sm">
             Add this {mediaTypeLabel.toLowerCase()} to your{' '}
-            {status === 'to_watch' ? 'watchlist' : status === 'watching' ? 'currently watching' : 'watched'} list
+            {status === 'to_watch' ? 'watchlist' : status === 'watching' ? 'watching' : 'watched'} list
           </p>
         </div>
         <div className={isMobile ? 'flex flex-col mb-4' : 'flex mb-4'}>
@@ -241,7 +241,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
         </div>
         <form onSubmit={handleSubmit}>
           <RadioGroup value={status} onValueChange={setStatus} className="space-y-2 mb-4">
-            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition cursor-pointer">
+            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition-colors cursor-pointer">
               <RadioGroupItem value="to_watch" id="status-to-watch" />
               <Label
                 htmlFor="status-to-watch"
@@ -254,7 +254,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
                 </div>
               </Label>
             </div>
-            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition cursor-pointer">
+            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition-colors cursor-pointer">
               <RadioGroupItem value="watching" id="status-watching" />
               <Label
                 htmlFor="status-watching"
@@ -267,7 +267,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
                 </div>
               </Label>
             </div>
-            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition cursor-pointer">
+            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition-colors cursor-pointer">
               <RadioGroupItem value="watched" id="status-watched" />
               <Label
                 htmlFor="status-watched"
@@ -328,7 +328,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
             )}
           </div>
           <div className="mb-4">
-            <Label htmlFor="watch-notes" className="text-sm font-medium text-white block mb-2">
+            <Label htmlFor="watch-notes" className="text-sm font-medium text-white block mb-1">
               Notes (optional)
             </Label>
             <Textarea
@@ -337,7 +337,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
               className={`w-full bg-gray-700 text-white rounded-lg px-3 py-2 border-gray-600 ${
                 isMobile ? 'text-base' : ''
               }`}
-              placeholder={`Add your thoughts about the ${item.media_type === 'tv' ? 'show' : 'movie'}...`}
+              placeholder={`Add your thoughts about the ${item?.media_type === 'tv' ? 'show' : 'movie'}...`}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
@@ -353,7 +353,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
                 : status === 'to_watch'
                 ? 'Add to Watchlist'
                 : status === 'watching'
-                ? 'Add to Currently Watching'
+                ? 'Add to Watching'
                 : 'Add to Watched'}
             </Button>
           </div>
