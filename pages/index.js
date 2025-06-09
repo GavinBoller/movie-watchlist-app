@@ -16,44 +16,17 @@ import AddToWatchlistModal from '../components/AddToWatchlistModal';
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
 const movieGenres = {
-  28: 'Action',
-  12: 'Adventure',
-  16: 'Animation',
-  35: 'Comedy',
-  80: 'Crime',
-  99: 'Documentary',
-  18: 'Drama',
-  10751: 'Family',
-  14: 'Fantasy',
-  36: 'History',
-  27: 'Horror',
-  10402: 'Music',
-  9648: 'Mystery',
-  10749: 'Romance',
-  878: 'Science Fiction',
-  10770: 'TV Movie',
-  53: 'Thriller',
-  10752: 'War',
-  37: 'Western',
+  28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
+  99: 'Documentary', 18: 'Drama', 10751: 'Family', 14: 'Fantasy', 36: 'History',
+  27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance', 878: 'Science Fiction',
+  10770: 'TV Movie', 53: 'Thriller', 10752: 'War', 37: 'Western'
 };
 
 const tvGenres = {
-  10759: 'Action & Adventure',
-  16: 'Animation',
-  35: 'Comedy',
-  80: 'Crime',
-  99: 'Documentary',
-  18: 'Drama',
-  10751: 'Family',
-  10762: 'Kids',
-  9648: 'Mystery',
-  10763: 'News',
-  10764: 'Reality',
-  10765: 'Sci-Fi & Fantasy',
-  10766: 'Soap',
-  10767: 'Talk',
-  10768: 'War & Politics',
-  37: 'Western',
+  10759: 'Action & Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime', 99: 'Documentary',
+  18: 'Drama', 10751: 'Family', 10762: 'Kids', 9648: 'Mystery', 10763: 'News',
+  10764: 'Reality', 10765: 'Sci-Fi & Fantasy', 10766: 'Soap', 10767: 'Talk',
+  10768: 'War & Politics', 37: 'Western'
 };
 
 export default function SearchPage() {
@@ -98,9 +71,9 @@ export default function SearchPage() {
     fetcher,
     { revalidateOnFocus: false, revalidateOnMount: true }
   );
-  const watchlistIds = watchlistData?.items?.map(item => item.movie_id) || [];
+  const watchlistIds = watchlistData?.items?.map(item => item.movie_id.toString()) || [];
 
-  // Enhance search results with TMDB details (e.g., imdb_id)
+  // Enhance search results with TMDB details
   const [enhancedResults, setEnhancedResults] = useState([]);
 
   useEffect(() => {
@@ -120,6 +93,7 @@ export default function SearchPage() {
               runtime: details.runtime || null,
               number_of_seasons: details.number_of_seasons || null,
               number_of_episodes: details.number_of_episodes || null,
+              vote_average: item.vote_average || details.vote_average || null
             };
           } catch (error) {
             console.warn(`Failed to fetch TMDB details for ${item.id}:`, error);
@@ -148,6 +122,15 @@ export default function SearchPage() {
   }, [debouncedSearch, mediaFilter]);
 
   const handleAdd = async (item) => {
+    if (watchlistIds.includes(item.id.toString())) {
+      addToast({
+        id: Date.now(),
+        title: 'Already in Watchlist',
+        description: `${item.title || item.name} is already in your watchlist.`,
+        variant: 'default'
+      });
+      return;
+    }
     try {
       const detailUrl = `https://api.themoviedb.org/3/${item.media_type}/${item.id}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&append_to_response=external_ids`;
       const details = await fetchTmdb(detailUrl);
@@ -160,13 +143,13 @@ export default function SearchPage() {
         overview: item.overview,
         release_date: item.release_date || item.first_air_date,
         imdb_id: details.external_ids?.imdb_id || null,
-        vote_average: item.vote_average,
+        vote_average: item.vote_average || details.vote_average,
         genres: item.genre_ids
           ? item.genre_ids.map(id => genresMap[id]).filter(Boolean).join(', ')
           : details.genres?.map(g => g.name).join(', ') || '',
         runtime: details.runtime || null,
         number_of_seasons: details.number_of_seasons || null,
-        number_of_episodes: details.number_of_episodes || null,
+        number_of_episodes: details.number_of_episodes || null
       });
       // Revalidate watchlist after adding
       mutate('/api/watchlist?page=1&limit=1000');
@@ -176,7 +159,7 @@ export default function SearchPage() {
         id: Date.now(),
         title: 'Error',
         description: 'Failed to load item details',
-        variant: 'destructive',
+        variant: 'destructive'
       });
     }
   };
@@ -187,74 +170,72 @@ export default function SearchPage() {
   };
 
   const handleSave = async (payload) => {
-    // No additional logic needed here; handled by AddToWatchlistModal
     mutate('/api/watchlist?page=1&limit=1000');
+    setAddItem(null);
   };
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#1a1a1a] text-white">
-        <Header />
-        <div className="container mx-auto p-4 text-center">
-          <p className="text-gray-300">Failed to load search results: {error.message}</p>
-        </div>
+  if (error) return (
+    <div className="min-h-screen bg-[#1a1a1a] text-white">
+      <Header />
+      <div className="container mx-auto p-4 text-center">
+        <p className="text-gray-300">Failed to load search results: {error.message}</p>
       </div>
-    );
-  }
+    </div>
+  );
 
   const results = enhancedResults
     .filter(item => mediaFilter === 'all' || item.media_type === mediaFilter);
   const totalPages = data?.total_pages || 1;
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a] text-white">
+    <div className="min-h-screen bg-[#1a1a] text-white">
       <Header />
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-4 text-center">Search Movies & TV Shows</h1>
-        <div className="mb-4 flex justify-center">
+        <div className="mb-4 flex justify-center items-center">
           <Input
             type="text"
             placeholder="Search for a movie or TV show..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full max-w-[50%] bg-gray-800 border-gray-700 text-white rounded-full py-2 px-4"
+            onClickChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full max-w-[50%] mx-auto bg-gray-800 border-gray-700 text-white rounded-full py-3 px-2 px-4"
           />
         </div>
         <div className="mb-4 flex justify-center gap-2 flex-wrap">
           <Button
             onClick={() => setMediaFilter('all')}
-            className={`flex items-center gap-1 ${mediaFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+            className={`flex items-center gap-1 ${mediaFilter === 'all' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
             <List className="h-4 w-4" />
             All
           </Button>
           <Button
             onClick={() => setMediaFilter('movie')}
-            className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
-          >
+            className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'}`}
+            >
             <Film className="h-4 w-4" />
             Movies
           </Button>
           <Button
             onClick={() => setMediaFilter('tv')}
-            className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
-          >
+            className={`flex items-center gap-1 ${mediaFilter}' === 'tv' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'}`}
+            >
             <Tv className="h-4 w-4" />
             TV Shows
           </Button>
         </div>
         {!data && debouncedSearch ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-            {[...Array(10)].map((_, index) => (
-              <div key={index} className="rounded-lg overflow-hidden">
-                <Skeleton className="w-full aspect-[2/3] bg-gray-800" />
+            {[...Array(10).keys()].map((key) => (
+              <div key={key} className="rounded-lg overflow-hidden">
+                <Skeleton className="w-full h-full aspect-[2/3] bg-gray-800" />
               </div>
             ))}
           </div>
         ) : results.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-gray-300">No results found. Try a different search term.</p>
-          </div>
+            <p className="text-gray-500">No results found.</p>
+            </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {results.map((item) => (
@@ -289,21 +270,21 @@ export default function SearchPage() {
             </Button>
           </div>
         )}
+        {addItem && (
+          <AddToWatchlistModal
+            item={addItem}
+            onSave={handleSave}
+            onClose={() => setAddItem(null)}
+          />
+        )}
+        {isDetailsOpen && (
+          <DetailsModal
+            item={selectedItem}
+            onClose={() => setIsDetailsOpen(false)}
+            onAddToWatchlist={handleAdd}
+          />
+        )}
       </div>
-      {addItem && (
-        <AddToWatchlistModal
-          item={addItem}
-          onSave={handleSave}
-          onClose={() => setAddItem(null)}
-        />
-      )}
-      {isDetailsOpen && (
-        <DetailsModal
-          item={selectedItem}
-          onClose={() => setIsDetailsOpen(false)}
-          onAddToWatchlist={handleAdd}
-        />
-      )}
     </div>
   );
-}
+};

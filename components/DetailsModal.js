@@ -1,53 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { X, Star, Clock, Tv2, Clapperboard, PlusCircle, Tag, ExternalLink } from 'lucide-react';
-import { useToast, useWatchlist } from './ToastContext';
+import { useToast } from './ToastContext';
 
-export default function DetailsModal({ item, onClose, onAddToWatchlist }) {
-  const [isInWatchlist, setIsInWatchlist] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
+export default function DetailsModal({ item, onClose, onAddToWatchlist, isInWatchlist }) {
   const { addToast } = useToast();
-  const { watchlist, isLoading: watchlistLoading, error: watchlistError } = useWatchlist();
 
-  useEffect(() => {
-    console.log('DetailsModal item:', item);
-    console.log('Poster path:', item?.poster_path);
-    setIsLoading(watchlistLoading);
-    if (!watchlistLoading && Array.isArray(watchlist)) {
-      console.log('Watchlist data:', watchlist.map((w) => ({ movie_id: w.movie_id, title: w.title })));
-      const inWatchlist = watchlist.some((watchlistItem) => 
-        watchlistItem.movie_id === item.id.toString()
-      );
-      setIsInWatchlist(inWatchlist);
-      console.log(`Item ${item.id} isInWatchlist:`, inWatchlist);
-    }
-    const checkMobile = () => setIsMobile(window.innerWidth < 640);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, [item?.id, watchlist, watchlistLoading]);
-
-  if (!item) {
-    console.warn('DetailsModal: item is undefined');
-    return null;
-  }
-
-  if (watchlistError) {
-    addToast({
-      id: Date.now(),
-      title: 'Error',
-      description: 'Failed to load watchlist data',
-      variant: 'destructive',
-    });
-  }
+  if (!item) return null;
 
   const title = item.title || item.name || 'Unknown';
   const posterUrl = item.poster_path
     ? `https://image.tmdb.org/t/p/w300${item.poster_path}`
-    : 'https://placehold.co/300x450?text=No+Image';
+    : 'https://via.placeholder.com/300x450?text=No+Image';
   const backdropUrl = item.backdrop_path
     ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}`
     : null;
@@ -86,11 +51,12 @@ export default function DetailsModal({ item, onClose, onAddToWatchlist }) {
         id: Date.now(),
         title: 'Info',
         description: `${title} is already in your watchlist`,
+        variant: 'default',
       });
       onClose();
       return;
     }
-    onAddToWatchlist();
+    onAddToWatchlist(item);
     onClose();
   };
 
@@ -146,11 +112,10 @@ export default function DetailsModal({ item, onClose, onAddToWatchlist }) {
               {item.overview || 'No overview available'}
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
-              {!isLoading && !isInWatchlist && (
+              {!isInWatchlist && (
                 <Button
                   onClick={handleAddClick}
                   className="bg-[#E50914] text-white hover:bg-[#f6121d] flex items-center gap-1 py-3 sm:py-2"
-                  disabled={isLoading}
                 >
                   <PlusCircle className="h-4 w-4" />
                   Add to Watchlist
