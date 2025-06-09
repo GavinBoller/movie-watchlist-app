@@ -7,7 +7,7 @@ export default function MovieCard({ result, onAddToWatchlist, onInfoClick }) {
   const displayDate = release_date || first_air_date;
   const posterUrl = poster_path
     ? `https://image.tmdb.org/t/p/w200${poster_path}`
-    : 'https://placehold.co/200x300?text=No+Poster';
+    : 'https://placehold.it/200x300?text=No+Poster';
   const [imdbId, setImdbId] = useState(null);
   const [isHovered, setIsHovered] = useState(false);
   const { addToast } = useToast();
@@ -34,7 +34,7 @@ export default function MovieCard({ result, onAddToWatchlist, onInfoClick }) {
     };
 
     fetchImdbId();
-  }, [id, media_type]);
+  }, [id, media_type, addToast]);
 
   const handleAdd = () => {
     onAddToWatchlist(result);
