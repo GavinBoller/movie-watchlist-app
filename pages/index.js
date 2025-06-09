@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Skeleton } from '../components/ui/skeleton';
 import { PlusCircle, ExternalLink, Star, Clapperboard, Tv2, List, Film, Tv } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
+import MovieCard from '../components/MovieCard';
+import DetailsModal from '../components/DetailsModal';
 import AddToWatchlistModal from '../components/AddToWatchlistModal';
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
@@ -54,128 +56,14 @@ const tvGenres = {
   37: 'Western',
 };
 
-function MovieCard({ item, onAdd, isInWatchlist }) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const { addToast } = useToast();
-
-  const title = item.title || item.name || 'Untitled';
-  const posterUrl = item.poster_path
-    ? `https://image.tmdb.org/t/p/w300${item.poster_path}`
-    : 'https://placehold.it/300x450?text=No+Image';
-  const badgeClass = item.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]';
-  const typeBadge = item.media_type === 'tv' ? 'TV' : 'Movie';
-  const genresMap = item.media_type === 'tv' ? tvGenres : movieGenres;
-  const genres = item.genre_ids
-    ? item.genre_ids.map(id => genresMap[id]).filter(Boolean).join(', ')
-    : 'N/A';
-  const displayInfo = item.release_date || item.first_air_date
-    ? `${(item.release_date || item.first_air_date).split('-')[0]} • ${genres}`
-    : 'N/A';
-  const voteAverage = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  const handleTap = (e) => {
-    if (isMobile) {
-      e.preventDefault();
-      setShowInfo(prev => !prev); // Toggle info panel on tap
-    }
-  };
-
-  const handleImdbLink = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (item.imdb_id) {
-      window.open(`https://www.imdb.com/title/${item.imdb_id}`, '_blank', 'noopener,noreferrer');
-    } else {
-      addToast({
-        id: Date.now(),
-        title: 'Error',
-        description: 'No IMDb link available',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  return (
-    <div
-      className="movie-card relative rounded-lg overflow-hidden group cursor-pointer touch-manipulation"
-      onMouseEnter={() => !isMobile && setIsHovered(true)}
-      onMouseLeave={() => !isMobile && setIsHovered(false)}
-      onClick={handleTap}
-      style={{ touchAction: 'manipulation' }}
-      data-testid={`movie-${item.id}`}
-    >
-      <img
-        src={posterUrl}
-        alt={title}
-        className="w-full aspect-[2/3] object-cover"
-        loading="lazy"
-      />
-      <div
-        className={`absolute top-2 right-2 ${badgeClass} text-white text-xs font-bold py-1 px-2 rounded-full`}
-      >
-        {typeBadge}
-      </div>
-      <div
-        className={`movie-info absolute inset-0 bg-black bg-opacity-85 flex flex-col justify-end p-4 mx-2 transition-opacity duration-300 ${
-          isMobile ? (showInfo ? 'opacity-100' : 'opacity-0') : isHovered ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        <h3 className="font-bold text-sm sm:text-base md:text-lg">{title}</h3>
-        <p className="text-xs sm:text-sm text-gray-300">{displayInfo}</p>
-        <div className="flex items-center mt-1">
-          <span className="text-[#F5C518] font-bold text-xs sm:text-sm">{voteAverage}</span>
-          <Star className="h-3 sm:h-4 w-4 text-[#F5C518] fill-current ml-1" />
-        </div>
-        <div className="flex mt-2 space-x-2 flex-wrap gap-y-2">
-          <Button
-            asChild
-            className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px] touch-manipulation"
-            style={{ touchAction: 'manipulation' }}
-          >
-            <a
-              href={item.imdb_id ? `https://www.imdb.com/title/${item.imdb_id}` : '#'}
-              onClick={handleImdbLink}
-              onTouchStart={handleImdbLink}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <ExternalLink className="h-3 w-3 mr-1" />
-              IMDb
-            </a>
-          </Button>
-          {!isInWatchlist && (
-            <Button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAdd(item);
-              }}
-              className="bg-[#E50914] text-white text-xs rounded-full py-1 px-3 hover:bg-[#f6121d] transition-colors min-w-[80px]"
-            >
-              <PlusCircle className="h-3 w-3 mr-1" />
-              Add to Watchlist
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [mediaFilter, setMediaFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [addItem, setAddItem] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const { addToast } = useToast();
   const limit = 20;
 
@@ -228,6 +116,10 @@ export default function SearchPage() {
             return {
               ...item,
               imdb_id: details.external_ids?.imdb_id || null,
+              genres: details.genres?.map(g => g.name) || item.genre_ids?.map(id => (item.media_type === 'tv' ? tvGenres : movieGenres)[id]).filter(Boolean) || [],
+              runtime: details.runtime || null,
+              number_of_seasons: details.number_of_seasons || null,
+              number_of_episodes: details.number_of_episodes || null,
             };
           } catch (error) {
             console.warn(`Failed to fetch TMDB details for ${item.id}:`, error);
@@ -287,6 +179,11 @@ export default function SearchPage() {
         variant: 'destructive',
       });
     }
+  };
+
+  const handleInfoClick = (item) => {
+    setSelectedItem(item);
+    setIsDetailsOpen(true);
   };
 
   const handleSave = async (payload) => {
@@ -363,8 +260,9 @@ export default function SearchPage() {
             {results.map((item) => (
               <MovieCard
                 key={item.id}
-                item={item}
-                onAdd={handleAdd}
+                result={item}
+                onAddToWatchlist={handleAdd}
+                onInfoClick={handleInfoClick}
                 isInWatchlist={watchlistIds.includes(item.id.toString())}
               />
             ))}
@@ -397,6 +295,13 @@ export default function SearchPage() {
           item={addItem}
           onSave={handleSave}
           onClose={() => setAddItem(null)}
+        />
+      )}
+      {isDetailsOpen && (
+        <DetailsModal
+          item={selectedItem}
+          onClose={() => setIsDetailsOpen(false)}
+          onAddToWatchlist={handleAdd}
         />
       )}
     </div>
