@@ -1,12 +1,10 @@
 import '../styles/globals.css';
-import { ToastProvider, WatchlistProvider } from '../components/ToastContext';
+import { ToastProvider } from '../components/ToastContext';
 
-export default function MyApp({ Component, pageProps }) {
+export default function App({ Component, pageProps }) {
   return (
     <ToastProvider>
-      <WatchlistProvider>
-        <Component {...pageProps} />
-      </WatchlistProvider>
+      <Component {...pageProps} />
     </ToastProvider>
   );
 }
