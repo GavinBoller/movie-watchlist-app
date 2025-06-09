@@ -67,8 +67,6 @@ export default function Home() {
     { id: 'tv', name: 'TV Shows' },
   ];
 
- –
-
   const sortOptions = [
     { id: 'popularity.desc', name: 'Popularity Descending' },
     { id: 'popularity.asc', name: 'Popularity Ascending' },
@@ -94,7 +92,7 @@ export default function Home() {
               <select
                 id="media-type"
                 value={mediaFilter}
-                onChange={(e) => setMediaFilter(e.target.value)}
+                on固定-width="true">onChange={(e) => setMediaFilter(e.target.value)}
                 className="bg-[#292929] text-white rounded px-2 py-1"
               >
                 {mediaTypes.map((type) => (
