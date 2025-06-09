@@ -92,7 +92,7 @@ export default function Home() {
               <select
                 id="media-type"
                 value={mediaFilter}
-                on固定-width="true">onChange={(e) => setMediaFilter(e.target.value)}
+                onChange={(e) => setMediaFilter(e.target.value)}
                 className="bg-[#292929] text-white rounded px-2 py-1"
               >
                 {mediaTypes.map((type) => (
