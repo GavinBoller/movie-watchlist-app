@@ -8,9 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
 import { CalendarIcon, Clapperboard, Tv2, X, PlayCircle, CheckCircle, Clock, Star } from 'lucide-react';
-import { useToast } from './ToastContext';
+import { useToast } from '../components/ToastContext';
 
-export default function AddToWatchlistModal({ item, onSave, onClose }) {
+export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode }) {
   if (!item) {
     console.warn('AddToWatchlistModal: item is undefined');
     return null;
@@ -26,22 +26,19 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
   const [isPlatformsLoading, setIsPlatformsLoading] = useState(true);
   const { addToast } = useToast();
 
-  const userId = 1;
+  const isEditing = mode === 'edit';
   const mediaTypeLabel = item?.media_type === 'tv' ? 'Show' : 'Movie';
-  const title = item.title || item.name || 'Untitled';
-  const movieId = item.movie_id || item.id?.toString();
-  const watchlistId = item.watchlistId?.toString() || null;
   const displayInfo = item?.release_date || item?.first_air_date
     ? `${(item.release_date || item.first_air_date).split('-')[0]} • ${item.genres || 'N/A'}`
     : 'N/A';
 
   useEffect(() => {
-    console.log('AddToWatchlistModal item:', { movie_id: movieId, title, watchlistId });
+    console.log('AddToWatchlistModal item:', item);
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-  }, [movieId, title, watchlistId]);
+  }, []);
 
   useEffect(() => {
     if (status === 'watched' && !watchedDate) {
@@ -56,7 +53,8 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
     async function fetchPlatforms() {
       setIsPlatformsLoading(true);
       try {
-        const res = await fetch(`/api/platforms?userId=${userId}`);
+        // userId no longer needed in query, API is session-aware
+        const res = await fetch(`/api/platforms`); 
         if (!res.ok) throw new Error('Failed to fetch platforms');
         const data = await res.json();
         const sortedPlatforms = data.sort((a, b) => {
@@ -86,8 +84,8 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
         setIsPlatformsLoading(false);
       }
     }
-    fetchPlatforms();
-  }, [item?.platform, userId, addToast]);
+    fetchPlatforms(); // Removed userId from dependency array
+  }, [item?.platform, addToast]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -100,67 +98,72 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
       });
       return;
     }
-    if (!movieId || !title || !userId) {
-      addToast({
-        id: Date.now(),
-        title: 'Error',
-        description: 'Movie ID, title, and user are required',
-        variant: 'destructive',
-      });
-      return;
-    }
     setIsLoading(true);
-
-    const payload = {
-      id: watchlistId,
-      movie_id: movieId,
-      title,
-      user_id: userId,
-      media_type: item.media_type || 'movie',
-      status,
-      platform: platforms.find((p) => p.id.toString() === selectedPlatformId)?.name || '',
-      watched_date: status === 'watched' ? watchedDate : null,
-      notes: notes || '',
-      poster: item.poster_path || item.poster || '',
-      overview: item.overview || null,
-      release_date: item.release_date || item.first_air_date || null,
-      imdb_id: item.imdb_id || null,
-      vote_average: item.vote_average || null,
-      runtime: item.runtime || null,
-      seasons: item.number_of_seasons || item.seasons || null,
-      episodes: item.number_of_episodes || item.episodes || null,
-    };
-
     try {
-      const isEdit = !!watchlistId;
-      const method = isEdit ? 'PUT' : 'POST';
-      console.log(`Submitting ${method} to watchlist:`, payload);
+      let apiPayload = {
+        // Fields from modal state
+        status,
+        platform: platforms.find((p) => p.id.toString() === selectedPlatformId)?.name || null,
+        watched_date: status === 'watched' ? watchedDate : null,
+        notes: notes || null,
 
-      const response = await fetch('/api/watchlist', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+        // Fields derived from 'item' prop
+        title: item.title || item.name,
+        overview: item.overview,
+        poster: isEditing ? item.poster : item.poster_path,
+        release_date: item.release_date || item.first_air_date,
+        media_type: item.media_type,
+        imdb_id: item.imdb_id || null,
+        vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
+        runtime: item.runtime || null,
+        seasons: item.media_type === 'tv' ? (isEditing ? item.seasons : item.number_of_seasons) || null : null,
+        episodes: item.media_type === 'tv' ? (isEditing ? item.episodes : item.number_of_episodes) || null : null,
+        genres: item.genres || null, // Ensure genres are included in the payload
+      };
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to ${isEdit ? 'update' : 'save to'} watchlist`);
+      if (isEditing) {
+        apiPayload.id = item.id; // DB ID of the watchlist entry
+        apiPayload.movie_id = item.movie_id; // TMDB ID
+        // apiPayload.user_id = item.user_id; // No longer needed, API uses session
+      } else { // Adding new
+        apiPayload.movie_id = item.id; // TMDB ID
+        // apiPayload.user_id = userId; // No longer needed, API uses session
       }
 
-      await onSave(payload);
+      console.log('Saving to watchlist. Mode:', mode, 'Payload:', apiPayload);
+
+      const res = await fetch('/api/watchlist', {
+        method: isEditing ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apiPayload),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        if (errorData.error === 'Item already in watchlist' && !isEditing) {
+          onClose();
+          return;
+        }
+        throw new Error(errorData.error || `Failed to ${isEditing ? 'update' : 'save'}`);
+      }
+
+      const responseData = await res.json();
+      if (onSaveSuccess) {
+        await onSaveSuccess(responseData.item || responseData);
+      }
+
       addToast({
         id: Date.now(),
         title: 'Success',
-        description: isEdit ? 'Item updated' : 'Added to watchlist',
-        variant: 'default',
+        description: `${apiPayload.title || (isEditing ? 'Item' : 'Item')} ${isEditing ? 'updated' : 'added to watchlist'}`,
       });
       onClose();
     } catch (error) {
-      console.error(`Error ${watchlistId ? 'updating' : 'saving to'} watchlist:`, error);
+      console.error(`Error ${isEditing ? 'updating' : 'saving'} to watchlist:`, error);
       addToast({
         id: Date.now(),
         title: 'Error',
-        description: error.message || `Failed to ${watchlistId ? 'update' : 'save to'} watchlist`,
+        description: error.message || `Failed to ${isEditing ? 'update' : 'save'} to watchlist`,
         variant: 'destructive',
       });
     } finally {
@@ -168,9 +171,24 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
     }
   };
 
-  const posterUrl = item.poster_path || item.poster
-    ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${item.poster_path || item.poster}`
-    : 'https://placehold.it/154x231?text=No+Image';
+  const posterFieldName = isEditing ? 'poster' : 'poster_path';
+  const posterValue = item[posterFieldName];
+  const posterUrl = posterValue
+    ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${posterValue}`
+    : 'https://placehold.co/154x231?text=No+Image';
+
+  const actionText = isEditing ? 'Update' : 'Add to';
+  const buttonText = isLoading
+    ? 'Saving...'
+    : status === 'to_watch'
+    ? `${actionText} Watchlist`
+    : status === 'watching'
+    ? `${actionText} Currently Watching`
+    : `${actionText} Watched`;
+
+  const modalTitleAction = isEditing ? 'Edit in' : 'Add to';
+  const modalTitleText = status === 'to_watch' ? `${modalTitleAction} Watchlist` :
+                       status === 'watching' ? `${modalTitleAction} Currently Watching` : `${modalTitleAction} Watched`;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -184,24 +202,19 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
         </button>
         <div className="pr-6">
           <h2 className="text-lg font-bold text-white">
-            {status === 'to_watch'
-              ? 'Add to Watchlist'
-              : status === 'watching'
-              ? 'Add to Currently Watching'
-              : 'Add to Watched'}
+            {modalTitleText}
           </h2>
           <p className="text-gray-400 text-sm">
             Add this {mediaTypeLabel.toLowerCase()} to your{' '}
-            {status === 'to_watch' ? 'watchlist' : status === 'watching' ? 'watching' : 'watched'} list
+            {status === 'to_watch' ? 'watchlist' : status === 'watching' ? 'currently watching' : 'watched'} list
           </p>
         </div>
         <div className={isMobile ? 'flex flex-col mb-4' : 'flex mb-4'}>
           <div className={isMobile ? 'relative mx-auto mb-3' : 'relative'}>
             <img
               src={posterUrl}
-              alt={title}
+              alt={item.title || item.name}
               className={`rounded ${isMobile ? 'h-36' : 'w-24'}`}
-              loading="lazy"
             />
             <div
               className={`absolute top-2 right-2 text-white text-xs font-bold py-1 px-2 rounded-full ${
@@ -212,7 +225,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
             </div>
           </div>
           <div className={isMobile ? 'text-center' : 'ml-4'}>
-            <h4 className="font-bold text-lg text-white">{title}</h4>
+            <h4 className="font-bold text-lg text-white">{item.title || item.name || 'Untitled'}</h4>
             <div
               className={`flex items-center text-sm text-gray-300 ${isMobile ? 'justify-center' : ''}`}
             >
@@ -241,7 +254,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
         </div>
         <form onSubmit={handleSubmit}>
           <RadioGroup value={status} onValueChange={setStatus} className="space-y-2 mb-4">
-            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition-colors cursor-pointer">
+            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition cursor-pointer">
               <RadioGroupItem value="to_watch" id="status-to-watch" />
               <Label
                 htmlFor="status-to-watch"
@@ -254,7 +267,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
                 </div>
               </Label>
             </div>
-            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition-colors cursor-pointer">
+            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition cursor-pointer">
               <RadioGroupItem value="watching" id="status-watching" />
               <Label
                 htmlFor="status-watching"
@@ -267,7 +280,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
                 </div>
               </Label>
             </div>
-            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition-colors cursor-pointer">
+            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition cursor-pointer">
               <RadioGroupItem value="watched" id="status-watched" />
               <Label
                 htmlFor="status-watched"
@@ -276,7 +289,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
                 <CheckCircle className="h-4 w-4 text-[#E50914]" />
                 <div>
                   <div className="font-medium text-white">Watched</div>
-                  <div className="text-xs text-gray-400">Already watched</div>
+                  <div className="text-xs text-gray-400">Already Watched</div>
                 </div>
               </Label>
             </div>
@@ -291,69 +304,64 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
                 <Input
                   type="date"
                   id="watch-date"
-                  className={`w-full bg-gray-700 text-white rounded-lg pl-10 pr-3 py-3 border-gray-600`}
+                  className={`w-full bg-gray-700 text-white rounded-lg pl-10 pr-3 py-3 border-gray-600 ${
+                    isMobile ? 'text-base' : ''
+                  }`}
                   value={watchedDate}
                   onChange={(e) => setWatchedDate(e.target.value)}
-                  required
                 />
               </div>
             </div>
           )}
           <div className="mb-4">
-            <Label htmlFor="platform" className="text-sm font-medium text-white block mb-2">
-              Where will you watch?
+            <Label htmlFor="platform-select" className="text-sm font-medium text-white block mb-2">
+              Platform (optional)
             </Label>
-            <Select
-              value={selectedPlatformId}
-              onValueChange={setSelectedPlatformId}
-              disabled={isPlatformsLoading}
-            >
-              <SelectTrigger className="w-full bg-gray-700 text-white border-gray-600 rounded-lg">
-                <SelectValue placeholder={isPlatformsLoading ? 'Loading platforms...' : 'Select a platform'} />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-700 text-white border-gray-600">
-                <SelectItem value="none" className="text-gray-400">None</SelectItem>
-                {platforms.map((platform) => (
-                  <SelectItem
-                    key={platform.id}
-                    value={platform.id.toString()}
-                    className="hover:bg-gray-600"
-                  >
-                    {platform.name}
-                    {platform.is_default && ' (default)'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {isPlatformsLoading ? (
+              <p className="text-gray-400 text-sm">Loading platforms...</p>
+            ) : platforms.length === 0 ? (
+              <p className="text-gray-400 text-sm">No platforms available</p>
+            ) : (
+              <Select
+                value={selectedPlatformId}
+                onValueChange={(value) => setSelectedPlatformId(value !== 'none' ? value : 'none')}
+              >
+                <SelectTrigger className="w-full bg-gray-800 border-gray-600 text-white">
+                  <SelectValue placeholder="Select platform (optional)" />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-600 text-white">
+                  <SelectItem value="none">No platform</SelectItem>
+                  {platforms.map((platform) => (
+                    <SelectItem key={platform.id} value={platform.id.toString()}>
+                      {platform.name} {platform.is_default && '(Default)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="mb-4">
-            <Label htmlFor="notes" className="text-sm font-medium text-white mb-2">
-              Notes
+            <Label htmlFor="watch-notes" className="text-sm font-medium text-white block mb-2">
+              Notes (optional)
             </Label>
             <Textarea
-              id="notes"
-              className="w-full bg-gray-700 text-white rounded-lg border-gray-600"
-              rows={isMobile ? 3 : 4}
+              id="watch-notes"
+              rows={3}
+              className={`w-full bg-gray-700 text-white rounded-lg px-3 py-2 border-gray-600 ${
+                isMobile ? 'text-base' : ''
+              }`}
+              placeholder={`Add your thoughts about the ${item.media_type === 'tv' ? 'show' : 'movie'}...`}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add any notes (e.g., recommended by a friend)"
             />
           </div>
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              onClick={onClose}
-              className="bg-gray-600 text-white hover:bg-gray-500"
-              disabled={isLoading}
-            >
-              Cancel
-            </Button>
+          <div className="flex justify-end">
             <Button
               type="submit"
-              className="bg-[#E50914] text-white hover:bg-[#f6121d]"
-              disabled={isLoading}
+              disabled={isLoading || isPlatformsLoading}
+              className={`w-full ${isMobile ? 'py-3 text-base' : ''} bg-[#E50914] hover:bg-[#f6121d] text-white`}
             >
-              {isLoading ? 'Saving...' : watchlistId ? 'Update' : 'Add'}
+              {buttonText}
             </Button>
           </div>
         </form>

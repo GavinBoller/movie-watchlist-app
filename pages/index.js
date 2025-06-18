@@ -1,188 +1,470 @@
-import { useState, useMemo } from 'react';
-import useSWR from 'swr';
-import { fetcher } from '../utils/fetcher';
-import MovieCard from '../components/MovieCard';
-import Input from '../components/Input';
-import { Film } from 'lucide-react';
-import { useDebounce } from 'use-debounce';
-import Link from 'next/link';
+'use client';
 
-export default function Home() {
+import { useState, useEffect } from 'react';
+import Header from '../components/Header';
+import DetailsModal from '../components/DetailsModal';
+import AddToWatchlistModal from '../components/AddToWatchlistModal';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Skeleton } from '../components/ui/skeleton';
+import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List } from 'lucide-react';
+import { useToast, useWatchlist } from '../components/ToastContext';
+import { mutate } from 'swr';
+
+// Client-side cache for TMDB search results
+const searchCache = new Map();
+
+function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
+  const [isHovered, setIsHovered] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const { watchlist } = useWatchlist();
+  const isInWatchlist = Array.isArray(watchlist) && watchlist.some((item) => 
+    item.movie_id === movie.id.toString() || item.movie_id === movie.id
+  );
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const handleTap = () => {
+    if (isMobile) {
+      if (!showInfo) {
+        setShowInfo(true);
+      } else {
+        onShowDetails(movie); // Open modal on second tap
+      }
+    } else {
+      onShowDetails(movie); // Open modal on click for desktop
+    }
+  };
+
+  const handleAddClick = (e) => {
+    e.stopPropagation();
+    onAddToWatchlist();
+  };
+
+  const title = movie.title || movie.name || 'Unknown';
+  const posterUrl = movie.poster_path
+    ? `https://image.tmdb.org/t/p/w300${movie.poster_path}`
+    : 'https://placehold.co/300x450?text=No+Image';
+  const badgeClass = movie.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]';
+  const typeBadge = movie.media_type === 'tv' ? 'TV' : 'Movie';
+  const displayInfo = movie.release_date || movie.first_air_date
+    ? `${(movie.release_date || movie.first_air_date).split('-')[0]} • ${movie.genres || 'N/A'}`
+    : 'N/A';
+  const voteAverage = typeof movie.vote_average === 'number' && !isNaN(movie.vote_average) 
+    ? movie.vote_average.toFixed(1) 
+    : parseFloat(movie.vote_average) && !isNaN(parseFloat(movie.vote_average))
+    ? parseFloat(movie.vote_average).toFixed(1)
+    : 'N/A';
+  const runtime = movie.runtime
+    ? `${Math.floor(movie.runtime / 60)}h ${movie.runtime % 60}m`
+    : movie.episode_run_time && movie.episode_run_time[0]
+    ? `${movie.episode_run_time[0]}m`
+    : 'N/A';
+  const seasons = movie.media_type === 'tv' ? (movie.number_of_seasons || 'N/A') : null;
+  const episodes = movie.media_type === 'tv' ? (movie.number_of_episodes || 'N/A') : null;
+
+  return (
+    <div
+      className="movie-card relative rounded-lg overflow-hidden group cursor-pointer touch-manipulation"
+      onMouseEnter={() => !isMobile && setIsHovered(true)}
+      onMouseLeave={() => !isMobile && setIsHovered(false)}
+      onClick={handleTap}
+      data-testid={`movie-${movie.id}`}
+    >
+      <img
+        src={posterUrl}
+        alt={title}
+        className="w-full aspect-[2/3] object-cover"
+        loading="lazy"
+      />
+      <div
+        className={`absolute top-2 right-2 ${badgeClass} text-white text-xs font-bold py-1 px-2 rounded-full`}
+      >
+        {typeBadge}
+      </div>
+      {isMobile && !showInfo && !isInWatchlist && (
+        <div className="absolute bottom-2 right-2 z-10">
+          <button
+            type="button"
+            className="bg-[#E50914] text-white rounded-full p-2 shadow-lg touch-manipulation"
+            onClick={handleAddClick}
+            aria-label="Add to watchlist"
+            disabled={isInWatchlist}
+          >
+            <PlusCircle className="h-6 w-6" />
+          </button>
+        </div>
+      )}
+      <div
+        className={`movie-info absolute inset-0 bg-black bg-opacity-85 flex flex-col justify-end p-4 mx-2 transition-opacity duration-300 ${
+          isMobile ? (showInfo ? 'opacity-100' : 'opacity-0') : isHovered ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        <h3 className="font-bold text-sm sm:text-base md:text-lg">{title}</h3>
+        <p className="text-xs sm:text-sm text-gray-300">{displayInfo}</p>
+        <div className="flex items-center text-xs text-gray-400 mt-1">
+          <Clock className="h-3 w-3 mr-1" />
+          <span>
+            {movie.media_type === 'tv'
+              ? `${seasons} seasons, ${episodes} episodes`
+              : runtime}
+          </span>
+        </div>
+        <div className="flex items-center mt-1">
+          <span className="text-[#F5C518] font-bold text-xs sm:text-sm">{voteAverage}</span>
+          <Star className="h-3 sm:h-4 w-4 text-[#F5C518] fill-current ml-1" />
+        </div>
+        {isMobile ? (
+          <div className="flex flex-col mt-3 space-y-2">
+            {!isInWatchlist && (
+              <Button
+                onClick={handleAddClick}
+                className="bg-[#E50914] text-white text-sm font-medium rounded-lg py-2 px-3 hover:bg-red-700 transition flex items-center justify-center"
+                disabled={isInWatchlist}
+              >
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add to Watchlist
+              </Button>
+            )}
+            <div className="flex space-x-2">
+              <Button
+                onClick={(e) => { e.stopPropagation(); onShowDetails(movie); }}
+                className="bg-gray-700 text-white text-sm rounded-lg py-2 flex-1 hover:bg-gray-600 transition flex items-center justify-center max-w-[50%]"
+              >
+                <Info className="h-4 w-4 mr-1" />
+                Details
+              </Button>
+              {movie.imdb_id && (
+                <Button
+                  asChild
+                  className="bg-[#F5C518] text-black text-sm rounded-lg py-2 flex-1 hover:bg-yellow-400 transition flex items-center justify-center max-w-[50%]"
+                >
+                  <a
+                    href={`https://www.imdb.com/title/${movie.imdb_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    IMDb
+                  </a>
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex mt-2 space-x-2 flex-wrap gap-y-2">
+            <Button
+              onClick={(e) => { e.stopPropagation(); onShowDetails(movie); }}
+              className="bg-gray-700 text-white text-xs rounded-full py-1 px-3 hover:bg-gray-600 transition-colors min-w-[80px]"
+            >
+              <Info className="h-3 w-3 mr-1" />
+              Details
+            </Button>
+            {movie.imdb_id && (
+              <Button
+                asChild
+                className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px]"
+              >
+                <a
+                  href={`https://www.imdb.com/title/${movie.imdb_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  IMDb
+                </a>
+              </Button>
+            )}
+            {!isInWatchlist && (
+              <Button
+                onClick={handleAddClick}
+                className="bg-[#E50914] text-white text-xs rounded-full py-1 px-3 hover:bg-red-700 transition-colors flex-grow min-w-[120px]"
+                disabled={isInWatchlist}
+              >
+                <PlusCircle className="h-3 w-3 mr-1" />
+                Add to Watchlist
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [watchlistItem, setWatchlistItem] = useState(null);
   const [mediaFilter, setMediaFilter] = useState('all');
-  const [genreFilter, setGenreFilter] = useState('all');
-  const [sortOrder, setSortOrder] = useState('popularity.desc');
-  const [debouncedSearch] = useDebounce(searchQuery.trim(), 500);
+  const { addToast } = useToast();
+  const { watchlist, mutate: mutateWatchlist, error: watchlistError } = useWatchlist();
 
-  const suggestions = [
-    { query: 'Marvel', label: 'Try Marvel' },
-    { query: 'Star Wars', label: 'Try Star Wars' },
-    { query: 'Breaking Bad', label: 'Try Breaking Bad' },
-    { query: 'Stranger Things', label: 'Try Stranger Things' },
-  ];
+  const movieCount = searchResults.filter(item => item.media_type === 'movie').length;
+  const tvCount = searchResults.filter(item => item.media_type === 'tv').length;
+  const allCount = searchResults.length;
 
-  const apiUrl = useMemo(() => {
-    let url = debouncedSearch
-      ? `/api/search?query=${encodeURIComponent(debouncedSearch)}`
-      : '/api/watchlist?limit=50';
-    if (mediaFilter !== 'all') {
-      url += `&media_type=${mediaFilter}`;
+  const handleSearch = async (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
     }
-    if (genreFilter !== 'all') {
-      url += `&genre=${genreFilter}`;
+    setIsLoading(true);
+    try {
+      let allResults = [];
+      const searchTerm = query.trim();
+      const cacheKey = `search:${searchTerm.toLowerCase()}`;
+      
+      if (searchCache.has(cacheKey)) {
+        console.log(`Cache hit for ${cacheKey}`);
+        allResults = searchCache.get(cacheKey);
+      } else {
+        for (let page = 1; page <= 2; page++) {
+          const url = `https://api.themoviedb.org/3/search/multi?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(searchTerm)}&page=${page}`;
+          console.log(`Fetching TMDB URL: ${url}`);
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('Failed to fetch search results');
+          const data = await res.json();
+          console.log(`Raw TMDB response for "${query}" (page ${page}):`, JSON.stringify(data.results, null, 2));
+          console.log(`Search query "${query}" page ${page} returned ${data.results.length} results, total: ${data.total_results}, pages: ${data.total_pages}`);
+          allResults = [...allResults, ...data.results];
+        }
+        searchCache.set(cacheKey, allResults);
+      }
+
+      const enhancedResults = await Promise.all(
+        allResults.map(async (item) => {
+          if (item.media_type !== 'movie' && item.media_type !== 'tv') return null;
+          try {
+            const detailsRes = await fetch(
+              `https://api.themoviedb.org/3/${item.media_type}/${item.id}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&append_to_response=external_ids`
+            );
+            const details = await detailsRes.json();
+            console.log(`Item ${item.id} external_ids:`, JSON.stringify(details.external_ids));
+            return {
+              ...item,
+              imdb_id: details.external_ids?.imdb_id || null,
+              vote_average: details.vote_average ? parseFloat(details.vote_average) : null,
+              runtime: details.runtime || (details.episode_run_time && details.episode_run_time[0]) || null,
+              genres: details.genres?.map((g) => g.name).join(', ') || 'N/A',
+              first_air_date: item.media_type === 'tv' ? details.first_air_date || item.first_air_date : null,
+              release_date: item.media_type === 'movie' ? details.release_date || item.release_date : null,
+              number_of_seasons: item.media_type === 'tv' ? details.number_of_seasons || null : null,
+              number_of_episodes: item.media_type === 'tv' ? details.number_of_episodes || null : null,
+            };
+          } catch (error) {
+            console.warn(`Failed to fetch details for ${item.id}:`, error);
+            return item;
+          }
+        })
+      );
+      let filteredResults = enhancedResults
+        .filter((item) => item)
+        .filter((item) => mediaFilter === 'all' || item.media_type === mediaFilter);
+
+      // Sort results to prioritize exact or near-exact matches for the search query
+      filteredResults = filteredResults.sort((a, b) => {
+        const aTitle = (a.title || a.name || '').toLowerCase();
+        const bTitle = (b.title || b.name || '').toLowerCase();
+        const queryLower = searchTerm.toLowerCase();
+
+        // Exact match
+        if (aTitle === queryLower && bTitle !== queryLower) return -1;
+        if (bTitle === queryLower && aTitle !== queryLower) return 1;
+
+        // Starts with query
+        if (aTitle.startsWith(queryLower) && !bTitle.startsWith(queryLower)) return -1;
+        if (bTitle.startsWith(queryLower) && !aTitle.startsWith(queryLower)) return 1;
+
+        // Contains query
+        if (aTitle.includes(queryLower) && !bTitle.includes(queryLower)) return -1;
+        if (bTitle.includes(queryLower) && !aTitle.includes(queryLower)) return 1;
+
+        // Fallback to popularity
+        return (b.popularity || 0) - (a.popularity || 0);
+      });
+
+      setSearchResults(filteredResults);
+    } catch (error) {
+      console.error('Error searching:', error);
+      addToast({
+        id: Date.now(),
+        title: 'Error',
+        description: 'Failed to load search results',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
-    if (sortOrder) {
-      url += `&sort_by=${sortOrder}`;
+  };
+
+  const handleAddToWatchlist = (item) => {
+    const isInWatchlist = watchlist.some((wItem) => 
+      wItem.movie_id === item.id.toString() || wItem.movie_id === item.id
+    );
+    if (isInWatchlist) {
+      addToast({
+        id: Date.now(),
+        title: 'Info',
+        description: `${item.title || item.name} is already in your watchlist`,
+      });
+      return;
     }
-    return url;
-  }, [debouncedSearch, mediaFilter, genreFilter, sortOrder]);
+    setWatchlistItem({ ...item, media_type: item.media_type || 'movie', poster_path: item.poster_path });
+  };
 
-  const { data: movies, error } = useSWR(apiUrl, fetcher);
+  const handleShowDetails = (item) => {
+    setSelectedItem({ ...item, media_type: item.media_type || 'movie' });
+  };
 
-  const genres = [
-    { id: 'all', name: 'All Genres' },
-    { id: '28', name: 'Action' },
-    { id: '12', name: 'Adventure' },
-    { id: '16', name: 'Animation' },
-    { id: '35', name: 'Comedy' },
-    { id: '80', name: 'Crime' },
-    { id: '99', name: 'Documentary' },
-    { id: '18', name: 'Drama' },
-    { id: '10751', name: 'Family' },
-    { id: '14', name: 'Fantasy' },
-    { id: '36', name: 'History' },
-    { id: '27', name: 'Horror' },
-    { id: '10402', name: 'Music' },
-    { id: '9648', name: 'Mystery' },
-    { id: '10749', name: 'Romance' },
-    { id: '878', name: 'Science Fiction' },
-    { id: '10770', name: 'TV Movie' },
-    { id: '53', name: 'Thriller' },
-    { id: '10752', name: 'War' },
-    { id: '37', name: 'Western' },
-  ];
+  const handleSaveNewItemSuccess = async (savedItem) => {
+    // Data has been saved by the modal, now update local state/cache
+    // The 'savedItem' parameter is what the API returned after saving.
+    // You can use it if needed, e.g., to update a specific item in a local list.
+    
+    // Revalidate SWR cache for watchlist related data
+    // The key '/api/watchlist?page=1&limit=50' might need to be more dynamic
+    // or you might rely on a global mutation key if your WatchlistProvider handles that.
+    mutate('/api/watchlist'); // General mutation key for watchlist
+    if (mutateWatchlist) { // from useWatchlist context
+      mutate('/api/watchlist?page=1&limit=50');
+      mutateWatchlist();
+    }
+  };
 
-  const mediaTypes = [
-    { id: 'all', name: 'All Types' },
-    { id: 'movie', name: 'Movies' },
-    { id: 'tv', name: 'TV Shows' },
-  ];
+  useEffect(() => {
+    const timeoutId = setTimeout(() => handleSearch(searchQuery), 500);
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
 
-  const sortOptions = [
-    { id: 'popularity.desc', name: 'Popularity Descending' },
-    { id: 'popularity.asc', name: 'Popularity Ascending' },
-    { id: 'vote_average.desc', name: 'Rating Descending' },
-    { id: 'vote_average.asc', name: 'Rating Ascending' },
-    { id: 'release_date.desc', name: 'Release Date Descending' },
-    { id: 'release_date.asc', name: 'Release Date Ascending' },
-  ];
+  useEffect(() => {
+    handleSearch(searchQuery);
+  }, [mediaFilter]);
+
+  if (watchlistError) {
+    return (
+      <div className="min-h-screen bg-[#1a1a1a] text-white">
+        <Header />
+        <div className="container mx-auto p-4 text-center">
+          <p className="text-gray-300">Failed to load watchlist: {watchlistError.message}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white">
-      <header className="bg-[#1a1a1a] p-4 sticky top-0 z-10 border-b border-gray-700">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <Link href="/" className="text-2xl font-bold">
-            Movie Watchlist
-          </Link>
-          <nav className="flex gap-4">
-            <Link href="/" className="hover:text-blue-500">
-              Home
-            </Link>
-            <Link href="/watchlist" className="hover:text-blue-500">
-              Watchlist
-            </Link>
-          </nav>
+      <Header />
+      <div className="container mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4 text-center">Search Movies & TV Shows</h1>
+        <div className="mb-4 flex justify-center relative">
+          <Input
+            type="text"
+            placeholder="Search for movies or TV shows..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full max-w-[50%] bg-gray-800 border-gray-700 text-white rounded-full py-2 px-4"
+          />
         </div>
-      </header>
-      <div className="max-w-4xl mx-auto p-4">
-        <Input
-          id="search-input"
-          className="w-full max-w-md mx-auto px-4 py-2 rounded bg-[#292929] text-white"
-          placeholder="Search movies or TV shows..."
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        <div className="flex flex-wrap gap-4 mt-4 justify-center">
-          <div>
-            <label htmlFor="media-type" className="mr-2">Media Type:</label>
-            <select
-              id="media-type"
-              value={mediaFilter}
-              onChange={(e) => setMediaFilter(e.target.value)}
-              className="bg-[#292929] text-white rounded px-2 py-1"
-            >
-              {mediaTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="genre" className="mr-2">Genre:</label>
-            <select
-              id="genre"
-              value={genreFilter}
-              onChange={(e) => setGenreFilter(e.target.value)}
-              className="bg-[#292929] text-white rounded px-2 py-1"
-            >
-              {genres.map((genre) => (
-                <option key={genre.id} value={genre.id}>
-                  {genre.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="sort" className="mr-2">Sort By:</label>
-            <select
-              id="sort"
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-              className="bg-[#292929] text-white rounded px-2 py-1"
-            >
-              {sortOptions.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.name}
-                </option>
-              ))}
-            </select>
-          </div>
+        {searchQuery.toLowerCase().includes('mad') && !searchQuery.toLowerCase().includes('mad max') && searchResults.length > 0 && !searchResults.some((item) => (item.title || item.name)?.toLowerCase().includes('mad max')) && (
+          <p className="text-gray-300 mb-4 text-center">
+            No Mad Max titles found. Try searching “Mad Max” for the franchise.
+          </p>
+        )}
+        <div className="mb-4 flex justify-center gap-2">
+          <Button
+            onClick={() => setMediaFilter('all')}
+            className={`flex items-center gap-1 ${mediaFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            <List className="h-4 w-4" />
+            All ({allCount})
+          </Button>
+          <Button
+            onClick={() => setMediaFilter('movie')}
+            className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            <Film className="h-4 w-4" />
+            Movies ({movieCount})
+          </Button>
+          <Button
+            onClick={() => setMediaFilter('tv')}
+            className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            <Tv className="h-4 w-4" />
+            TV Shows ({tvCount})
+          </Button>
         </div>
+        {isLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+            {[...Array(10)].map((_, index) => (
+              <div key={index} className="rounded-lg overflow-hidden">
+                <Skeleton className="w-full aspect-[2/3]" />
+              </div>
+            ))}
+          </div>
+        ) : !searchQuery && searchResults.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="max-w-md mx-auto bg-[#292929] rounded-lg p-4">
+              <Film className="h-8 w-8 mx-auto mb-3 text-[#E50914]" />
+              <p className="text-gray-300 mb-4">
+                Enter a movie or TV show title in the search box to begin exploring
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <Button onClick={() => { setSearchQuery("Marvel"); handleSearch("Marvel"); }}>
+                  Try "Marvel"
+                </Button>
+                <Button onClick={() => { setSearchQuery("Star Wars"); handleSearch("Star Wars"); }}>
+                  Try "Star Wars"
+                </Button>
+                <Button onClick={() => { setSearchQuery("Breaking Bad"); handleSearch("Breaking Bad"); }}>
+                  Try "Breaking Bad"
+                </Button>
+                <Button onClick={() => { setSearchQuery("Stranger Things"); handleSearch("Stranger Things"); }}>
+                  Try "Stranger Things"
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : searchResults.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-300">No results found. Try a different search term.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+            {searchResults.map((item) => (
+              <MovieCard
+                key={item.id}
+                movie={item}
+                onAddToWatchlist={() => handleAddToWatchlist(item)}
+                onShowDetails={handleShowDetails}
+              />
+            ))}
+          </div>
+        )}
       </div>
-      <main className="p-4 max-w-7xl mx-auto">
-        {!debouncedSearch && (
-          <div className="mb-8 p-6 bg-[#292929] rounded-lg text-center max-w-2xl mx-auto">
-            <div className="flex justify-center mb-4">
-              <Film className="w-8 h-8 text-white" />
-            </div>
-            <h2 className="text-lg mb-4">Explore Popular Titles</h2>
-            <div className="grid grid-cols-2 gap-4">
-              {suggestions.map((s) => (
-                <button
-                  key={s.query}
-                  title={`Search for ${s.label}`}
-                  className="px-4 py-2 bg-[#3a3a3a] rounded hover:bg-[#4a4a4a]"
-                  onClick={() => setSearchQuery(s.query)}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        {error && <p className="text-center text-red-500">Error loading data.</p>}
-        {!movies && !error && (
-          <p className="text-center">Loading...</p>
-        )}
-        {movies?.data?.length === 0 && !error && (
-          <p className="text-center">No results found.</p>
-        )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {movies?.data?.map((media) => (
-            <MovieCard key={media.id} {...media} />
-          ))}
-        </div>
-      </main>
+      {selectedItem && (
+        <DetailsModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onAddToWatchlist={() => handleAddToWatchlist(selectedItem)}
+        />
+      )}
+      {watchlistItem && (
+        <AddToWatchlistModal
+          item={watchlistItem}
+          mode="add"
+          onClose={() => setWatchlistItem(null)}
+          onSaveSuccess={handleSaveNewItemSuccess}
+        />
+      )}
     </div>
   );
 }

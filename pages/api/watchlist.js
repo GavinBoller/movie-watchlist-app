@@ -1,5 +1,7 @@
 import { Pool } from '@neondatabase/serverless';
 import NodeCache from 'node-cache';
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "./auth/[...nextauth]" // Adjust path if needed
 
 const cache = new NodeCache({ stdTTL: 600 }); // 10 minutes TTL
 const pool = new Pool({
@@ -10,11 +12,17 @@ const pool = new Pool({
 });
 
 export default async function handler(req, res) {
-  const userId = 1; // Adjust based on auth system
-  console.log(`${req.method} ${req.url}`);
+  const session = await getServerSession(req, res, authOptions)
+
+  if (!session || !session.user || !session.user.id) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const userId = session.user.id; // Use the authenticated user's ID
+  console.log(`${req.method} ${req.url} for user ${userId}`);
 
   try {
-    if (req.method === 'GET') {
+    if (req.method === 'GET') {      
       const { page = 1, limit = 50, search = '', media = 'all', status = 'all' } = req.query;
       const offset = (parseInt(page) - 1) * parseInt(limit);
       const cacheKey = `watchlist:${userId}:${page}:${limit}:${media}:${status}:${search}`;
@@ -50,7 +58,7 @@ export default async function handler(req, res) {
 
       let query = `
         SELECT id, movie_id, title, overview, poster, release_date, media_type,
-               status, platform, notes, watched_date, imdb_id, vote_average,
+               status, platform, notes, watched_date, imdb_id, vote_average, genres,
                runtime, seasons, episodes, added_at
         FROM watchlist
         WHERE user_id = $1
@@ -128,6 +136,101 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const {
+        // Use movie_id from the payload, which contains the TMDB ID for new items
+        movie_id, 
+        title,
+        overview,
+        poster,
+        release_date,
+        media_type,
+        status,
+        platform,
+        notes,
+        imdb_id,
+        vote_average,
+        seasons,
+        episodes,
+        genres,
+        runtime, // Add runtime here
+      } = req.body;
+
+      // --- Start Input Validation ---
+      if (!movie_id || typeof movie_id !== 'string' && typeof movie_id !== 'number') {
+        return res.status(400).json({ error: 'Valid movie_id (string or number) is required.' });
+      }
+      if (!title || typeof title !== 'string' || title.trim() === '') {
+        return res.status(400).json({ error: 'Title (non-empty string) is required.' });
+      }
+      if (media_type && !['movie', 'tv'].includes(media_type)) {
+        return res.status(400).json({ error: "Invalid media_type. Must be 'movie' or 'tv'." });
+      }
+      if (status && !['to_watch', 'watching', 'watched'].includes(status)) {
+        return res.status(400).json({ error: "Invalid status. Must be 'to_watch', 'watching', or 'watched'." });
+      }
+      if (vote_average !== undefined && vote_average !== null && (typeof vote_average !== 'number' || vote_average < 0 || vote_average > 10)) {
+        return res.status(400).json({ error: 'Invalid vote_average. Must be a number between 0 and 10.' });
+      }
+      if (runtime !== undefined && runtime !== null && (typeof runtime !== 'number' || runtime < 0)) {
+        return res.status(400).json({ error: 'Invalid runtime. Must be a non-negative number.' });
+      }
+      // --- End Input Validation ---
+      console.log(`Adding item ${movie_id} to watchlist`);
+
+      const client = await pool.connect();
+      try {
+        const exists = await client.query(
+          `SELECT 1 FROM watchlist WHERE user_id = $1 AND movie_id = $2`,
+          [userId, movie_id.toString()]
+        );
+        if (exists.rows.length > 0) {
+          return res.status(400).json({ error: 'Item already in watchlist' });
+        }
+
+        await client.query(
+          `
+          INSERT INTO watchlist (
+            user_id, movie_id, title, overview, poster, release_date, media_type, genres, runtime,
+            status, platform, notes, imdb_id, vote_average, seasons, episodes, added_at 
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW()
+          )
+        `,
+          [
+            userId,
+            movie_id.toString(), // Use movie_id here
+            title,
+            overview || null,
+            poster || null,
+            release_date || null,
+            media_type || 'movie',
+            genres || null, // Swapped with media_type to match column order
+            runtime || null, // Added runtime
+            status || 'to_watch',
+            platform || null,
+            notes || null,
+            imdb_id || null,
+            vote_average ? parseFloat(vote_average) : null,
+            seasons || null,
+            episodes || null,
+          ]
+        );
+        cache.flushAll();
+        // It's good practice to return the created item or at least its ID
+        const newItemQuery = await client.query('SELECT * FROM watchlist WHERE user_id = $1 AND movie_id = $2 ORDER BY added_at DESC LIMIT 1', [userId, movie_id.toString()]);
+        return res.status(201).json({ message: 'Added to watchlist', item: newItemQuery.rows[0] });
+      } catch (error) {
+        console.error('Error adding to watchlist:', error);
+        return res.status(500).json({ error: error.message || 'Failed to add to watchlist' });
+      } finally {
+        client.release();
+      }
+    }
+
+    if (req.method === 'PUT') {
+      const {
+        id, // The ID of the watchlist item to update
+        // user_id from body is no longer needed for WHERE clause
+>>>>>>> stable-restore1
         movie_id,
         title,
         overview,
@@ -143,8 +246,10 @@ export default async function handler(req, res) {
         runtime,
         seasons,
         episodes,
+        genres,
       } = req.body;
 
+<<<<<<< HEAD
       if (!movie_id || !title) {
         return res.status(400).json({ error: 'movie_id and title are required' });
       }
@@ -191,7 +296,12 @@ export default async function handler(req, res) {
           ]
         );
         cache.flushAll();
-        return res.status(200).json({ message: 'Added to watchlist' });
+        // It's good practice to return the created item or at least its ID
+        const newItemQuery = await client.query('SELECT * FROM watchlist WHERE user_id = $1 AND movie_id = $2 ORDER BY added_at DESC LIMIT 1', [userId, movie_id.toString()]);
+        return res.status(201).json({ message: 'Added to watchlist', item: newItemQuery.rows[0] });
+      } catch (error) {
+        console.error('Error adding to watchlist:', error);
+        return res.status(500).json({ error: error.message || 'Failed to add to watchlist' });
       } finally {
         client.release();
       }
@@ -200,6 +310,8 @@ export default async function handler(req, res) {
     if (req.method === 'PUT') {
       const {
         id,
+        id, // The ID of the watchlist item to update
+        // user_id from body is no longer needed for WHERE clause
         movie_id,
         title,
         overview,
@@ -216,11 +328,29 @@ export default async function handler(req, res) {
         seasons,
         episodes,
         user_id,
+        genres,
       } = req.body;
 
-      if (!id || !movie_id || !title || !user_id) {
-        return res.status(400).json({ error: 'id, movie_id, title, and user_id are required' });
+      // --- Start Input Validation ---
+      if (!id) {
+        return res.status(400).json({ error: 'Watchlist item ID is required for updating.' });
       }
+      if (title !== undefined && (typeof title !== 'string' || title.trim() === '')) {
+        return res.status(400).json({ error: 'Title, if provided, must be a non-empty string.' });
+      }
+      if (media_type && !['movie', 'tv'].includes(media_type)) {
+        return res.status(400).json({ error: "Invalid media_type. Must be 'movie' or 'tv'." });
+      }
+      if (status && !['to_watch', 'watching', 'watched'].includes(status)) {
+        return res.status(400).json({ error: "Invalid status. Must be 'to_watch', 'watching', or 'watched'." });
+      }
+      if (vote_average !== undefined && vote_average !== null && (typeof vote_average !== 'number' || vote_average < 0 || vote_average > 10)) {
+        return res.status(400).json({ error: 'Invalid vote_average. Must be a number between 0 and 10.' });
+      }
+      if (runtime !== undefined && runtime !== null && (typeof runtime !== 'number' || runtime < 0)) {
+        return res.status(400).json({ error: 'Invalid runtime. Must be a non-negative number.' });
+      }
+      // --- End Input Validation ---
 
       const client = await pool.connect();
       try {
@@ -228,22 +358,22 @@ export default async function handler(req, res) {
           `
           UPDATE watchlist
           SET
-            movie_id = $1,
-            title = $2,
-            overview = $3,
-            poster = $4,
-            release_date = $5,
-            media_type = $6,
-            status = $7,
-            platform = $8,
-            notes = $9,
-            watched_date = $10,
-            imdb_id = $11,
-            vote_average = $12,
-            runtime = $13,
-            seasons = $14,
-            episodes = $15
-          WHERE id = $16 AND user_id = $17
+            title = $1, 
+            overview = $2,
+            poster = $3,
+            release_date = $4,
+            media_type = $5,
+            status = $6,
+            platform = $7,
+            notes = $8,
+            watched_date = $9,
+            imdb_id = $10,
+            vote_average = $11,
+            runtime = $12,
+            seasons = $13, 
+            episodes = $14,
+            genres = $15
+          WHERE id = $16 AND user_id = $17 -- Use authenticated userId here
           RETURNING *
         `,
           [
@@ -251,26 +381,28 @@ export default async function handler(req, res) {
             title,
             overview || null,
             poster || null,
-            release_date || null,
-            media_type || 'movie',
-            status || 'to_watch',
-            platform || null,
-            notes || null,
-            watched_date || null,
-            imdb_id || null,
-            vote_average ? parseFloat(vote_average) : null,
-            runtime || null,
-            seasons || null,
-            episodes || null,
-            id,
-            user_id,
+            release_date || null, // $4
+            media_type || 'movie',  // $5
+            status || 'to_watch',   // $6
+            platform || null,       // $7
+            notes || null,          // $8
+            watched_date || null,   // $9
+            imdb_id || null,        // $10
+            vote_average ? parseFloat(vote_average) : null, // $11
+            runtime || null,        // $12
+            seasons || null,        // $13
+            episodes || null,       // $14
+            genres || null,         // $15
+            id,                     // $16
+            userId,                 // $17 (the authenticated user's ID from session)
           ]
         );
         if (result.rows.length === 0) {
           return res.status(404).json({ error: 'Item not found' });
         }
         cache.flushAll();
-        return res.status(200).json({ message: 'Success' });
+        // Return the updated item
+        return res.status(200).json({ message: 'Updated watchlist', item: result.rows[0] });
       } catch (error) {
         console.error('Error updating watchlist:', error);
         return res.status(500).json({ error: error.message || 'Failed to update watchlist' });
@@ -281,6 +413,11 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const { id } = req.body;
+      // --- Start Input Validation ---
+      if (!id) {
+        return res.status(400).json({ error: 'Watchlist item ID is required for deletion.' });
+      }
+      // --- End Input Validation ---
 
       if (!id) {
         return res.status(400).json({ error: 'id is required' });

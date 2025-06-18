@@ -1,15 +1,28 @@
 import '../styles/globals.css';
-import { ToastProvider } from '../components/ToastContext';
+import { ToastProvider, WatchlistProvider } from '../components/ToastContext';
 import Head from 'next/head';
+import { SessionProvider } from "next-auth/react"
 
-export default function App({ Component, pageProps }) {
+export default function MyApp({ Component, pageProps: { session, ...pageProps } }) {
   return (
-    <ToastProvider>
+    <>
       <Head>
-        <title>Movie Watchlist</title>
+        <title>Movie & TV Watchlist</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="description" content="Search and manage your movie and TV watchlist" />
       </Head>
-      <Component {...pageProps} />
-    </ToastProvider>
+      {/*
+        The `session` prop is automatically passed by Next.js if you're using
+        server-side session fetching (e.g., in getServerSideProps).
+        The SessionProvider will use this initial session if available.
+      */}
+      <SessionProvider session={session}>
+        <ToastProvider>
+          <WatchlistProvider>
+            <Component {...pageProps} />
+          </WatchlistProvider>
+        </ToastProvider>
+      </SessionProvider>
+    </>
   );
 }
