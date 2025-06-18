@@ -7,7 +7,7 @@ import { Switch } from './ui/switch';
 import { Edit, Trash2, X, CheckCircle } from 'lucide-react';
 import { useToast } from './ToastContext';
 
-export default function PlatformManagementModal({ isOpen, onClose, userId }) {
+export default function PlatformManagementModal({ isOpen, onClose }) {
   const [platforms, setPlatforms] = useState([]);
   const [newPlatform, setNewPlatform] = useState({ name: '', logoUrl: '', isDefault: false });
   const [editingId, setEditingId] = useState(null);
@@ -17,15 +17,15 @@ export default function PlatformManagementModal({ isOpen, onClose, userId }) {
   const { addToast } = useToast();
 
   useEffect(() => {
-    if (isOpen && userId) {
+    if (isOpen) {
       fetchPlatforms();
     }
-  }, [isOpen, userId]);
+  }, [isOpen]);
 
   const fetchPlatforms = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/platforms?userId=${userId}`);
+      const res = await fetch(`/api/platforms`); // userId no longer needed in query
       if (!res.ok) throw new Error('Failed to fetch platforms');
       const data = await res.json();
       setPlatforms(data.sort((a, b) => a.name.localeCompare(b.name)));
@@ -52,7 +52,7 @@ export default function PlatformManagementModal({ isOpen, onClose, userId }) {
       const res = await fetch('/api/platforms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, ...newPlatform }),
+        body: JSON.stringify(newPlatform), // userId removed from payload
       });
       if (!res.ok) {
         const errorData = await res.json();
@@ -87,7 +87,7 @@ export default function PlatformManagementModal({ isOpen, onClose, userId }) {
       const res = await fetch('/api/platforms', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingId, userId, ...editPlatform }),
+        body: JSON.stringify({ id: editingId, ...editPlatform }), // userId removed from payload
       });
       if (!res.ok) {
         const errorData = await res.json();
@@ -123,7 +123,7 @@ export default function PlatformManagementModal({ isOpen, onClose, userId }) {
       const res = await fetch('/api/platforms', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id }), // API will use session to verify user
       });
       if (!res.ok) throw new Error('Failed to delete platform');
       setPlatforms(platforms.filter((p) => p.id !== id));

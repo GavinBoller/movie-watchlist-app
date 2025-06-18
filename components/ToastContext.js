@@ -1,10 +1,13 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { useSession } from 'next-auth/react'; // Import useSession
 import useSWR from 'swr';
 
 const ToastContext = createContext();
 const WatchlistContext = createContext();
+
+let toastIdCounter = 0;
 
 const fetcher = async (url) => {
   const res = await fetch(url);
@@ -21,7 +24,8 @@ export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
   const addToast = useCallback((toast) => {
-    setToasts((prev) => [...prev, { ...toast, id: toast.id || Date.now() }]);
+    toastIdCounter += 1;
+    setToasts((prev) => [...prev, { ...toast, id: toast.id || `${Date.now()}-${toastIdCounter}` }]);
   }, []);
 
   const dismissToast = useCallback((id) => {
@@ -37,11 +41,16 @@ export function ToastProvider({ children }) {
 }
 
 export function WatchlistProvider({ children }) {
-  const { data, error, mutate } = useSWR('/api/watchlist?page=1&limit=50', fetcher, {
+  const { data: session } = useSession(); // Get session status
+  const shouldFetch = !!session; // Only fetch if there's a session
+
+  // Conditionally fetch: pass null as key if shouldFetch is false
+  const { data, error, mutate } = useSWR(shouldFetch ? '/api/watchlist?page=1&limit=50' : null, fetcher, {
     dedupingInterval: 60000,
     revalidateOnFocus: false,
     revalidateIfStale: false,
-    onError: (err) => console.error('Watchlist SWR Error:', err, err.info),
+    // onError can be simplified or made more user-friendly if needed
+    onError: (err) => console.warn('Watchlist SWR Error (likely due to no session or API issue):', err.status, err.info),
     onSuccess: (data) => console.log('Watchlist SWR Success:', { itemsCount: data?.items?.length || 0, total: data?.total }),
   });
 

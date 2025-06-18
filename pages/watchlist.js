@@ -63,10 +63,10 @@ function WatchlistCard({ item, onEdit, onDelete }) {
     : parseFloat(item.vote_average) && !isNaN(parseFloat(item.vote_average))
     ? parseFloat(item.vote_average).toFixed(1)
     : 'N/A';
-  const runtime = item.runtime
+  const runtimeDisplay = item.media_type === 'tv'
+    ? (item.seasons || item.episodes ? `${item.seasons || 'N/A'} seasons, ${item.episodes || 'N/A'} episodes` : 'N/A')
+    : item.runtime
     ? `${Math.floor(item.runtime / 60)}h ${item.runtime % 60}m`
-    : item.seasons && item.episodes
-    ? `${item.seasons} seasons, ${item.episodes} episodes`
     : 'N/A';
 
   return (
@@ -98,7 +98,7 @@ function WatchlistCard({ item, onEdit, onDelete }) {
         <p className="text-xs sm:text-sm text-gray-300">{displayInfo}</p>
         <div className="flex items-center text-xs text-gray-400 mt-1">
           <Clock className="h-3 w-3 mr-1" />
-          <span>{runtime}</span>
+          <span>{runtimeDisplay}</span>
         </div>
         <div className="flex items-center mt-1">
           <span className="text-[#F5C518] font-bold text-xs sm:text-sm">{voteAverage}</span>
@@ -165,7 +165,7 @@ export default function WatchlistPage() {
   }, [searchQuery]);
 
   useEffect(() => {
-    console.log('Watchlist SWR Success:', data);
+    // console.log('Watchlist SWR Success:', data);
   }, [data]);
 
   const handleEdit = (item) => {
@@ -206,50 +206,14 @@ export default function WatchlistPage() {
     }
   };
 
-  const handleSaveEdit = async (item) => {
-    try {
-      const res = await fetch('/api/watchlist', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: item.id,
-          user_id: 1,
-          movie_id: item.movie_id || item.id.toString(),
-          title: item.title || item.name,
-          overview: item.overview,
-          poster: item.poster || item.poster_path,
-          release_date: item.release_date || item.first_air_date,
-          media_type: item.media_type || 'movie',
-          status: item.status || 'to_watch',
-          platform: item.platform || null,
-          notes: item.notes || null,
-          watched_date: item.watched_date || null,
-          imdb_id: item.imdb_id || null,
-          vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
-          runtime: item.runtime || null,
-          seasons: item.number_of_seasons || item.seasons || null,
-          episodes: item.number_of_episodes || item.episodes || null,
-        }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to update watchlist');
-      }
-      mutate();
-      addToast({
-        id: Date.now(),
-        title: 'Success',
-        description: 'Item updated',
-      });
-    } catch (error) {
-      console.error('Error updating item:', error);
-      addToast({
-        id: Date.now(),
-        title: 'Error',
-        description: error.message || 'Failed to update item',
-        variant: 'destructive',
-      });
-    }
+  const handleEditSuccess = async (updatedItem) => {
+    // Data has been updated by the modal, now update local state/cache
+    // The 'updatedItem' parameter is what the API returned after updating.
+    // You can use it if needed.
+    
+    // Revalidate SWR cache for the current watchlist page
+    // The mutate() function without arguments will revalidate the SWR hook it's bound to.
+    mutate(); // Revalidate the SWR data
   };
 
   useEffect(() => {
@@ -391,8 +355,9 @@ export default function WatchlistPage() {
       {editItem && (
         <AddToWatchlistModal
           item={editItem}
-          onSave={handleSaveEdit}
+          mode="edit"
           onClose={() => setEditItem(null)}
+          onSaveSuccess={handleEditSuccess}
         />
       )}
     </div>

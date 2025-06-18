@@ -10,7 +10,7 @@ import { Label } from './ui/label';
 import { CalendarIcon, Clapperboard, Tv2, X, PlayCircle, CheckCircle, Clock, Star } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
 
-export default function AddToWatchlistModal({ item, onSave, onClose }) {
+export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode }) {
   if (!item) {
     console.warn('AddToWatchlistModal: item is undefined');
     return null;
@@ -26,7 +26,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
   const [isPlatformsLoading, setIsPlatformsLoading] = useState(true);
   const { addToast } = useToast();
 
-  const userId = 1;
+  const isEditing = mode === 'edit';
   const mediaTypeLabel = item?.media_type === 'tv' ? 'Show' : 'Movie';
   const displayInfo = item?.release_date || item?.first_air_date
     ? `${(item.release_date || item.first_air_date).split('-')[0]} • ${item.genres || 'N/A'}`
@@ -53,7 +53,8 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
     async function fetchPlatforms() {
       setIsPlatformsLoading(true);
       try {
-        const res = await fetch(`/api/platforms?userId=${userId}`);
+        // userId no longer needed in query, API is session-aware
+        const res = await fetch(`/api/platforms`); 
         if (!res.ok) throw new Error('Failed to fetch platforms');
         const data = await res.json();
         const sortedPlatforms = data.sort((a, b) => {
@@ -83,8 +84,8 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
         setIsPlatformsLoading(false);
       }
     }
-    fetchPlatforms();
-  }, [item?.platform, userId, addToast]);
+    fetchPlatforms(); // Removed userId from dependency array
+  }, [item?.platform, addToast]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -99,46 +100,70 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
     }
     setIsLoading(true);
     try {
-      const payload = {
-        ...item,
+      let apiPayload = {
+        // Fields from modal state
         status,
         platform: platforms.find((p) => p.id.toString() === selectedPlatformId)?.name || null,
         watched_date: status === 'watched' ? watchedDate : null,
         notes: notes || null,
-        number_of_seasons: item.media_type === 'tv' ? item.number_of_seasons || null : null,
-        number_of_episodes: item.media_type === 'tv' ? item.number_of_episodes || null : null,
+
+        // Fields derived from 'item' prop
+        title: item.title || item.name,
+        overview: item.overview,
+        poster: isEditing ? item.poster : item.poster_path,
+        release_date: item.release_date || item.first_air_date,
+        media_type: item.media_type,
+        imdb_id: item.imdb_id || null,
+        vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
+        runtime: item.runtime || null,
+        seasons: item.media_type === 'tv' ? (isEditing ? item.seasons : item.number_of_seasons) || null : null,
+        episodes: item.media_type === 'tv' ? (isEditing ? item.episodes : item.number_of_episodes) || null : null,
+        genres: item.genres || null, // Ensure genres are included in the payload
       };
-      console.log('Saving to watchlist:', payload);
+
+      if (isEditing) {
+        apiPayload.id = item.id; // DB ID of the watchlist entry
+        apiPayload.movie_id = item.movie_id; // TMDB ID
+        // apiPayload.user_id = item.user_id; // No longer needed, API uses session
+      } else { // Adding new
+        apiPayload.movie_id = item.id; // TMDB ID
+        // apiPayload.user_id = userId; // No longer needed, API uses session
+      }
+
+      console.log('Saving to watchlist. Mode:', mode, 'Payload:', apiPayload);
 
       const res = await fetch('/api/watchlist', {
-        method: item.id ? 'PUT' : 'POST',
+        method: isEditing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(apiPayload),
       });
 
       if (!res.ok) {
         const errorData = await res.json();
-        if (errorData.error === 'Item already in watchlist') {
-          // Suppress duplicate error toast
+        if (errorData.error === 'Item already in watchlist' && !isEditing) {
           onClose();
           return;
         }
-        throw new Error(errorData.error || 'Failed to save');
+        throw new Error(errorData.error || `Failed to ${isEditing ? 'update' : 'save'}`);
       }
 
-      await onSave(payload);
+      const responseData = await res.json();
+      if (onSaveSuccess) {
+        await onSaveSuccess(responseData.item || responseData);
+      }
+
       addToast({
         id: Date.now(),
         title: 'Success',
-        description: item.id ? 'Item updated' : 'Added to watchlist',
+        description: `${apiPayload.title || (isEditing ? 'Item' : 'Item')} ${isEditing ? 'updated' : 'added to watchlist'}`,
       });
       onClose();
     } catch (error) {
-      console.error('Error saving to watchlist:', error);
+      console.error(`Error ${isEditing ? 'updating' : 'saving'} to watchlist:`, error);
       addToast({
         id: Date.now(),
         title: 'Error',
-        description: error.message || 'Failed to save to watchlist',
+        description: error.message || `Failed to ${isEditing ? 'update' : 'save'} to watchlist`,
         variant: 'destructive',
       });
     } finally {
@@ -146,9 +171,24 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
     }
   };
 
-  const posterUrl = item.poster_path || item.poster
-    ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${item.poster_path || item.poster}`
+  const posterFieldName = isEditing ? 'poster' : 'poster_path';
+  const posterValue = item[posterFieldName];
+  const posterUrl = posterValue
+    ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${posterValue}`
     : 'https://placehold.co/154x231?text=No+Image';
+
+  const actionText = isEditing ? 'Update' : 'Add to';
+  const buttonText = isLoading
+    ? 'Saving...'
+    : status === 'to_watch'
+    ? `${actionText} Watchlist`
+    : status === 'watching'
+    ? `${actionText} Currently Watching`
+    : `${actionText} Watched`;
+
+  const modalTitleAction = isEditing ? 'Edit in' : 'Add to';
+  const modalTitleText = status === 'to_watch' ? `${modalTitleAction} Watchlist` :
+                       status === 'watching' ? `${modalTitleAction} Currently Watching` : `${modalTitleAction} Watched`;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -162,11 +202,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
         </button>
         <div className="pr-6">
           <h2 className="text-lg font-bold text-white">
-            {status === 'to_watch'
-              ? 'Add to Watchlist'
-              : status === 'watching'
-              ? 'Add to Currently Watching'
-              : 'Add to Watched'}
+            {modalTitleText}
           </h2>
           <p className="text-gray-400 text-sm">
             Add this {mediaTypeLabel.toLowerCase()} to your{' '}
@@ -325,13 +361,7 @@ export default function AddToWatchlistModal({ item, onSave, onClose }) {
               disabled={isLoading || isPlatformsLoading}
               className={`w-full ${isMobile ? 'py-3 text-base' : ''} bg-[#E50914] hover:bg-[#f6121d] text-white`}
             >
-              {isLoading
-                ? 'Saving...'
-                : status === 'to_watch'
-                ? 'Add to Watchlist'
-                : status === 'watching'
-                ? 'Add to Currently Watching'
-                : 'Add to Watched'}
+              {buttonText}
             </Button>
           </div>
         </form>

@@ -325,46 +325,18 @@ export default function SearchPage() {
     setSelectedItem({ ...item, media_type: item.media_type || 'movie' });
   };
 
-  const handleSaveToWatchlist = async (item) => {
-    try {
-      const res = await fetch('/api/watchlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: item.id,
-          title: item.title || item.name,
-          overview: item.overview,
-          poster: item.poster_path,
-          release_date: item.release_date || item.first_air_date,
-          media_type: item.media_type,
-          status: item.status,
-          platform: item.platform,
-          notes: item.notes,
-          imdb_id: item.imdb_id,
-          vote_average: item.vote_average ? parseFloat(item.vote_average) : null,
-          seasons: item.number_of_seasons,
-          episodes: item.number_of_episodes,
-        }),
-      });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to add to watchlist');
-      }
+  const handleSaveNewItemSuccess = async (savedItem) => {
+    // Data has been saved by the modal, now update local state/cache
+    // The 'savedItem' parameter is what the API returned after saving.
+    // You can use it if needed, e.g., to update a specific item in a local list.
+    
+    // Revalidate SWR cache for watchlist related data
+    // The key '/api/watchlist?page=1&limit=50' might need to be more dynamic
+    // or you might rely on a global mutation key if your WatchlistProvider handles that.
+    mutate('/api/watchlist'); // General mutation key for watchlist
+    if (mutateWatchlist) { // from useWatchlist context
       mutate('/api/watchlist?page=1&limit=50');
       mutateWatchlist();
-      addToast({
-        id: Date.now(),
-        title: 'Success',
-        description: 'Added to watchlist',
-      });
-    } catch (error) {
-      console.error('Error adding to watchlist:', error);
-      addToast({
-        id: Date.now(),
-        title: 'Error',
-        description: error.message || 'Failed to add to watchlist',
-        variant: 'destructive',
-      });
     }
   };
 
@@ -488,8 +460,9 @@ export default function SearchPage() {
       {watchlistItem && (
         <AddToWatchlistModal
           item={watchlistItem}
-          onSave={handleSaveToWatchlist}
+          mode="add"
           onClose={() => setWatchlistItem(null)}
+          onSaveSuccess={handleSaveNewItemSuccess}
         />
       )}
     </div>
