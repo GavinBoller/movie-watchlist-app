@@ -255,8 +255,9 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
           </p>
         </div>
         <form onSubmit={handleSubmit}>
-          <RadioGroup value={status} onValueChange={setStatus} className="space-y-2 mb-4">
-            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition cursor-pointer">
+          <RadioGroup value={status} onValueChange={setStatus} className="space-y-2 mb-4 text-white">
+            <div className={`flex items-center space-x-2 rounded-lg p-3 transition cursor-pointer 
+              ${status === 'to_watch' ? 'bg-blue-700 hover:bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
               <RadioGroupItem value="to_watch" id="status-to-watch" />
               <Label
                 htmlFor="status-to-watch"
@@ -269,7 +270,8 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
                 </div>
               </Label>
             </div>
-            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition cursor-pointer">
+            <div className={`flex items-center space-x-2 rounded-lg p-3 transition cursor-pointer 
+              ${status === 'watching' ? 'bg-yellow-700 hover:bg-yellow-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
               <RadioGroupItem value="watching" id="status-watching" />
               <Label
                 htmlFor="status-watching"
@@ -277,20 +279,21 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
               >
                 <PlayCircle className="h-4 w-4 text-green-400" />
                 <div>
-                  <div className="font-medium text-white">Currently Watching</div>
+                  <div className="font-medium">Currently Watching</div>
                   <div className="text-xs text-gray-400">Started but not finished</div>
                 </div>
               </Label>
             </div>
-            <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition cursor-pointer">
+            <div className={`flex items-center space-x-2 rounded-lg p-3 transition cursor-pointer 
+              ${status === 'watched' ? 'bg-green-700 hover:bg-green-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
               <RadioGroupItem value="watched" id="status-watched" />
               <Label
                 htmlFor="status-watched"
                 className="flex items-center gap-2 cursor-pointer flex-1"
               >
-                <CheckCircle className="h-4 w-4 text-[#E50914]" />
+                <CheckCircle className="h-4 w-4 text-green-400" />
                 <div>
-                  <div className="font-medium text-white">Watched</div>
+                  <div className="font-medium">Watched</div>
                   <div className="text-xs text-gray-400">Already Watched</div>
                 </div>
               </Label>
