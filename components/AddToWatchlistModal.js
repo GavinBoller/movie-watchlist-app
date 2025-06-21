@@ -238,7 +238,9 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
             </div>
             <div className={`flex items-center mt-1 ${isMobile ? 'justify-center' : ''}`}>
               <span className="text-[#F5C518] font-bold text-sm">
-                {item.vote_average ? item.vote_average.toFixed(1) : 'N/A'}
+                {item.vote_average != null && !isNaN(parseFloat(item.vote_average))
+                  ? parseFloat(item.vote_average).toFixed(1)
+                  : 'N/A'}
               </span>
               <Star className="h-4 w-4 text-[#F5C518] fill-current ml-1" />
             </div>

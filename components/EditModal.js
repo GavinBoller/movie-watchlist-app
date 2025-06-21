@@ -1,16 +1,36 @@
-import { useState } from 'react';
-import { X, Save, XCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import useSWR from 'swr';
+import { X, Save, XCircle, Loader2 } from 'lucide-react';
 import { useToast } from './ToastContext';
+
+const fetcher = (url) => fetch(url).then((res) => res.json());
 
 export default function EditModal({ item, onSave, onClose }) {
   const [status, setStatus] = useState(item.status || 'to_watch');
-  const [watchedDate, setWatchedDate] = useState(item.watched_date || '');
+  // Correctly format the date for the input field, which expects YYYY-MM-DD
+  const [watchedDate, setWatchedDate] = useState(
+    item.watched_date ? new Date(item.watched_date).toISOString().split('T')[0] : ''
+  );
   const [platform, setPlatform] = useState(item.platform || '');
   const [notes, setNotes] = useState(item.notes || '');
   const [saving, setSaving] = useState(false);
   const { addToast } = useToast();
 
-  const platforms = ['Netflix', 'Hulu', 'Amazon Prime', 'Disney+', 'HBO Max', 'Other'];
+  // Fetch platforms dynamically using SWR
+  const { data: platformsData, error: platformsError } = useSWR('/api/platforms', fetcher);
+  const platforms = platformsData?.platforms || [];
+  const isLoadingPlatforms = !platformsData && !platformsError;
+
+  useEffect(() => {
+    // If status is changed to something other than 'watched', clear the date.
+    if (status !== 'watched') {
+      setWatchedDate('');
+    } 
+    // If status is changed to 'watched' and there's no date, set it to today.
+    else if (status === 'watched' && !watchedDate) {
+      setWatchedDate(new Date().toISOString().split('T')[0]);
+    }
+  }, [status]); // This effect runs whenever the 'status' changes.
 
   const handleSave = async () => {
     setSaving(true);
@@ -18,7 +38,7 @@ export default function EditModal({ item, onSave, onClose }) {
       const updatedItem = {
         ...item,
         status,
-        watched_date: watchedDate,
+        watched_date: status === 'watched' ? watchedDate : null,
         platform,
         notes,
       };
@@ -102,7 +122,8 @@ export default function EditModal({ item, onSave, onClose }) {
               type="date"
               value={watchedDate}
               onChange={(e) => setWatchedDate(e.target.value)}
-              className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500"
+              className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={status !== 'watched'}
             />
           </div>
 
@@ -113,13 +134,22 @@ export default function EditModal({ item, onSave, onClose }) {
               value={platform}
               onChange={(e) => setPlatform(e.target.value)}
               className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500"
+              disabled={isLoadingPlatforms}
             >
-              <option value="">Select Platform</option>
-              {platforms.map((plat) => (
-                <option key={plat} value={plat}>
-                  {plat}
-                </option>
-              ))}
+              {isLoadingPlatforms ? (
+                <option>Loading platforms...</option>
+              ) : platformsError ? (
+                <option>Error loading platforms</option>
+              ) : (
+                <>
+                  <option value="">Select Platform</option>
+                  {platforms.map((p) => (
+                    <option key={p.id} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
           </div>
 
@@ -141,7 +171,7 @@ export default function EditModal({ item, onSave, onClose }) {
               className="flex-1 px-4 py-3 bg-[#E50914] text-white rounded hover:bg-red-700 transition-colors flex items-center justify-center"
               disabled={saving}
             >
-              <Save className="h-4 w-4 mr-2" />
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
               {saving ? 'Saving...' : 'Save'}
             </button>
             <button

@@ -24,9 +24,9 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {      
-      const { page = 1, limit = 50, search = '', media = 'all', status = 'all' } = req.query;
+      const { page = 1, limit = 50, search = '', media = 'all', status = 'all', sort_by = 'added_at_desc' } = req.query;
       const offset = (parseInt(page) - 1) * parseInt(limit);
-      const cacheKey = `watchlist:${userId}:${page}:${limit}:${media}:${status}:${search}`;
+      const cacheKey = `watchlist:${userId}:${page}:${limit}:${media}:${status}:${search}:${sort_by}`;
       const timerLabel = `Database query page ${page} ${Date.now()}`;
 
       const cached = cache.get(cacheKey);
@@ -81,8 +81,18 @@ export default async function handler(req, res) {
         params.push(status);
       }
 
+      const sortOptions = {
+        'added_at_desc': 'added_at DESC',
+        'release_date_desc': 'release_date DESC NULLS LAST',
+        'release_date_asc': 'release_date ASC NULLS LAST',
+        'title_asc': 'title ASC',
+        'title_desc': 'title DESC',
+        'vote_average_desc': 'vote_average DESC NULLS LAST',
+      };
+      const orderByClause = sortOptions[sort_by] || sortOptions['added_at_desc'];
+
       query += `
-        ORDER BY added_at DESC
+        ORDER BY ${orderByClause}
         LIMIT $${params.length + 1} OFFSET $${params.length + 2}
       `;
       params.push(parseInt(limit), offset);

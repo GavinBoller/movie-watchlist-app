@@ -28,9 +28,12 @@ export default async function handler(req, res) {
       allResults = [...allResults, ...(data.results || [])];
     }
 
+    // De-duplicate results in case an item appears on multiple pages, keeping the first instance
+    const uniqueResults = Array.from(new Map(allResults.map(item => [item.id, item])).values());
+
     // Fetch details for each item to get imdb_id, runtime, genres etc.
     const enhancedResults = await Promise.all(
-      allResults.map(async (item) => {
+      uniqueResults.map(async (item) => {
         if (item.media_type !== 'movie' && item.media_type !== 'tv') return null; // Filter out unsupported media types
         try {
           const detailsUrl = `https://api.themoviedb.org/3/${item.media_type}/${item.id}?append_to_response=external_ids`;
