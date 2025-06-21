@@ -11,9 +11,6 @@ import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List } from 'luc
 import { useToast, useWatchlist } from '../components/ToastContext';
 import { mutate } from 'swr';
 
-// Client-side cache for TMDB search results
-const searchCache = new Map();
-
 function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
   const [isHovered, setIsHovered] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -221,26 +218,13 @@ export default function SearchPage() {
     }
     setIsLoading(true);
     try {
-      let allResults = [];
       const searchTerm = query.trim();
-      const cacheKey = `search:${searchTerm.toLowerCase()}`;
-      
-      if (searchCache.has(cacheKey)) {
-        console.log(`Cache hit for ${cacheKey}`);
-        allResults = searchCache.get(cacheKey);
-        setSearchResults(allResults); // Set results directly from cache
-        return; // Exit early
-      } else {
-        // Call your own API route instead of TMDB directly
-        const apiRes = await fetch(`/api/search?query=${encodeURIComponent(searchTerm)}&media_type=${mediaFilter}`);
-        if (!apiRes.ok) throw new Error('Failed to fetch search results from API');
-        const apiData = await apiRes.json();
-        allResults = apiData.data || []; // apiData.data should contain the results from TMDB
-      }
-
-      let filteredResults = allResults // Use allResults directly as details are now fetched server-side
-        .filter((item) => item)
-        .filter((item) => mediaFilter === 'all' || item.media_type === mediaFilter);
+      // Always fetch from the API. The server-side cache will handle performance.
+      const apiRes = await fetch(`/api/search?query=${encodeURIComponent(searchTerm)}&media_type=${mediaFilter}`);
+      if (!apiRes.ok) throw new Error('Failed to fetch search results from API');
+      const apiData = await apiRes.json();
+      // The API now handles the filtering by media_type, so we can use the results directly.
+      let filteredResults = apiData.data || [];
 
       // Sort results to prioritize exact or near-exact matches for the search query
       filteredResults = filteredResults.sort((a, b) => {

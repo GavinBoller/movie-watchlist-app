@@ -34,12 +34,16 @@ export default async function handler(req, res) {
     // Fetch details for each item to get imdb_id, runtime, genres etc.
     const enhancedResults = await Promise.all(
       uniqueResults.map(async (item) => {
-        if (item.media_type !== 'movie' && item.media_type !== 'tv') return null; // Filter out unsupported media types
+        // If media_type is missing (e.g., from a specific movie/tv search), use the one from the request.
+        const itemMediaType = item.media_type || (media_type !== 'all' ? media_type : null);
+
+        if (itemMediaType !== 'movie' && itemMediaType !== 'tv') return null; // Filter out unsupported media types
         try {
-          const detailsUrl = `https://api.themoviedb.org/3/${item.media_type}/${item.id}?append_to_response=external_ids`;
+          const detailsUrl = `https://api.themoviedb.org/3/${itemMediaType}/${item.id}?append_to_response=external_ids`;
           const details = await fetcher(detailsUrl); // fetcher now appends API key
           return {
             ...item,
+            media_type: itemMediaType, // Ensure media_type is always present in the final object
             imdb_id: details.external_ids?.imdb_id || null,
             genres: details.genres?.map((g) => g.name).join(', ') || 'N/A',
             runtime: details.runtime || (details.episode_run_time && details.episode_run_time[0]) || null,

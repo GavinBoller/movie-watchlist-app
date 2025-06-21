@@ -46,14 +46,9 @@ export default async function handler(req, res) {
           .replace(/[^a-z0-9\s]/g, '') // Remove special characters
           .trim();
         if (cleanSearch) {
-          words = cleanSearch.split(/\s+/).filter(word => word.length > 0);
-          if (words.length === 1) {
-            // Single-word search: use plainto_tsquery for better stop word handling
-            sanitizedSearch = cleanSearch;
-          } else {
-            // Multi-word search: use to_tsquery with & for AND matching
-            sanitizedSearch = words.map(word => `${word}:*`).join(' & ');
-          }
+          // Always use prefix matching for all words for a better "starts with" feel.
+          const words = cleanSearch.split(/\s+/).filter(word => word.length > 0);
+          sanitizedSearch = words.map(word => `${word}:*`).join(' & ');
         }
       }
 
@@ -67,7 +62,8 @@ export default async function handler(req, res) {
       const params = [userId];
 
       if (sanitizedSearch) {
-        query += ` AND title_tsv @@ ${words.length === 1 ? 'plainto_tsquery' : 'to_tsquery'}($${params.length + 1})`;
+        // Always use to_tsquery for consistency and to support prefix matching with ':*'
+        query += ` AND title_tsv @@ to_tsquery('simple', $${params.length + 1})`;
         params.push(sanitizedSearch);
       }
 
