@@ -16,10 +16,10 @@ export default function Header() {
   const [isPlatformModalOpen, setIsPlatformModalOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter(); // For redirecting after sign out
-  const activeTab = pathname === '/' ? 'search' : pathname === '/watchlist' ? 'my watchlist' : 'search';
+  // const activeTab = pathname === '/' ? 'search' : pathname === '/watchlist' ? 'my watchlist' : 'search'; // activeTab logic can be simplified or based on pathname directly
 
   const navItems = [
-    { name: 'Search', href: '/', icon: Search },
+    { name: 'Search', href: '/search', icon: Search },
     { name: 'My Watchlist', href: '/watchlist', icon: List },
   ];
 
@@ -31,7 +31,7 @@ export default function Header() {
   return (
     <header className="bg-[#1a1a1a] text-white sticky top-0 z-50 border-b border-gray-700">
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-        {/* Logo */}
+        {/* Logo - points to landing page */}
         <Link href="/" className="flex items-center">
           <Film className="h-6 w-6 text-[#E50914] mr-2" />
           <h1 className="text-xl sm:text-2xl font-bold text-[#E50914] tracking-tight">Watchlist</h1>
@@ -44,14 +44,14 @@ export default function Header() {
               key={item.name}
               href={item.href}
               className={`flex items-center space-x-1 transition-colors ${
-                activeTab === item.name.toLowerCase()
+                pathname === item.href // More direct comparison for active state
                   ? 'text-[#E50914]'
                   : 'text-white hover:text-[#E50914]'
               }`}
             >
               <item.icon
                 className={`h-5 w-5 mr-2 ${
-                  activeTab === item.name.toLowerCase() ? 'text-[#E50914]' : 'text-white'
+                  pathname === item.href ? 'text-[#E50914]' : 'text-white'
                 }`}
               />
               <span>{item.name}</span>
@@ -115,7 +115,7 @@ export default function Header() {
                 <button
                   onClick={() => {
                     signOut({ redirect: false }).then(() => {
-                      router.push('/api/auth/signin'); // Redirect to sign-in page
+                      router.push('/'); // Redirect to landing page
                     });
                   }}
                   className="w-full text-left block px-4 py-2 text-sm text-white hover:bg-gray-700 hover:text-[#E50914]"
@@ -145,16 +145,14 @@ export default function Header() {
                   <Link
                     href={item.href}
                     className={`flex items-center p-2 rounded-lg transition-colors ${
-                      activeTab === item.name.toLowerCase()
+                      pathname === item.href
                         ? 'bg-gray-800 text-[#E50914]'
                         : 'text-white hover:bg-gray-800 hover:text-[#E50914]'
                     }`}
                     onClick={() => setIsMenuOpen(false)}
                   >
                     <item.icon
-                      className={`h-4 w-4 mr-2 ${
-                        activeTab === item.name.toLowerCase() ? 'text-[#E50914]' : 'text-white'
-                      }`}
+                      className={`h-4 w-4 mr-2 ${pathname === item.href ? 'text-[#E50914]' : 'text-white'}`}
                     />
                     <span>{item.name}</span>
                   </Link>
@@ -204,7 +202,7 @@ export default function Header() {
                   size="sm"
                   onClick={() => {
                     signOut({ redirect: false }).then(() => {
-                      router.push('/api/auth/signin'); // Redirect to sign-in page
+                      router.push('/'); // Redirect to landing page
                     });
                     setIsMenuOpen(false);
                   }}

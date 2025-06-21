@@ -203,8 +203,8 @@ export default async function handler(req, res) {
             poster || null,
             release_date || null,
             media_type || 'movie',
-            genres || null, // Swapped with media_type to match column order
-            runtime || null, // Added runtime
+            genres || null, 
+            runtime || null, 
             status || 'to_watch',
             platform || null,
             notes || null,
@@ -230,7 +230,6 @@ export default async function handler(req, res) {
       const {
         id, // The ID of the watchlist item to update
         // user_id from body is no longer needed for WHERE clause
->>>>>>> stable-restore1
         movie_id,
         title,
         overview,
@@ -246,88 +245,6 @@ export default async function handler(req, res) {
         runtime,
         seasons,
         episodes,
-        genres,
-      } = req.body;
-
-<<<<<<< HEAD
-      if (!movie_id || !title) {
-        return res.status(400).json({ error: 'movie_id and title are required' });
-      }
-
-      console.log(`Adding item ${movie_id} to watchlist`);
-
-      const client = await pool.connect();
-      try {
-        const exists = await client.query(
-          `SELECT 1 FROM watchlist WHERE user_id = $1 AND movie_id = $2`,
-          [userId, movie_id.toString()]
-        );
-        if (exists.rows.length > 0) {
-          return res.status(400).json({ error: 'Item already in watchlist' });
-        }
-
-        await client.query(
-          `
-          INSERT INTO watchlist (
-            user_id, movie_id, title, overview, poster, release_date, media_type,
-            status, platform, notes, watched_date, imdb_id, vote_average, runtime,
-            seasons, episodes, added_at
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW()
-          )
-        `,
-          [
-            userId,
-            movie_id.toString(),
-            title,
-            overview || null,
-            poster || null,
-            release_date || null,
-            media_type || 'movie',
-            status || 'to_watch',
-            platform || null,
-            notes || null,
-            watched_date || null,
-            imdb_id || null,
-            vote_average ? parseFloat(vote_average) : null,
-            runtime || null,
-            seasons || null,
-            episodes || null,
-          ]
-        );
-        cache.flushAll();
-        // It's good practice to return the created item or at least its ID
-        const newItemQuery = await client.query('SELECT * FROM watchlist WHERE user_id = $1 AND movie_id = $2 ORDER BY added_at DESC LIMIT 1', [userId, movie_id.toString()]);
-        return res.status(201).json({ message: 'Added to watchlist', item: newItemQuery.rows[0] });
-      } catch (error) {
-        console.error('Error adding to watchlist:', error);
-        return res.status(500).json({ error: error.message || 'Failed to add to watchlist' });
-      } finally {
-        client.release();
-      }
-    }
-
-    if (req.method === 'PUT') {
-      const {
-        id,
-        id, // The ID of the watchlist item to update
-        // user_id from body is no longer needed for WHERE clause
-        movie_id,
-        title,
-        overview,
-        poster,
-        release_date,
-        media_type,
-        status,
-        platform,
-        notes,
-        watched_date,
-        imdb_id,
-        vote_average,
-        runtime,
-        seasons,
-        episodes,
-        user_id,
         genres,
       } = req.body;
 
@@ -359,42 +276,43 @@ export default async function handler(req, res) {
           UPDATE watchlist
           SET
             title = $1, 
-            overview = $2,
-            poster = $3,
-            release_date = $4,
-            media_type = $5,
-            status = $6,
-            platform = $7,
-            notes = $8,
-            watched_date = $9,
-            imdb_id = $10,
-            vote_average = $11,
-            runtime = $12,
-            seasons = $13, 
-            episodes = $14,
-            genres = $15
-          WHERE id = $16 AND user_id = $17 -- Use authenticated userId here
+            movie_id = $2,
+            overview = $3,
+            poster = $4,
+            release_date = $5,
+            media_type = $6,
+            status = $7,
+            platform = $8,
+            notes = $9,
+            watched_date = $10,
+            imdb_id = $11,
+            vote_average = $12, 
+            runtime = $13,        
+            seasons = $14, 
+            episodes = $15,
+            genres = $16          
+          WHERE id = $17 AND user_id = $18 
           RETURNING *
         `,
           [
-            movie_id.toString(),
             title,
-            overview || null,
-            poster || null,
-            release_date || null, // $4
-            media_type || 'movie',  // $5
-            status || 'to_watch',   // $6
-            platform || null,       // $7
-            notes || null,          // $8
-            watched_date || null,   // $9
-            imdb_id || null,        // $10
-            vote_average ? parseFloat(vote_average) : null, // $11
-            runtime || null,        // $12
-            seasons || null,        // $13
-            episodes || null,       // $14
-            genres || null,         // $15
-            id,                     // $16
-            userId,                 // $17 (the authenticated user's ID from session)
+            movie_id ? movie_id.toString() : null, // $2
+            overview || null,       // $3
+            poster || null,         // $4
+            release_date || null,   // $5
+            media_type || 'movie',  // $6
+            status || 'to_watch',   // $7
+            platform || null,       // $8
+            notes || null,          // $9
+            watched_date || null,   // $10
+            imdb_id || null,        // $11
+            vote_average ? parseFloat(vote_average) : null, // $12
+            runtime || null,        // $13
+            seasons || null,        // $14
+            episodes || null,       // $15
+            genres || null,         // $16
+            id,                     // $17
+            userId,                 // $18
           ]
         );
         if (result.rows.length === 0) {
@@ -419,9 +337,7 @@ export default async function handler(req, res) {
       }
       // --- End Input Validation ---
 
-      if (!id) {
-        return res.status(400).json({ error: 'id is required' });
-      }
+      // Redundant check removed: if (!id) { return res.status(400).json({ error: 'id is required' }); }
 
       const client = await pool.connect();
       try {
