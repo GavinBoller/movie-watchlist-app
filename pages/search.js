@@ -149,6 +149,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
                     href={`https://www.imdb.com/title/${movie.imdb_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <ExternalLink className="h-4 w-4 mr-1" />
                     IMDb
@@ -175,6 +176,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
                   href={`https://www.imdb.com/title/${movie.imdb_id}`}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <ExternalLink className="h-3 w-3 mr-1" />
                   IMDb
@@ -226,47 +228,17 @@ export default function SearchPage() {
       if (searchCache.has(cacheKey)) {
         console.log(`Cache hit for ${cacheKey}`);
         allResults = searchCache.get(cacheKey);
+        setSearchResults(allResults); // Set results directly from cache
+        return; // Exit early
       } else {
-        for (let page = 1; page <= 2; page++) {
-          const url = `https://api.themoviedb.org/3/search/multi?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&query=${encodeURIComponent(searchTerm)}&page=${page}`;
-          console.log(`Fetching TMDB URL: ${url}`);
-          const res = await fetch(url);
-          if (!res.ok) throw new Error('Failed to fetch search results');
-          const data = await res.json();
-          console.log(`Raw TMDB response for "${query}" (page ${page}):`, JSON.stringify(data.results, null, 2));
-          console.log(`Search query "${query}" page ${page} returned ${data.results.length} results, total: ${data.total_results}, pages: ${data.total_pages}`);
-          allResults = [...allResults, ...data.results];
-        }
-        searchCache.set(cacheKey, allResults);
+        // Call your own API route instead of TMDB directly
+        const apiRes = await fetch(`/api/search?query=${encodeURIComponent(searchTerm)}&media_type=${mediaFilter}`);
+        if (!apiRes.ok) throw new Error('Failed to fetch search results from API');
+        const apiData = await apiRes.json();
+        allResults = apiData.data || []; // apiData.data should contain the results from TMDB
       }
 
-      const enhancedResults = await Promise.all(
-        allResults.map(async (item) => {
-          if (item.media_type !== 'movie' && item.media_type !== 'tv') return null;
-          try {
-            const detailsRes = await fetch(
-              `https://api.themoviedb.org/3/${item.media_type}/${item.id}?api_key=${process.env.NEXT_PUBLIC_TMDB_API_KEY}&append_to_response=external_ids`
-            );
-            const details = await detailsRes.json();
-            console.log(`Item ${item.id} external_ids:`, JSON.stringify(details.external_ids));
-            return {
-              ...item,
-              imdb_id: details.external_ids?.imdb_id || null,
-              vote_average: details.vote_average ? parseFloat(details.vote_average) : null,
-              runtime: details.runtime || (details.episode_run_time && details.episode_run_time[0]) || null,
-              genres: details.genres?.map((g) => g.name).join(', ') || 'N/A',
-              first_air_date: item.media_type === 'tv' ? details.first_air_date || item.first_air_date : null,
-              release_date: item.media_type === 'movie' ? details.release_date || item.release_date : null,
-              number_of_seasons: item.media_type === 'tv' ? details.number_of_seasons || null : null,
-              number_of_episodes: item.media_type === 'tv' ? details.number_of_episodes || null : null,
-            };
-          } catch (error) {
-            console.warn(`Failed to fetch details for ${item.id}:`, error);
-            return item;
-          }
-        })
-      );
-      let filteredResults = enhancedResults
+      let filteredResults = allResults // Use allResults directly as details are now fetched server-side
         .filter((item) => item)
         .filter((item) => mediaFilter === 'all' || item.media_type === mediaFilter);
 
@@ -322,7 +294,12 @@ export default function SearchPage() {
   };
 
   const handleShowDetails = (item) => {
-    setSelectedItem({ ...item, media_type: item.media_type || 'movie' });
+    // Normalize the item from TMDB to match the structure DetailsModal expects,
+    // which is similar to our database schema (e.g., using 'poster' instead of 'poster_path').
+    setSelectedItem({ 
+      ...item, 
+      poster: item.poster_path, // Map poster_path to poster
+      media_type: item.media_type || 'movie' });
   };
 
   const handleSaveNewItemSuccess = async (savedItem) => {

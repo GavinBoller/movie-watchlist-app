@@ -1,3 +1,4 @@
+// watchlist.js
 import { Pool } from '@neondatabase/serverless';
 import NodeCache from 'node-cache';
 import { getServerSession } from "next-auth/next"
@@ -18,7 +19,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const userId = session.user.id; // Use the authenticated user's ID
+  const userId = session.user.id;
   console.log(`${req.method} ${req.url} for user ${userId}`);
 
   try {
@@ -94,7 +95,7 @@ export default async function handler(req, res) {
 
         const { rows } = await client.query(query, params);
 
-        const countQuery = `
+        let countQuery = `
           SELECT
             COUNT(*) AS total,
             COUNT(*) FILTER (WHERE media_type = 'movie') AS movie,
@@ -104,14 +105,25 @@ export default async function handler(req, res) {
             COUNT(*) FILTER (WHERE status = 'watched') AS watched
           FROM watchlist
           WHERE user_id = $1
-          ${sanitizedSearch ? `AND title_tsv @@ ${words.length === 1 ? 'plainto_tsquery' : 'to_tsquery'}($2)` : ''}
-          ${media !== 'all' ? `AND media_type = $${sanitizedSearch ? 3 : 2}` : ''}
-          ${status !== 'all' ? `AND status = $${sanitizedSearch ? (media !== 'all' ? 4 : 3) : (media !== 'all' ? 3 : 2)}` : ''}
         `;
         const countParams = [userId];
-        if (sanitizedSearch) countParams.push(sanitizedSearch);
-        if (media !== 'all') countParams.push(media);
-        if (status !== 'all') countParams.push(status);
+        let paramIndex = 2;
+
+        if (sanitizedSearch) {
+          countQuery += ` AND title_tsv @@ ${words.length === 1 ? 'plainto_tsquery' : 'to_tsquery'}($${paramIndex})`;
+          countParams.push(sanitizedSearch);
+          paramIndex++;
+        }
+        if (media !== 'all') {
+          countQuery += ` AND media_type = $${paramIndex}`;
+          countParams.push(media);
+          paramIndex++;
+        }
+        if (status !== 'all') {
+          countQuery += ` AND status = $${paramIndex}`;
+          countParams.push(status);
+          paramIndex++;
+        }
 
         const { rows: [{ total, movie, tv, to_watch, watching, watched }] } = await client.query(countQuery, countParams);
 
@@ -136,7 +148,6 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const {
-        // Use movie_id from the payload, which contains the TMDB ID for new items
         movie_id, 
         title,
         overview,
@@ -151,10 +162,9 @@ export default async function handler(req, res) {
         seasons,
         episodes,
         genres,
-        runtime, // Add runtime here
+        runtime,
       } = req.body;
 
-      // --- Start Input Validation ---
       if (!movie_id || typeof movie_id !== 'string' && typeof movie_id !== 'number') {
         return res.status(400).json({ error: 'Valid movie_id (string or number) is required.' });
       }
@@ -173,7 +183,6 @@ export default async function handler(req, res) {
       if (runtime !== undefined && runtime !== null && (typeof runtime !== 'number' || runtime < 0)) {
         return res.status(400).json({ error: 'Invalid runtime. Must be a non-negative number.' });
       }
-      // --- End Input Validation ---
       console.log(`Adding item ${movie_id} to watchlist`);
 
       const client = await pool.connect();
@@ -197,7 +206,7 @@ export default async function handler(req, res) {
         `,
           [
             userId,
-            movie_id.toString(), // Use movie_id here
+            movie_id.toString(),
             title,
             overview || null,
             poster || null,
@@ -215,7 +224,6 @@ export default async function handler(req, res) {
           ]
         );
         cache.flushAll();
-        // It's good practice to return the created item or at least its ID
         const newItemQuery = await client.query('SELECT * FROM watchlist WHERE user_id = $1 AND movie_id = $2 ORDER BY added_at DESC LIMIT 1', [userId, movie_id.toString()]);
         return res.status(201).json({ message: 'Added to watchlist', item: newItemQuery.rows[0] });
       } catch (error) {
@@ -228,8 +236,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'PUT') {
       const {
-        id, // The ID of the watchlist item to update
-        // user_id from body is no longer needed for WHERE clause
+        id,
         movie_id,
         title,
         overview,
@@ -248,7 +255,6 @@ export default async function handler(req, res) {
         genres,
       } = req.body;
 
-      // --- Start Input Validation ---
       if (!id) {
         return res.status(400).json({ error: 'Watchlist item ID is required for updating.' });
       }
@@ -267,7 +273,6 @@ export default async function handler(req, res) {
       if (runtime !== undefined && runtime !== null && (typeof runtime !== 'number' || runtime < 0)) {
         return res.status(400).json({ error: 'Invalid runtime. Must be a non-negative number.' });
       }
-      // --- End Input Validation ---
 
       const client = await pool.connect();
       try {
@@ -296,30 +301,29 @@ export default async function handler(req, res) {
         `,
           [
             title,
-            movie_id ? movie_id.toString() : null, // $2
-            overview || null,       // $3
-            poster || null,         // $4
-            release_date || null,   // $5
-            media_type || 'movie',  // $6
-            status || 'to_watch',   // $7
-            platform || null,       // $8
-            notes || null,          // $9
-            watched_date || null,   // $10
-            imdb_id || null,        // $11
-            vote_average ? parseFloat(vote_average) : null, // $12
-            runtime || null,        // $13
-            seasons || null,        // $14
-            episodes || null,       // $15
-            genres || null,         // $16
-            id,                     // $17
-            userId,                 // $18
+            movie_id ? movie_id.toString() : null,
+            overview || null,
+            poster || null,
+            release_date || null,
+            media_type || 'movie',
+            status || 'to_watch',
+            platform || null,
+            notes || null,
+            watched_date || null,
+            imdb_id || null,
+            vote_average ? parseFloat(vote_average) : null,
+            runtime || null,
+            seasons || null,
+            episodes || null,
+            genres || null,
+            id,
+            userId,
           ]
         );
         if (result.rows.length === 0) {
           return res.status(404).json({ error: 'Item not found' });
         }
         cache.flushAll();
-        // Return the updated item
         return res.status(200).json({ message: 'Updated watchlist', item: result.rows[0] });
       } catch (error) {
         console.error('Error updating watchlist:', error);
@@ -331,13 +335,9 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
       const { id } = req.body;
-      // --- Start Input Validation ---
       if (!id) {
         return res.status(400).json({ error: 'Watchlist item ID is required for deletion.' });
       }
-      // --- End Input Validation ---
-
-      // Redundant check removed: if (!id) { return res.status(400).json({ error: 'id is required' }); }
 
       const client = await pool.connect();
       try {
