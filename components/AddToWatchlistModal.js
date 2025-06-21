@@ -41,10 +41,8 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
   }, []);
 
   useEffect(() => {
-    if (status === 'watched' && !watchedDate) {
-      const today = new Date().toISOString().split('T')[0];
-      setWatchedDate(today);
-    } else if (status !== 'watched' && watchedDate) {
+    // When status is changed away from 'watched', clear the date.
+    if (status !== 'watched' && watchedDate) {
       setWatchedDate('');
     }
   }, [status]);
@@ -89,15 +87,6 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (status === 'watched' && !watchedDate) {
-      addToast({
-        id: Date.now(),
-        title: 'Error',
-        description: 'Please select a watched date',
-        variant: 'destructive',
-      });
-      return;
-    }
     setIsLoading(true);
     try {
       let apiPayload = {

@@ -13,7 +13,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Film, Tv, Edit, Trash2, List, ExternalLink, Clock, Star } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
 
-const fetcher = (url) => fetch(url).then((res) => res.json());
+const fetcher = async (url) => {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const error = new Error('An error occurred while fetching the data.');
+    // Attach extra info to the error object.
+    error.info = await res.json().catch(() => ({})); // Handle cases where the error body isn't JSON
+    error.status = res.status;
+    throw error;
+  }
+  return res.json();
+};
 
 function WatchlistItemCard({ item, onEdit, onDelete }) {
   const [isHovered, setIsHovered] = useState(false);
