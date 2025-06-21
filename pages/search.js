@@ -347,8 +347,8 @@ export default function SearchPage() {
             type="text"
             placeholder="Search for movies or TV shows..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full max-w-[50%] bg-gray-800 border-gray-700 text-white rounded-full py-2 px-4"
+            onChange={(e) => setSearchQuery(e.target.value)} 
+            className="w-full sm:max-w-md md:max-w-lg bg-gray-800 border-gray-700 text-white rounded-full py-2 px-4"
           />
         </div>
         {searchQuery.toLowerCase().includes('mad') && !searchQuery.toLowerCase().includes('mad max') && searchResults.length > 0 && !searchResults.some((item) => (item.title || item.name)?.toLowerCase().includes('mad max')) && (
