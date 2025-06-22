@@ -7,9 +7,9 @@ import AddToWatchlistModal from '../components/AddToWatchlistModal';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
-import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List } from 'lucide-react';
+import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List } from 'lucide-react'; 
 import { useToast, useWatchlist } from '../components/ToastContext';
-import { mutate } from 'swr';
+import { useSWRConfig } from 'swr';
 
 function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
   const [isHovered, setIsHovered] = useState(false);
@@ -205,6 +205,7 @@ export default function SearchPage() {
   const [watchlistItem, setWatchlistItem] = useState(null);
   const [mediaFilter, setMediaFilter] = useState('all');
   const { addToast } = useToast();
+  const { mutate } = useSWRConfig();
   const { watchlist, mutate: mutateWatchlist, error: watchlistError } = useWatchlist();
 
   const movieCount = searchResults.filter(item => item.media_type === 'movie').length;
@@ -287,18 +288,9 @@ export default function SearchPage() {
   };
 
   const handleSaveNewItemSuccess = async (savedItem) => {
-    // Data has been saved by the modal, now update local state/cache
-    // The 'savedItem' parameter is what the API returned after saving.
-    // You can use it if needed, e.g., to update a specific item in a local list.
-    
-    // Revalidate SWR cache for watchlist related data
-    // The key '/api/watchlist?page=1&limit=50' might need to be more dynamic
-    // or you might rely on a global mutation key if your WatchlistProvider handles that.
-    mutate('/api/watchlist'); // General mutation key for watchlist
-    if (mutateWatchlist) { // from useWatchlist context
-      mutate('/api/watchlist?page=1&limit=50');
-      mutateWatchlist();
-    }
+    // Revalidate any SWR key that starts with /api/watchlist to ensure
+    // the watchlist page gets the latest data.
+    mutate((key) => typeof key === 'string' && key.startsWith('/api/watchlist'), undefined, { revalidate: true });
   };
 
   useEffect(() => {

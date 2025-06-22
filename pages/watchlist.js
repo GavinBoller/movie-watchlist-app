@@ -109,18 +109,27 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
 }
 
 export default function WatchlistPage() {
+  const WATCHLIST_LIMIT = 50;
   const [sortOrder, setSortOrder] = useState('added_at_desc');
   const [search, setSearch] = useState('');
   const [mediaFilter, setMediaFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [page, setPage] = useState(1);
   const [editingItem, setEditingItem] = useState(null);
   const [itemToDelete, setItemToDelete] = useState(null);
   const { addToast } = useToast();
 
-  const swrKey = `/api/watchlist?sort_by=${sortOrder}&search=${search}&media=${mediaFilter}&status=${statusFilter}`;
+  // Reset to page 1 whenever filters change to avoid viewing a non-existent page
+  useEffect(() => {
+    setPage(1);
+  }, [sortOrder, search, mediaFilter, statusFilter]);
+
+  const swrKey = `/api/watchlist?sort_by=${sortOrder}&search=${search}&media=${mediaFilter}&status=${statusFilter}&page=${page}&limit=${WATCHLIST_LIMIT}`;
   const { data, error, mutate } = useSWR(swrKey, fetcher);
 
   const isLoading = !data && !error;
+
+  const totalPages = data ? Math.ceil(data.total / WATCHLIST_LIMIT) : 0;
 
   const handleDeleteClick = (item) => {
     setItemToDelete(item);
@@ -240,6 +249,24 @@ export default function WatchlistPage() {
                 onDelete={() => handleDeleteClick(item)}
               />
             ))}
+          </div>
+        )}
+
+        {data && data.total > WATCHLIST_LIMIT && (
+          <div className="flex justify-center items-center mt-8 space-x-4">
+            <Button
+              onClick={() => setPage(page - 1)}
+              disabled={page <= 1 || isLoading}
+              className="bg-gray-700 hover:bg-gray-600"
+            >
+              Previous
+            </Button>
+            <span className="text-gray-300 font-medium">
+              Page {page} of {totalPages}
+            </span>
+            <Button onClick={() => setPage(page + 1)} disabled={page >= totalPages || isLoading} className="bg-gray-700 hover:bg-gray-600">
+              Next
+            </Button>
           </div>
         )}
       </div>

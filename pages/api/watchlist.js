@@ -271,21 +271,21 @@ export default async function handler(req, res) {
           UPDATE watchlist
           SET
             title = $1, 
-            overview = $3,
-            poster = $4,
-            release_date = $5,
-            media_type = $6,
-            status = $7,
-            platform = $8,
-            notes = $9,
-            watched_date = $10,
-            imdb_id = $11,
-            vote_average = $12, 
-            runtime = $13,        
-            seasons = $14, 
-            episodes = $15,
-            genres = $16          
-          WHERE id = $17 AND user_id = $18
+            overview = $2,
+            poster = $3,
+            release_date = $4,
+            media_type = $5,
+            status = $6,
+            platform = $7,
+            notes = $8,
+            watched_date = $9,
+            imdb_id = $10,
+            vote_average = $11, 
+            runtime = $12,        
+            seasons = $13, 
+            episodes = $14,
+            genres = $15
+          WHERE id = $16 AND user_id = $17
           RETURNING *
         `,
           [
