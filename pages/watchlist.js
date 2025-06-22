@@ -109,7 +109,7 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
 }
 
 export default function WatchlistPage() {
-  const WATCHLIST_LIMIT = 50;
+  const WATCHLIST_LIMIT = 50; // Temporarily lowered for testing
   const [sortOrder, setSortOrder] = useState('added_at_desc');
   const [search, setSearch] = useState('');
   const [mediaFilter, setMediaFilter] = useState('all');
