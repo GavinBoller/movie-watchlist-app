@@ -5,8 +5,10 @@ import Header from '../components/Header';
 import DetailsModal from '../components/DetailsModal';
 import AddToWatchlistModal from '../components/AddToWatchlistModal';
 import { Button } from '../components/ui/button';
+import { Checkbox } from '../components/ui/checkbox';
 import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List } from 'lucide-react'; 
 import { useToast, useWatchlist } from '../components/ToastContext';
 import { useSWRConfig } from 'swr';
@@ -204,52 +206,45 @@ export default function SearchPage() {
   const [selectedItem, setSelectedItem] = useState(null);
   const [watchlistItem, setWatchlistItem] = useState(null);
   const [mediaFilter, setMediaFilter] = useState('all');
+  const [selectedGenreId, setSelectedGenreId] = useState('all'); // Stores TMDB genre ID
+  const [genres, setGenres] = useState([]); // Stores fetched genre list
+  const [minRating, setMinRating] = useState('0'); // Stores minimum rating (e.g., '6', '7')
+  const [excludeWatchlist, setExcludeWatchlist] = useState(false);
+  const [sortOrder, setSortOrder] = useState('popularity.desc'); // Default TMDB sort
   const { addToast } = useToast();
   const { mutate } = useSWRConfig();
   const { watchlist, mutate: mutateWatchlist, error: watchlistError } = useWatchlist();
-
-  const movieCount = searchResults.filter(item => item.media_type === 'movie').length;
-  const tvCount = searchResults.filter(item => item.media_type === 'tv').length;
-  const allCount = searchResults.length;
-
+  
   const handleSearch = async (query) => {
-    if (!query.trim()) {
+    // Don't search if there's no query and no filters are selected
+    if (!query.trim() && selectedGenreId === 'all' && minRating === '0') {
       setSearchResults([]);
+      // Reset counts when no search or filters
+      setTotalAllCount(0);
+      setMovieCount(0);
+      setTvCount(0);
       return;
     }
     setIsLoading(true);
     try {
       const searchTerm = query.trim();
-      // Always fetch from the API. The server-side cache will handle performance.
-      const apiRes = await fetch(`/api/search?query=${encodeURIComponent(searchTerm)}&media_type=${mediaFilter}`);
+      const apiRes = await fetch(
+        `/api/search?query=${encodeURIComponent(searchTerm)}&media_type=${mediaFilter}&genre_id=${selectedGenreId}&min_rating=${minRating}&sort_by=${sortOrder}`
+      );
       if (!apiRes.ok) throw new Error('Failed to fetch search results from API');
       const apiData = await apiRes.json();
-      // The API now handles the filtering by media_type, so we can use the results directly.
       let filteredResults = apiData.data || [];
 
-      // Sort results to prioritize exact or near-exact matches for the search query
-      filteredResults = filteredResults.sort((a, b) => {
-        const aTitle = (a.title || a.name || '').toLowerCase();
-        const bTitle = (b.title || b.name || '').toLowerCase();
-        const queryLower = searchTerm.toLowerCase();
+      if (excludeWatchlist) {
+        filteredResults = filteredResults.filter(item => !watchlist.some(wItem => wItem.movie_id === item.id.toString()));
+      }
 
-        // Exact match
-        if (aTitle === queryLower && bTitle !== queryLower) return -1;
-        if (bTitle === queryLower && aTitle !== queryLower) return 1;
-
-        // Starts with query
-        if (aTitle.startsWith(queryLower) && !bTitle.startsWith(queryLower)) return -1;
-        if (bTitle.startsWith(queryLower) && !aTitle.startsWith(queryLower)) return 1;
-
-        // Contains query
-        if (aTitle.includes(queryLower) && !bTitle.includes(queryLower)) return -1;
-        if (bTitle.includes(queryLower) && !aTitle.includes(queryLower)) return 1;
-
-        // Fallback to popularity
-        return (b.popularity || 0) - (a.popularity || 0);
-      });
-
+      // All filtering and sorting is now handled by the backend API.
       setSearchResults(filteredResults);
+      // Update counts from API response
+      setTotalAllCount(apiData.counts?.all || 0);
+      setMovieCount(apiData.counts?.movie || 0);
+      setTvCount(apiData.counts?.tv || 0);
     } catch (error) {
       console.error('Error searching:', error);
       addToast({
@@ -293,14 +288,32 @@ export default function SearchPage() {
     mutate((key) => typeof key === 'string' && key.startsWith('/api/watchlist'), undefined, { revalidate: true });
   };
 
+  // Fetch genres on component mount
+  useEffect(() => {
+    async function fetchGenres() {
+      try {
+        const res = await fetch('/api/genres');
+        if (!res.ok) throw new Error('Failed to fetch genres');
+        const data = await res.json();
+        setGenres(data);
+      } catch (error) {
+        console.error('Error fetching genres:', error);
+        addToast({ id: Date.now(), title: 'Error', description: 'Failed to load genres', variant: 'destructive' });
+      }
+    }
+    fetchGenres();
+  }, []);
+
   useEffect(() => {
     const timeoutId = setTimeout(() => handleSearch(searchQuery), 500);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
-
+  }, [searchQuery, mediaFilter, selectedGenreId, minRating, sortOrder]); // Add new dependencies
+  
+  // This effect handles the client-side filtering for the 'excludeWatchlist' checkbox
   useEffect(() => {
     handleSearch(searchQuery);
-  }, [mediaFilter]);
+  }, [excludeWatchlist]);
+
 
   if (watchlistError) {
     return (
@@ -312,6 +325,10 @@ export default function SearchPage() {
       </div>
     );
   }
+
+  const [totalAllCount, setTotalAllCount] = useState(0); // New state for total count
+  const [movieCount, setMovieCount] = useState(0);
+  const [tvCount, setTvCount] = useState(0);
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white">
@@ -338,7 +355,7 @@ export default function SearchPage() {
             className={`flex items-center gap-1 ${mediaFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
             <List className="h-4 w-4" />
-            All ({allCount})
+            All ({totalAllCount})
           </Button>
           <Button
             onClick={() => setMediaFilter('movie')}
@@ -355,6 +372,71 @@ export default function SearchPage() {
             TV Shows ({tvCount})
           </Button>
         </div>
+
+        <div className="mb-4 flex flex-wrap justify-center gap-2">
+          {/* Genre Filter */}
+          <Select onValueChange={setSelectedGenreId} value={selectedGenreId}>
+            <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700">
+              <SelectValue placeholder="Select Genre" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-800 text-white border-gray-700">
+              <SelectItem value="all">All Genres</SelectItem>
+              {genres.map((genre) => (
+                <SelectItem key={genre.id} value={genre.id.toString()}>
+                  {genre.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Minimum Rating Filter */}
+          <Select onValueChange={setMinRating} value={minRating}>
+            <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700">
+              <SelectValue placeholder="Min Rating" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-800 text-white border-gray-700">
+              <SelectItem value="0">Any Rating</SelectItem>
+              <SelectItem value="6">6+</SelectItem>
+              <SelectItem value="7">7+</SelectItem>
+              <SelectItem value="8">8+</SelectItem>
+              <SelectItem value="9">9+</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Sort By */}
+          <Select onValueChange={setSortOrder} value={sortOrder}>
+            <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700">
+              <SelectValue placeholder="Sort By" />
+            </SelectTrigger>
+            <SelectContent className="bg-gray-800 text-white border-gray-700">
+              <SelectItem value="popularity.desc">Popularity (Desc)</SelectItem>
+              <SelectItem value="release_date.desc">Release Date (Newest)</SelectItem>
+              <SelectItem value="release_date.asc">Release Date (Oldest)</SelectItem>
+              <SelectItem value="title.asc">Title (A-Z)</SelectItem>
+              <SelectItem value="title.desc">Title (Z-A)</SelectItem>
+              <SelectItem value="vote_average.desc">Rating (High-Low)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Exclude Watchlist Checkbox */}
+        <div className="mb-6 flex justify-center">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="exclude-watchlist"
+              checked={excludeWatchlist}
+              onCheckedChange={setExcludeWatchlist}
+              className="border-gray-700 data-[state=checked]:bg-[#E50914] data-[state=checked]:text-white"
+            />
+            <label
+              htmlFor="exclude-watchlist"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              Exclude items already in my watchlist
+            </label>
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {[...Array(10)].map((_, index) => (
