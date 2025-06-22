@@ -33,7 +33,6 @@ export default async function handler(req, res) {
   }
 
   const userId = session.user.id;
-  console.log(`${req.method} ${req.url} for user ${userId}`);
 
   try {
     if (req.method === 'GET') {      
