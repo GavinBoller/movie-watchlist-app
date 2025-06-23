@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Switch } from './ui/switch';
@@ -20,6 +20,21 @@ export default function PlatformManagementModal({ isOpen, onClose }) {
     if (isOpen) {
       fetchPlatforms();
     }
+  }, [isOpen]);
+
+  // Effect to handle Escape key press
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+    }
+
+    return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen]);
 
   const fetchPlatforms = async () => {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { X } from 'lucide-react'; // Import the X icon
 import { useSession } from 'next-auth/react'; // Import useSession
 import useSWR from 'swr';
 
@@ -119,7 +120,7 @@ function Toast({ toast, onDismiss }) {
 
   return (
     <div
-      className={`pointer-events-auto fixed max-w-[420px] p-6 pr-8 rounded-md shadow-lg transition-all duration-300 ${
+      className={`group pointer-events-auto fixed max-w-[420px] p-6 pr-8 rounded-md shadow-lg transition-all duration-300 ${
         toast.variant === 'destructive'
           ? 'bg-red-600 text-white border-red-700'
           : 'bg-gray-800 text-white border-gray-700'
@@ -131,10 +132,10 @@ function Toast({ toast, onDismiss }) {
       {toast.description && <p>{toast.description}</p>}
       <button
         onClick={() => setIsVisible(false)}
-        className="absolute right-2 top-2 sm:opacity-0 sm:group-hover:opacity-100 bg-gray-500 bg-opacity-50 rounded-full p-1"
+        className="absolute right-2 top-2 rounded-full p-1 text-gray-300 transition-colors hover:bg-white/20 hover:text-white sm:opacity-0 sm:group-hover:opacity-100"
         aria-label="Close toast"
       >
-        ✕
+        <X className="h-4 w-4" />
       </button>
     </div>
   );

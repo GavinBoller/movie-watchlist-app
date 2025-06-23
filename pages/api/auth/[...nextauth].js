@@ -1,17 +1,20 @@
-import NextAuth from "next-auth"
-import GoogleProvider from "next-auth/providers/google"
-import { Pool } from '@neondatabase/serverless' // For Neon
-import PgAdapter from "@auth/pg-adapter" // Corrected: PgAdapter is a default export
+// [...nextauth].js
+import NextAuth from "next-auth";
+import GoogleProvider from "next-auth/providers/google";
+import { Pool } from '@neondatabase/serverless'; // For Neon
+import PgAdapter from "@auth/pg-adapter"; // Corrected: PgAdapter is a default export
 
 // Initialize the Neon database connection pool
 // Auth.js will use this for its adapter
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 export const authOptions = {
   // Configure one or more authentication providers
   adapter: PgAdapter(pool), // Use the official PostgreSQL adapter with your Neon pool
   providers: [
-    GoogleProvider({
+    // This robust import pattern handles module resolution inconsistencies between
+    // different environments (e.g., local dev vs. Vercel deployment) for next-auth v4.
+    (GoogleProvider.default || GoogleProvider)({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     }),
@@ -34,7 +37,7 @@ export const authOptions = {
     },
     async redirect({ baseUrl }) {
       // Always redirect to the base URL (homepage) after sign-in
-      return baseUrl // Default redirect to base URL (homepage)
+      return baseUrl; // Default redirect to base URL (homepage)
     },
     async jwt({ token, user }) {
       if (user) {
@@ -55,4 +58,5 @@ export const authOptions = {
   debug: process.env.NODE_ENV === 'development',
 };
 
-export default NextAuth(authOptions);
+// Use a robust import for NextAuth to handle module resolution issues
+export default (NextAuth.default || NextAuth)(authOptions);

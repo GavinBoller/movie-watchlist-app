@@ -54,25 +54,30 @@ export default async function handler(req, res) {
       try {
         let whereClauses = ['user_id = $1'];
         let queryParams = [userId];
+        let paramIndex = 2; // Start parameter index for dynamic clauses
 
-        if (search) {
-          const cleanSearch = search.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
-          if (cleanSearch) {
-            const words = cleanSearch.split(/\s+/).filter(word => word.length > 0);
-            const sanitizedSearch = words.map(word => `${word}:*`).join(' & ');
-            queryParams.push(sanitizedSearch);
-            whereClauses.push(`title_tsv @@ to_tsquery('simple', $${queryParams.length})`);
-          }
+        // --- Search Filter (The Fix is Here) ---
+        if (search.trim()) {
+            const searchTerm = search.trim();
+            
+            // This is the key change: combine Full-Text Search (FTS) with a simple ILIKE.
+            // FTS is great for relevance but fails on "stop words" like "You".
+            // ILIKE provides a fallback for exact substring matches, ensuring terms like "You" are found.
+            whereClauses.push(`(title_tsv @@ to_tsquery('english', $${paramIndex++}) OR title ILIKE $${paramIndex++})`);
+            
+            // Prepare parameters for both search methods
+            queryParams.push(searchTerm.split(' ').filter(w => w).join(' & ')); // For to_tsquery
+            queryParams.push(`%${searchTerm}%`); // For ILIKE
         }
 
         if (media !== 'all') {
           queryParams.push(media);
-          whereClauses.push(`media_type = $${queryParams.length}`);
+          whereClauses.push(`media_type = $${paramIndex++}`);
         }
 
         if (status !== 'all') {
           queryParams.push(status);
-          whereClauses.push(`status = $${queryParams.length}`);
+          whereClauses.push(`status = $${paramIndex++}`);
         }
 
         const sortOptions = {
@@ -86,10 +91,6 @@ export default async function handler(req, res) {
         const orderByClause = sortOptions[sort_by] || sortOptions['added_at_desc'];
 
         const finalQuery = `
-          -- EXPLAIN ANALYZE output for debugging:
-          -- SELECT f.*, c.total, c.movie, c.tv, c.to_watch, c.watching, c.watched
-          -- FROM filtered_items f
-          -- CROSS JOIN counts c
           WITH filtered_items AS (
             SELECT * FROM watchlist WHERE ${whereClauses.join(' AND ')}
           ),
@@ -107,11 +108,10 @@ export default async function handler(req, res) {
           FROM filtered_items f
           CROSS JOIN counts c
           ORDER BY ${orderByClause}
-          LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+          LIMIT $${paramIndex++} OFFSET $${paramIndex++}
         `;
         
         const finalParams = [...queryParams, parseInt(limit), offset];
-        // For debugging: uncomment to see the query plan in your server logs
         const { rows } = await client.query(finalQuery, finalParams);
 
         const firstRow = rows[0] || {};

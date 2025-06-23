@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
@@ -46,6 +46,17 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
       setWatchedDate('');
     }
   }, [status]);
+
+  // Effect to handle Escape key press
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]); // Re-run effect if onClose changes
 
   useEffect(() => {
     async function fetchPlatforms() {

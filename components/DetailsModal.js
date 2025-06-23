@@ -1,5 +1,6 @@
 // DetailsModal.js
 
+import React, { useEffect } from 'react';
 import { PlusCircle, ExternalLink, Star, Clock, Film, Tv } from 'lucide-react';
 import { Button } from './ui/button';
 
@@ -9,6 +10,17 @@ const DetailsModal = ({ item, onClose, onAddToWatchlist }) => {
   if (!item) {
     return null;
   }
+
+  // Effect to handle Escape key press
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]); // Re-run effect if onClose changes
 
   const posterUrl = item.poster
     ? `https://image.tmdb.org/t/p/w500${item.poster}`
