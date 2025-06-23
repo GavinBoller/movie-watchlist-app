@@ -15,7 +15,7 @@ export default [
   {
     rules: {
       // Rules from your old .eslintrc.json
-      'no-undef': 'off',
+      // 'no-undef': 'off', // Consider enabling this rule for better error detection
       'react/react-in-jsx-scope': 'off', // Not needed with modern Next.js, but kept for consistency with old config
 
       // You can add other custom rules here if needed
