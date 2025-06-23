@@ -1,7 +1,7 @@
 // DetailsModal.js
 
 import React, { useEffect } from 'react';
-import { PlusCircle, ExternalLink, Star, Clock, Film, Tv } from 'lucide-react';
+import { PlusCircle, ExternalLink, Star, Clock, Film, Tv, X } from 'lucide-react';
 import { Button } from './ui/button';
 
 const DetailsModal = ({ item, onClose, onAddToWatchlist }) => {
@@ -42,10 +42,10 @@ const DetailsModal = ({ item, onClose, onAddToWatchlist }) => {
       >
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 text-gray-400 hover:text-white z-10"
+          className="absolute top-4 right-4 text-gray-400 hover:text-white z-10 p-1 rounded-full hover:bg-white/10 transition-colors"
           aria-label="Close"
         >
-          &times;
+          <X className="h-5 w-5" />
         </button>
         <div className="flex flex-col md:flex-row gap-6">
           <div className="flex-shrink-0">

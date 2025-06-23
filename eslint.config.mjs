@@ -1,14 +1,24 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+// eslint.config.mjs
+import eslint from '@eslint/js';
+import nextPlugin from 'eslint-config-next';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+export default [
+  // Base ESLint recommended rules
+  eslint.configs.recommended,
 
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
+  // Next.js specific rules (this includes React, a11y, etc.)
+  // The 'recommended' config from eslint-config-next is an array, so we spread it.
+  // This replaces `extends: "next"` and `extends: "next/core-web-vitals"`
+  ...nextPlugin.configs.recommended,
 
-const eslintConfig = [...compat.extends("next/core-web-vitals")];
+  // Your custom rules and overrides
+  {
+    rules: {
+      // Rules from your old .eslintrc.json
+      'no-undef': 'off',
+      'react/react-in-jsx-scope': 'off', // Not needed with modern Next.js, but kept for consistency with old config
 
-export default eslintConfig;
+      // You can add other custom rules here if needed
+    },
+  },
+];
