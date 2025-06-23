@@ -212,6 +212,9 @@ export default function SearchPage() {
   const [excludeWatchlist, setExcludeWatchlist] = useState(false);
   const [sortOrder, setSortOrder] = useState('popularity.desc'); // Default TMDB sort
   const { addToast } = useToast();
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const SEARCH_LIMIT = 40;
   const { mutate } = useSWRConfig();
   const { watchlist, mutate: mutateWatchlist, error: watchlistError } = useWatchlist();
   
@@ -229,7 +232,7 @@ export default function SearchPage() {
     try {
       const searchTerm = query.trim();
       const apiRes = await fetch(
-        `/api/search?query=${encodeURIComponent(searchTerm)}&media_type=${mediaFilter}&genre_id=${selectedGenreId}&min_rating=${minRating}&sort_by=${sortOrder}`
+        `/api/search?query=${encodeURIComponent(searchTerm)}&media_type=${mediaFilter}&genre_id=${selectedGenreId}&min_rating=${minRating}&sort_by=${sortOrder}&page=${page}&limit=${SEARCH_LIMIT}`
       );
       if (!apiRes.ok) throw new Error('Failed to fetch search results from API');
       const apiData = await apiRes.json();
@@ -241,6 +244,7 @@ export default function SearchPage() {
 
       // All filtering and sorting is now handled by the backend API.
       setSearchResults(filteredResults);
+      setTotalPages(Math.ceil((apiData.total || 0) / SEARCH_LIMIT));
       // Update counts from API response
       setTotalAllCount(apiData.counts?.all || 0);
       setMovieCount(apiData.counts?.movie || 0);
@@ -307,12 +311,14 @@ export default function SearchPage() {
   useEffect(() => {
     const timeoutId = setTimeout(() => handleSearch(searchQuery), 500);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, mediaFilter, selectedGenreId, minRating, sortOrder]); // Add new dependencies
+  }, [searchQuery, mediaFilter, selectedGenreId, minRating, sortOrder, page, excludeWatchlist]);
   
-  // This effect handles the client-side filtering for the 'excludeWatchlist' checkbox
+  // This effect resets the page to 1 whenever a filter changes.
   useEffect(() => {
-    handleSearch(searchQuery);
-  }, [excludeWatchlist]);
+    // We don't want to reset the page when the page itself is the thing that changed.
+    // This check is implicit because this effect doesn't depend on `page`.
+    setPage(1);
+  }, [searchQuery, mediaFilter, selectedGenreId, minRating, sortOrder, excludeWatchlist]);
 
 
   if (watchlistError) {
@@ -409,7 +415,7 @@ export default function SearchPage() {
               <SelectValue placeholder="Sort By" />
             </SelectTrigger>
             <SelectContent className="bg-gray-800 text-white border-gray-700">
-              <SelectItem value="popularity.desc">Popularity (Desc)</SelectItem>
+              <SelectItem value="popularity.desc">Relevance</SelectItem>
               <SelectItem value="release_date.desc">Release Date (Newest)</SelectItem>
               <SelectItem value="release_date.asc">Release Date (Oldest)</SelectItem>
               <SelectItem value="title.asc">Title (A-Z)</SelectItem>
@@ -482,6 +488,24 @@ export default function SearchPage() {
                 onShowDetails={handleShowDetails}
               />
             ))}
+          </div>
+        )}
+
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center mt-8 space-x-4">
+            <Button
+              onClick={() => setPage(page - 1)}
+              disabled={page <= 1 || isLoading}
+              className="bg-gray-700 hover:bg-gray-600"
+            >
+              Previous
+            </Button>
+            <span className="text-gray-300 font-medium">
+              Page {page} of {totalPages}
+            </span>
+            <Button onClick={() => setPage(page + 1)} disabled={page >= totalPages || isLoading} className="bg-gray-700 hover:bg-gray-600">
+              Next
+            </Button>
           </div>
         )}
       </div>
