@@ -7,9 +7,9 @@ import AddToWatchlistModal from '../components/AddToWatchlistModal';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
 import { Input } from '../components/ui/input';
-import { Skeleton } from '../components/ui/skeleton';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List } from 'lucide-react'; 
+import { Skeleton } from '../components/ui/skeleton'; // Keep this line
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'; // Keep this line
+import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List, X } from 'lucide-react'; // Add X here
 import { useToast, useWatchlist } from '../components/ToastContext';
 import { useSWRConfig } from 'swr';
 
@@ -341,14 +341,27 @@ export default function SearchPage() {
       <Header />
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-4 text-center">Search Movies & TV Shows</h1>
-        <div className="mb-4 flex justify-center relative">
-          <Input
-            type="text"
-            placeholder="Search for movies or TV shows..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)} 
-            className="w-full sm:max-w-md md:max-w-lg bg-gray-800 border-gray-700 text-white rounded-full py-2 px-4"
-          />
+        <div className="mb-4 flex justify-center"> {/* Removed relative from this div */}
+          {/* New wrapper div to contain the Input and the X button */}
+          <div className="relative w-full sm:max-w-md md:max-w-lg">
+            <Input
+              type="text"
+              placeholder="Search for movies or TV shows..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)} 
+              className="w-full bg-gray-800 border-gray-700 text-white rounded-full py-2 pl-4 pr-10" // w-full now makes it fill its new parent
+            />
+            {searchQuery && ( // Only show the clear button if there's text in the search field
+              <Button
+                variant="ghost" // Use a subtle ghost variant
+                size="sm" // Keep the button small
+                onClick={() => setSearchQuery('')} // Clear the search query
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white" // Position the button relative to the new parent
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
         {searchQuery.toLowerCase().includes('mad') && !searchQuery.toLowerCase().includes('mad max') && searchResults.length > 0 && !searchResults.some((item) => (item.title || item.name)?.toLowerCase().includes('mad max')) && (
           <p className="text-gray-300 mb-4 text-center">
