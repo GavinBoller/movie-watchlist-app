@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "NODE_OPTIONS='--require @rushstack/eslint-patch/patch-eslint.js' next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
