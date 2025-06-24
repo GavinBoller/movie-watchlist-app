@@ -1,5 +1,5 @@
 // eslint.config.mjs
-import "@rushstack/eslint-patch/modern-module-resolution";
+import "@rushstack/eslint-patch/modern-module-resolution.js";
 import eslint from '@eslint/js';
 import nextPlugin from 'eslint-config-next';
 
