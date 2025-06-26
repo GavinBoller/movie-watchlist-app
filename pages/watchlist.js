@@ -10,7 +10,7 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Film, Tv, Edit, Trash2, List, ExternalLink, Clock, Star } from 'lucide-react';
+import { Film, Tv, Edit, Trash2, List, ExternalLink, Clock, Star, X } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
 
 const fetcher = async (url) => {
@@ -163,7 +163,7 @@ export default function WatchlistPage() {
         );
         return { ...currentData, items: updatedItems };
       },
-      false // Tell SWR not to re-fetch immediately, we trust our local data
+      true // Tell SWR to re-fetch immediately after the optimistic update to ensure consistency
     );
   };
 
@@ -174,13 +174,27 @@ export default function WatchlistPage() {
         <h1 className="text-2xl font-bold mb-4 text-center">My Watchlist</h1>
 
         <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <Input
-            type="text"
-            placeholder="Search your watchlist..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full md:flex-1 bg-gray-800 border-gray-700 text-white"
-          />
+          {/* Wrapper div to contain the Input and the X button */}
+          <div className="relative w-full md:flex-1">
+            <Input
+              type="text"
+              placeholder="Search your watchlist..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-gray-800 border-gray-700 text-white py-2 pl-4 pr-10" // Added pr-10 for button space
+            />
+            {search && ( // Only show the clear button if there's text in the search field
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                aria-label="Clear search" // Added for accessibility
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
           <Select onValueChange={setSortOrder} defaultValue={sortOrder}>
             <SelectTrigger className="w-full md:w-[200px] bg-gray-800 border-gray-700">
               <SelectValue placeholder="Sort by" />

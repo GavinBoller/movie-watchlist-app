@@ -7,9 +7,9 @@ import AddToWatchlistModal from '../components/AddToWatchlistModal';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
 import { Input } from '../components/ui/input';
-import { Skeleton } from '../components/ui/skeleton'; // Keep this line
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'; // Keep this line
-import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List, X } from 'lucide-react'; // Add X here
+import { Skeleton } from '../components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List, X } from 'lucide-react'; 
 import { useToast, useWatchlist } from '../components/ToastContext';
 import { useSWRConfig } from 'swr';
 
@@ -134,7 +134,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
             <div className="flex space-x-2">
               <Button
                 onClick={(e) => { e.stopPropagation(); onShowDetails(movie); }}
-                className="bg-gray-700 text-white text-sm rounded-lg py-2 flex-1 hover:bg-gray-600 transition flex items-center justify-center max-w-[50%]"
+                className="bg-gray-700 text-white text-sm rounded-lg py-2 flex-1 hover:bg-gray-600 transition flex items-center justify-center max-w-[50%]\"
               >
                 <Info className="h-4 w-4 mr-1" />
                 Details
@@ -142,7 +142,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
               {movie.imdb_id && (
                 <Button
                   asChild
-                  className="bg-[#F5C518] text-black text-sm rounded-lg py-2 flex-1 hover:bg-yellow-400 transition flex items-center justify-center max-w-[50%]"
+                  className="bg-[#F5C518] text-black text-sm rounded-lg py-2 flex-1 hover:bg-yellow-400 transition flex items-center justify-center max-w-[50%]\"
                 >
                   <a
                     href={`https://www.imdb.com/title/${movie.imdb_id}`}
@@ -161,7 +161,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
           <div className="flex mt-2 space-x-2 flex-wrap gap-y-2">
             <Button
               onClick={(e) => { e.stopPropagation(); onShowDetails(movie); }}
-              className="bg-gray-700 text-white text-xs rounded-full py-1 px-3 hover:bg-gray-600 transition-colors min-w-[80px]"
+              className="bg-gray-700 text-white text-xs rounded-full py-1 px-3 hover:bg-gray-600 transition-colors min-w-[80px]\"
             >
               <Info className="h-3 w-3 mr-1" />
               Details
@@ -169,7 +169,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
             {movie.imdb_id && (
               <Button
                 asChild
-                className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px]"
+                className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px]\"
               >
                 <a
                   href={`https://www.imdb.com/title/${movie.imdb_id}`}
@@ -185,7 +185,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
             {!isInWatchlist && (
               <Button
                 onClick={handleAddClick}
-                className="bg-[#E50914] text-white text-xs rounded-full py-1 px-3 hover:bg-red-700 transition-colors flex-grow min-w-[120px]"
+                className="bg-[#E50914] text-white text-xs rounded-full py-1 px-3 hover:bg-red-700 transition-colors flex-grow min-w-[120px]\"
                 disabled={isInWatchlist}
               >
                 <PlusCircle className="h-3 w-3 mr-1" />
@@ -209,6 +209,7 @@ export default function SearchPage() {
   const [selectedGenreId, setSelectedGenreId] = useState('all'); // Stores TMDB genre ID
   const [genres, setGenres] = useState([]); // Stores fetched genre list
   const [minRating, setMinRating] = useState('0'); // Stores minimum rating (e.g., '6', '7')
+  const [discoveryMode, setDiscoveryMode] = useState('text'); // 'text', 'top_rated', 'popular', 'latest'
   const [excludeWatchlist, setExcludeWatchlist] = useState(false);
   const [sortOrder, setSortOrder] = useState('popularity.desc'); // Default TMDB sort
   const { addToast } = useToast();
@@ -216,30 +217,43 @@ export default function SearchPage() {
   const [totalPages, setTotalPages] = useState(0);
   const SEARCH_LIMIT = 40;
   const { mutate } = useSWRConfig();
-  const { watchlist, mutate: mutateWatchlist, error: watchlistError } = useWatchlist();
+  const { watchlist, isLoading: isWatchlistLoading, mutate: mutateWatchlist, error: watchlistError } = useWatchlist();
   
+  // State for filter counts from API
+  const [totalAllCount, setTotalAllCount] = useState(0); 
+  const [movieCount, setMovieCount] = useState(0);
+  const [tvCount, setTvCount] = useState(0);
+
   const handleSearch = async (query) => {
-    // Don't search if there's no query and no filters are selected
-    if (!query.trim() && selectedGenreId === 'all' && minRating === '0') {
+    // Don't search if in text mode and there's no query and no filters are selected
+    // For discovery modes, always search even if query is empty.
+    if (discoveryMode === 'text' && !query.trim() && selectedGenreId === 'all' && minRating === '0') {
       setSearchResults([]);
       // Reset counts when no search or filters
-      setTotalAllCount(0);
+      // Only reset if it's truly an empty state, not just changing mode
+      // If changing mode, counts will be updated by the new API call
+      if (discoveryMode === 'text') setTotalAllCount(0);
       setMovieCount(0);
       setTvCount(0);
       return;
     }
     setIsLoading(true);
     try {
-      const searchTerm = query.trim();
+      const searchTerm = discoveryMode === 'text' ? query.trim() : ''; // Only send query if in text mode
       const apiRes = await fetch(
-        `/api/search?query=${encodeURIComponent(searchTerm)}&media_type=${mediaFilter}&genre_id=${selectedGenreId}&min_rating=${minRating}&sort_by=${sortOrder}&page=${page}&limit=${SEARCH_LIMIT}`
+        `/api/search?query=${encodeURIComponent(searchTerm)}&media_type=${mediaFilter}&genre_id=${selectedGenreId}&min_rating=${minRating}&sort_by=${sortOrder}&page=${page}&limit=${SEARCH_LIMIT}&discovery_mode=${discoveryMode}`
       );
       if (!apiRes.ok) throw new Error('Failed to fetch search results from API');
       const apiData = await apiRes.json();
       let filteredResults = apiData.data || [];
 
       if (excludeWatchlist) {
-        filteredResults = filteredResults.filter(item => !watchlist.some(wItem => wItem.movie_id === item.id.toString()));
+        // Ensure all IDs are strings for consistent comparison
+        const watchlistMovieIds = new Set(watchlist.map(wItem => String(wItem.movie_id)));
+        filteredResults = filteredResults.filter(item => {
+          // Ensure item.id is a string for comparison with Set entries
+          return !watchlistMovieIds.has(String(item.id));
+        });
       }
 
       // All filtering and sorting is now handled by the backend API.
@@ -309,16 +323,23 @@ export default function SearchPage() {
   }, []);
 
   useEffect(() => {
-    const timeoutId = setTimeout(() => handleSearch(searchQuery), 500);
+    // Clear search query when switching from text mode to a discovery mode
+    if (discoveryMode !== 'text' && searchQuery !== '') {
+      setSearchQuery('');
+      // The useEffect below will handle triggering handleSearch with the new discoveryMode
+      return; 
+    }
+
+    // Debounce for text search, immediate for discovery mode changes
+    const delay = discoveryMode === 'text' ? 500 : 0;
+    const timeoutId = setTimeout(() => handleSearch(searchQuery), delay);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, mediaFilter, selectedGenreId, minRating, sortOrder, page, excludeWatchlist]);
+  }, [searchQuery, mediaFilter, selectedGenreId, minRating, sortOrder, page, excludeWatchlist, discoveryMode]);
   
   // This effect resets the page to 1 whenever a filter changes.
   useEffect(() => {
-    // We don't want to reset the page when the page itself is the thing that changed.
-    // This check is implicit because this effect doesn't depend on `page`.
     setPage(1);
-  }, [searchQuery, mediaFilter, selectedGenreId, minRating, sortOrder, excludeWatchlist]);
+  }, [searchQuery, mediaFilter, selectedGenreId, minRating, sortOrder, excludeWatchlist, discoveryMode]);
 
 
   if (watchlistError) {
@@ -332,66 +353,78 @@ export default function SearchPage() {
     );
   }
 
-  const [totalAllCount, setTotalAllCount] = useState(0); // New state for total count
-  const [movieCount, setMovieCount] = useState(0);
-  const [tvCount, setTvCount] = useState(0);
-
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white">
       <Header />
       <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-4 text-center">Search Movies & TV Shows</h1>
-        <div className="mb-4 flex justify-center"> {/* Removed relative from this div */}
-          {/* New wrapper div to contain the Input and the X button */}
-          <div className="relative w-full sm:max-w-md md:max-w-lg">
-            <Input
-              type="text"
-              placeholder="Search for movies or TV shows..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)} 
-              className="w-full bg-gray-800 border-gray-700 text-white rounded-full py-2 pl-4 pr-10" // w-full now makes it fill its new parent
-            />
-            {searchQuery && ( // Only show the clear button if there's text in the search field
-              <Button
-                variant="ghost" // Use a subtle ghost variant
-                size="sm" // Keep the button small
-                onClick={() => setSearchQuery('')} // Clear the search query
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white" // Position the button relative to the new parent
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-        {searchQuery.toLowerCase().includes('mad') && !searchQuery.toLowerCase().includes('mad max') && searchResults.length > 0 && !searchResults.some((item) => (item.title || item.name)?.toLowerCase().includes('mad max')) && (
-          <p className="text-gray-300 mb-4 text-center">
-            No Mad Max titles found. Try searching “Mad Max” for the franchise.
-          </p>
-        )}
-        <div className="mb-4 flex justify-center gap-2">
+
+        {/* Discovery Mode Buttons */}
+        <div className="mb-6 flex justify-center gap-2 flex-wrap">
           <Button
-            onClick={() => setMediaFilter('all')}
-            className={`flex items-center gap-1 ${mediaFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+            onClick={() => setDiscoveryMode('text')}
+            className={`flex items-center gap-1 ${discoveryMode === 'text' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
-            <List className="h-4 w-4" />
-            All ({totalAllCount})
+            Title Search
           </Button>
           <Button
-            onClick={() => setMediaFilter('movie')}
-            className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+            onClick={() => setDiscoveryMode('top_rated')}
+            className={`flex items-center gap-1 ${discoveryMode === 'top_rated' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
-            <Film className="h-4 w-4" />
-            Movies ({movieCount})
+            Top Rated
           </Button>
           <Button
-            onClick={() => setMediaFilter('tv')}
-            className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+            onClick={() => setDiscoveryMode('popular')}
+            className={`flex items-center gap-1 ${discoveryMode === 'popular' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
           >
-            <Tv className="h-4 w-4" />
-            TV Shows ({tvCount})
+            Popular
+          </Button>
+          <Button
+            onClick={() => setDiscoveryMode('latest')}
+            className={`flex items-center gap-1 ${discoveryMode === 'latest' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}
+          >
+            Latest Releases
           </Button>
         </div>
 
+        {/* Search Input Field (only visible/active in text search mode) */}
+        {discoveryMode === 'text' && (
+          <div className="mb-4 flex justify-center">
+            <div className="relative w-full sm:max-w-md md:max-w-lg">
+              <Input
+                type="text"
+                placeholder="Search for movies or TV shows..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)} 
+                className="w-full bg-gray-800 border-gray-700 text-white rounded-full py-2 pl-4 pr-10"
+              />
+              {searchQuery && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Filters Section */}
+        <div className="mb-4 flex justify-center gap-2">
+          <Button onClick={() => setMediaFilter('all')} className={`flex items-center gap-1 ${mediaFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}>
+            <List className="h-4 w-4" /> All ({totalAllCount})
+          </Button>
+          <Button onClick={() => setMediaFilter('movie')} className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}>
+            <Film className="h-4 w-4" /> Movies ({movieCount})
+          </Button>
+          <Button onClick={() => setMediaFilter('tv')} className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}>
+            <Tv className="h-4 w-4" /> TV Shows ({tvCount})
+          </Button>
+        </div>
         <div className="mb-4 flex flex-wrap justify-center gap-2">
           {/* Genre Filter */}
           <Select onValueChange={setSelectedGenreId} value={selectedGenreId}>
@@ -422,7 +455,7 @@ export default function SearchPage() {
             </SelectContent>
           </Select>
 
-          {/* Sort By */}
+          {/* Sort By Filter */}
           <Select onValueChange={setSortOrder} value={sortOrder}>
             <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700">
               <SelectValue placeholder="Sort By" />
@@ -437,13 +470,12 @@ export default function SearchPage() {
             </SelectContent>
           </Select>
         </div>
-
-        {/* Exclude Watchlist Checkbox */}
         <div className="mb-6 flex justify-center">
           <div className="flex items-center space-x-2">
             <Checkbox
               id="exclude-watchlist"
               checked={excludeWatchlist}
+              disabled={isWatchlistLoading} // Disable if watchlist data is still loading
               onCheckedChange={setExcludeWatchlist}
               className="border-gray-700 data-[state=checked]:bg-[#E50914] data-[state=checked]:text-white"
             />
@@ -456,6 +488,12 @@ export default function SearchPage() {
           </div>
         </div>
 
+        {searchQuery.toLowerCase().includes('mad') && !searchQuery.toLowerCase().includes('mad max') && searchResults.length > 0 && !searchResults.some((item) => (item.title || item.name)?.toLowerCase().includes('mad max')) && (
+          <p className="text-gray-300 mb-4 text-center">
+            No Mad Max titles found. Try searching “Mad Max” for the franchise.
+          </p>
+        )}
+
         {isLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
             {[...Array(10)].map((_, index) => (
@@ -464,7 +502,7 @@ export default function SearchPage() {
               </div>
             ))}
           </div>
-        ) : !searchQuery && searchResults.length === 0 ? (
+        ) : discoveryMode === 'text' && !searchQuery && searchResults.length === 0 ? (
           <div className="text-center py-8">
             <div className="max-w-md mx-auto bg-[#292929] rounded-lg p-4">
               <Film className="h-8 w-8 mx-auto mb-3 text-[#E50914]" />

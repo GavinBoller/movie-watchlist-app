@@ -27,19 +27,60 @@ const parseDate = (dateStr) => {
  * @param {object} params - The request parameters.
  * @returns {Promise<Array>} A promise that resolves to an array of raw results.
  */
-async function fetchInitialResults({ query, media_type, genre_id, min_rating, sort_by }) {
+async function fetchInitialResults({ query, media_type, genre_id, min_rating, sort_by, discovery_mode }) {
   let initialResults = [];
-  const useDiscover = !query;
+  const useDiscover = !query || discovery_mode !== 'text'; // Use discover logic if no query or in discovery mode
 
   if (useDiscover) {
-    // DISCOVER LOGIC (for filter-based browsing without a text query)
+    // DISCOVER LOGIC (for filter-based browsing without a text query, or for discovery modes)
     const fetchDiscoverPage = async (type, page) => {
-      let url = `https://api.themoviedb.org/3/discover/${type}?page=${page}&sort_by=${sort_by}`;
+      let url;
+      let currentSortBy = sort_by; // Default sort_by from request
+
+      if (discovery_mode === 'top_rated') {
+        url = `https://api.themoviedb.org/3/${type}/top_rated?page=${page}`;
+      } else if (discovery_mode === 'popular') {
+        url = `https://api.themoviedb.org/3/${type}/popular?page=${page}`;
+      } else if (discovery_mode === 'latest') {
+        // TMDB's /latest endpoint only returns a single item.
+        // For a list of latest releases, discover with appropriate sorting is better.
+        url = `https://api.themoviedb.org/3/discover/${type}?page=${page}&sort_by=primary_release_date.desc`;
+      } else {
+        // Default discover for when query is empty but not in a specific discovery mode
+        url = `https://api.themoviedb.org/3/discover/${type}?page=${page}&sort_by=${currentSortBy}`;
+      }
+      
       if (genre_id !== 'all') url += `&with_genres=${genre_id}`;
       if (min_rating !== '0') url += `&vote_average.gte=${min_rating}`;
+
+      // For 'latest' mode, add date range filters
+      if (discovery_mode === 'latest') {
+        const today = new Date().toISOString().split('T')[0];
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        const threeMonthsAgoStr = threeMonthsAgo.toISOString().split('T')[0];
+        
+        if (type === 'movie') {
+          url += `&primary_release_date.lte=${today}&primary_release_date.gte=${threeMonthsAgoStr}`;
+        } else { // tv
+          url += `&first_air_date.lte=${today}&first_air_date.gte=${threeMonthsAgoStr}`;
+        }
+      }
+
       const data = await fetcher(url);
       // Add media_type since discover endpoint doesn't provide it
-      return (data.results || []).map(item => ({ ...item, media_type: type }));
+      return (data.results || []).map(item => {
+        // Ensure 'poster' is mapped from 'poster_path' for consistency with watchlist items
+        // and to avoid issues in frontend components expecting 'poster'.
+        const poster = item.poster_path || null;
+        return {
+          ...item,
+          media_type: item.media_type || type, // Use existing media_type if present, else default to type
+          poster: poster, // Map poster_path to poster
+          // Ensure release_date/first_air_date are consistently named
+          release_date: item.release_date || item.first_air_date || null,
+        };
+      });
     };
 
     const pagesToFetch = media_type === 'all' ? 5 : 10; // Fetch more pages for discover
@@ -99,6 +140,8 @@ function standardizeAndFilterResults(initialResults, { query, media_type, genre_
     popularity: item.popularity || 0, // Ensure popularity is always a number
   }));
 
+  // The 'excludeWatchlist' filtering is handled on the frontend (pages/search.js)
+  // as the 'watchlist' context is available there.
   if (media_type !== 'all') {
     processedResults = processedResults.filter(item => item.media_type === media_type);
   }
@@ -239,13 +282,15 @@ export default async function handler(req, res) {
     sort_by = 'popularity.desc',
     page = '1',
     limit = '40',
+    discovery_mode = 'text', // Default to 'text' search
   } = req.query;
 
-  if (!query && genre_id === 'all' && min_rating === '0') {
+  // If in text search mode and no query/filters, return empty
+  if (discovery_mode === 'text' && !query && genre_id === 'all' && min_rating === '0') {
     return res.status(200).json({ data: [], counts: { all: 0, movie: 0, tv: 0 } });
   }
   
-  const processedCacheKey = `tmdb:processed:${query}:${media_type}:${genre_id}:${min_rating}:${sort_by}:${page}:${limit}`;
+  const processedCacheKey = `tmdb:processed:${query}:${media_type}:${genre_id}:${min_rating}:${sort_by}:${page}:${limit}:${discovery_mode}`;
   const cachedProcessed = processedCache.get(processedCacheKey);
   if (cachedProcessed) {
     console.log(`Processed Cache hit for ${processedCacheKey}`);
@@ -254,7 +299,14 @@ export default async function handler(req, res) {
   
   try {
     // 1. Fetch initial results (from TMDB or raw cache)
-    const initialResults = await fetchInitialResults({ query, media_type, genre_id, min_rating, sort_by });
+    const initialResults = await fetchInitialResults({
+      query, // This will be empty for discovery modes
+      media_type,
+      genre_id,
+      min_rating,
+      sort_by,
+      discovery_mode, // Pass discovery_mode to fetchInitialResults
+    });
 
     // 2. Standardize, filter, and apply relevance scoring
     const filteredAndScoredResults = standardizeAndFilterResults(initialResults, { query, media_type, genre_id, min_rating });
@@ -273,9 +325,11 @@ export default async function handler(req, res) {
 
     const finalResultsForDisplay = finalSortedResults.slice(startIndex, endIndex);
     const totalResults = finalSortedResults.length;
-    const allCount = initialResults.length;
-    const movieCount = initialResults.filter(item => item.media_type === 'movie').length;
-    const tvCount = initialResults.filter(item => item.media_type === 'tv').length;
+    
+    // Recalculate counts based on the *filtered* results for accuracy
+    const allCount = filteredAndScoredResults.length;
+    const movieCount = filteredAndScoredResults.filter(item => item.media_type === 'movie').length;
+    const tvCount = filteredAndScoredResults.filter(item => item.media_type === 'tv').length;
     
     const responseData = {
       data: finalResultsForDisplay,
