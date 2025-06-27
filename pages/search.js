@@ -100,7 +100,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
           </button>
         </div>
       )}
-      <div
+      <div // This is the movie-info div that appears on hover/tap
         className={`movie-info absolute inset-0 bg-black bg-opacity-85 flex flex-col justify-end p-4 mx-2 transition-opacity duration-300 ${
           isMobile ? (showInfo ? 'opacity-100' : 'opacity-0') : isHovered ? 'opacity-100' : 'opacity-0'
         }`}
@@ -131,10 +131,10 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
                 Add to Watchlist
               </Button>
             )}
-            <div className="flex space-x-2">
+            <div className="flex flex-wrap gap-2"> {/* Changed to flex-wrap gap-2 */}
               <Button
                 onClick={(e) => { e.stopPropagation(); onShowDetails(movie); }}
-                className="bg-gray-700 text-white text-sm rounded-lg py-2 flex-1 hover:bg-gray-600 transition flex items-center justify-center max-w-[50%]\"
+                className="bg-gray-700 text-white text-sm rounded-lg py-2 w-full sm:w-auto flex items-center justify-center"
               >
                 <Info className="h-4 w-4 mr-1" />
                 Details
@@ -142,7 +142,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
               {movie.imdb_id && (
                 <Button
                   asChild
-                  className="bg-[#F5C518] text-black text-sm rounded-lg py-2 flex-1 hover:bg-yellow-400 transition flex items-center justify-center max-w-[50%]\"
+                  className="bg-[#F5C518] text-black text-sm rounded-lg py-2 w-full sm:w-auto hover:bg-yellow-400 transition flex items-center justify-center"
                 >
                   <a
                     href={`https://www.imdb.com/title/${movie.imdb_id}`}
@@ -161,7 +161,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
           <div className="flex mt-2 space-x-2 flex-wrap gap-y-2">
             <Button
               onClick={(e) => { e.stopPropagation(); onShowDetails(movie); }}
-              className="bg-gray-700 text-white text-xs rounded-full py-1 px-3 hover:bg-gray-600 transition-colors min-w-[80px]\"
+              className="bg-gray-700 text-white text-xs rounded-full py-1 px-3 hover:bg-gray-600 transition-colors min-w-[80px]"
             >
               <Info className="h-3 w-3 mr-1" />
               Details
@@ -169,7 +169,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
             {movie.imdb_id && (
               <Button
                 asChild
-                className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px]\"
+                className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 transition flex items-center min-w-[80px]"
               >
                 <a
                   href={`https://www.imdb.com/title/${movie.imdb_id}`}
@@ -185,7 +185,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
             {!isInWatchlist && (
               <Button
                 onClick={handleAddClick}
-                className="bg-[#E50914] text-white text-xs rounded-full py-1 px-3 hover:bg-red-700 transition-colors flex-grow min-w-[120px]\"
+                className="bg-[#E50914] text-white text-xs rounded-full py-1 px-3 hover:bg-red-700 transition-colors flex-grow min-w-[120px]"
                 disabled={isInWatchlist}
               >
                 <PlusCircle className="h-3 w-3 mr-1" />
