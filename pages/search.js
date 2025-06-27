@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Header from '../components/Header';
 import DetailsModal from '../components/DetailsModal';
 import AddToWatchlistModal from '../components/AddToWatchlistModal';
@@ -10,7 +10,7 @@ import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List, X } from 'lucide-react'; 
-import { useToast, useWatchlist } from '../components/ToastContext';
+import { useToast, useWatchlist, WatchlistProvider } from '../components/ToastContext';
 import { useSWRConfig } from 'swr';
 
 function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
@@ -218,6 +218,14 @@ export default function SearchPage() {
   const SEARCH_LIMIT = 40;
   const { mutate } = useSWRConfig();
   const { watchlist, isLoading: isWatchlistLoading, mutate: mutateWatchlist, error: watchlistError } = useWatchlist();
+
+  // Determine if the item selected for the modal is in the watchlist
+  const selectedItemIsInWatchlist = useMemo(() => {
+    if (!selectedItem || !Array.isArray(watchlist)) {
+      return false;
+    }
+    return watchlist.some((item) => String(item.movie_id) === String(selectedItem.id));
+  }, [selectedItem, watchlist]);
   
   // State for filter counts from API
   const [totalAllCount, setTotalAllCount] = useState(0); 
@@ -565,6 +573,7 @@ export default function SearchPage() {
           item={selectedItem}
           onClose={() => setSelectedItem(null)}
           onAddToWatchlist={() => handleAddToWatchlist(selectedItem)}
+          isInWatchlist={selectedItemIsInWatchlist}
         />
       )}
       {watchlistItem && (

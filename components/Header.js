@@ -182,13 +182,11 @@ export default function Header() {
                 </Button>
               )}
               {session && (
-                <Link href="/settings" passHref>
-                  <Button asChild variant="outline" size="sm" onClick={() => setIsMenuOpen(false)} className="w-full flex items-center gap-1 text-white bg-[#1a1a1a] border-gray-700 hover:text-[#E50914] hover:border-[#E50914] hover:bg-[#2a2a2a] justify-start">
-                    <a>
-                      <SettingsIcon className="h-4 w-4" /><span>Settings</span>
-                    </a>
-                  </Button>
-                </Link>
+                <Button asChild variant="outline" size="sm" className="w-full flex items-center gap-1 text-white bg-[#1a1a1a] border-gray-700 hover:text-[#E50914] hover:border-[#E50914] hover:bg-[#2a2a2a] justify-start">
+                  <Link href="/settings" onClick={() => setIsMenuOpen(false)}>
+                    <SettingsIcon className="h-4 w-4" /><span>Settings</span>
+                  </Link>
+                </Button>
               )}
               {(loading && !session) || isSigningIn ? (
                 <Button

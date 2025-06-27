@@ -1,5 +1,4 @@
 // DetailsModal.js
-
 import React, { useEffect } from 'react';
 import useSWR from 'swr';
 import { PlusCircle, ExternalLink, Star, X, Loader2 } from 'lucide-react';
@@ -8,7 +7,7 @@ import WhereToWatch from './WhereToWatch';
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
-const DetailsModal = ({ item, onClose, onAddToWatchlist }) => {
+const DetailsModal = ({ item, onClose, onAddToWatchlist, isInWatchlist }) => {
   // Fetch all details, including country-specific watch providers, from our new API endpoint
   const { data: details, error } = useSWR(
     item ? `/api/details?id=${item.id}&media_type=${item.media_type}` : null,
@@ -119,13 +118,15 @@ const DetailsModal = ({ item, onClose, onAddToWatchlist }) => {
                     </a>
                   </Button>
                 )}
-                <Button
-                  onClick={handleAddToWatchlistClick}
-                  className="bg-[#E50914] hover:bg-red-700"
-                >
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Add to Watchlist
-                </Button>
+                {!isInWatchlist && (
+                  <Button
+                    onClick={handleAddToWatchlistClick}
+                    className="bg-[#E50914] hover:bg-red-700"
+                  >
+                    <PlusCircle className="h-4 w-4 mr-2" />
+                    Add to Watchlist
+                  </Button>
+                )}
               </div>
             </div>
           </div>
