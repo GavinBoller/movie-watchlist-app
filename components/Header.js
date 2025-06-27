@@ -39,10 +39,28 @@ export default function Header() {
     <header className="bg-[#1a1a1a] text-white sticky top-0 z-50 border-b border-gray-700">
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
         {/* Logo - points to landing page */}
-        <Link href="/" className="flex items-center">
+        <Link href="/search" className="flex items-center">
           <Film className="h-6 w-6 text-[#E50914] mr-2" />
           <h1 className="text-xl sm:text-2xl font-bold text-[#E50914] tracking-tight">Watchlist</h1>
         </Link>
+
+        {/* Mobile Icons - visible only on small screens */}
+        <div className="flex md:hidden items-center gap-2">
+          {navItems.map((item) => (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={`p-2 rounded-full transition-colors ${
+                pathname === item.href
+                  ? 'text-[#E50914] bg-gray-800'
+                  : 'text-white hover:text-[#E50914] hover:bg-gray-800'
+              }`}
+              aria-label={item.name}
+            >
+              <item.icon className="h-6 w-6" />
+            </Link>
+          ))}
+        </div>
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex space-x-8 justify-center flex-1">
@@ -146,26 +164,7 @@ export default function Header() {
         {/* Mobile Navigation */}
         {isMenuOpen && (
           <nav className="absolute top-full left-0 right-0 bg-[#1a1a1a] md:hidden border-t border-gray-700">
-            <ul className="grid grid-cols-2 gap-1 p-1">
-              {navItems.map((item) => (
-                <li key={item.name} className="w-full">
-                  <Link
-                    href={item.href}
-                    className={`flex items-center p-2 rounded-lg transition-colors ${
-                      pathname === item.href
-                        ? 'bg-gray-800 text-[#E50914]'
-                        : 'text-white hover:bg-gray-800 hover:text-[#E50914]'
-                    }`}
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    <item.icon
-                      className={`h-4 w-4 mr-2 ${pathname === item.href ? 'text-[#E50914]' : 'text-white'}`}
-                    />
-                    <span>{item.name}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            {/* The main navigation items are now exposed as icons in the header for mobile. */}
             <div className="flex flex-col p-4 space-y-2">
               {session && (
                 <Button
