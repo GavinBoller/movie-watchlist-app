@@ -2,10 +2,18 @@
 
 import { useState } from 'react';
 import { useSession, signIn, signOut } from "next-auth/react";
-import { usePathname, useRouter } from 'next/navigation'; // Import useRouter
-import { Search, List, Film, Monitor, User, LogIn, LogOut, UserCircle, Loader2 } from 'lucide-react'; // Added Loader2
+import { usePathname, useRouter } from 'next/navigation';
+import { Search, List, Film, Monitor, LogIn, LogOut, UserCircle, Loader2, Settings as SettingsIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from './ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 import PlatformManagementModal from './PlatformManagementModal';
 
 export default function Header() {
@@ -16,7 +24,6 @@ export default function Header() {
   const [isPlatformModalOpen, setIsPlatformModalOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter(); // For redirecting after sign out
-  // const activeTab = pathname === '/' ? 'search' : pathname === '/watchlist' ? 'my watchlist' : 'search'; // activeTab logic can be simplified or based on pathname directly
 
   const navItems = [
     { name: 'Search', href: '/search', icon: Search },
@@ -61,18 +68,6 @@ export default function Header() {
 
         {/* Desktop Controls */}
         <div className="hidden md:flex items-center gap-4">
-          {session && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsPlatformModalOpen(true)}
-              className="flex items-center gap-1 text-white bg-[#1a1a1a] border-gray-700 hover:text-[#E50914] hover:border-[#E50914] hover:bg-[#2a2a2a]"
-              aria-label="Manage Platforms"
-            >
-              <Monitor className="h-4 w-4" />
-              <span className="hidden sm:inline">Platforms</span>
-            </Button>
-          )}
           {(loading && !session) || isSigningIn ? ( // Show loader if general loading or specifically signing in
             <Button
               variant="outline"
@@ -95,35 +90,47 @@ export default function Header() {
             </Button>
           ) : null }
           {!loading && session && (
-             <div className="relative group">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-1 text-white bg-[#1a1a1a] border-gray-700 hover:text-[#E50914] hover:border-[#E50914] hover:bg-[#2a2a2a]"
-              >
-                {session.user.image ? (
-                    <img 
-                      src={`/api/avatar?url=${encodeURIComponent(session.user.image)}`} 
-                      alt={session.user.name || 'User'} 
-                      className="w-5 h-5 rounded-full" />
-                  ) : (
-                    <UserCircle className="h-4 w-4" />
-                  )}
-                <span className="hidden sm:inline">{session.user.name || session.user.email}</span>
-              </Button>
-              <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg py-1 z-20 hidden group-hover:block">
-                <button
-                  onClick={() => {
-                    signOut({ redirect: false }).then(() => {
-                      router.push('/'); // Redirect to landing page
-                    });
-                  }}
-                  className="w-full text-left block px-4 py-2 text-sm text-white hover:bg-gray-700 hover:text-[#E50914]"
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2 text-white bg-[#1a1a1a] border-gray-700 hover:text-[#E50914] hover:border-[#E50914] hover:bg-[#2a2a2a]"
                 >
-                  <LogOut className="h-4 w-4 inline mr-2" />Sign Out
-                </button>
-              </div>
-            </div>
+                  {session.user.image ? (
+                      <img 
+                        src={`/api/avatar?url=${encodeURIComponent(session.user.image)}`} 
+                        alt={session.user.name || 'User'} 
+                        className="w-5 h-5 rounded-full" />
+                    ) : (
+                      <UserCircle className="h-4 w-4" />
+                    )}
+                  <span className="hidden sm:inline">{session.user.name || session.user.email}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 bg-gray-800 text-white border-gray-700" align="end">
+                <DropdownMenuLabel>{session.user.name || 'Profile'}</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-gray-600" />
+                <DropdownMenuItem onSelect={() => setIsPlatformModalOpen(true)} className="cursor-pointer hover:!bg-gray-700 hover:!text-[#E50914]">
+                  <Monitor className="mr-2 h-4 w-4" />
+                  <span>Platforms</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer hover:!bg-gray-700 hover:!text-[#E50914]">
+                  <Link href="/settings">
+                    <SettingsIcon className="mr-2 h-4 w-4" />
+                    <span>Settings</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-gray-600" />
+                <DropdownMenuItem
+                  onSelect={() => signOut({ redirect: false }).then(() => router.push('/'))}
+                  className="cursor-pointer hover:!bg-gray-700 hover:!text-[#E50914]"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sign Out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
 
@@ -174,6 +181,15 @@ export default function Header() {
                   <Monitor className="h-4 w-4" />
                   <span>Platforms</span>
                 </Button>
+              )}
+              {session && (
+                <Link href="/settings" passHref>
+                  <Button asChild variant="outline" size="sm" onClick={() => setIsMenuOpen(false)} className="w-full flex items-center gap-1 text-white bg-[#1a1a1a] border-gray-700 hover:text-[#E50914] hover:border-[#E50914] hover:bg-[#2a2a2a] justify-start">
+                    <a>
+                      <SettingsIcon className="h-4 w-4" /><span>Settings</span>
+                    </a>
+                  </Button>
+                </Link>
               )}
               {(loading && !session) || isSigningIn ? (
                 <Button

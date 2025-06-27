@@ -1,62 +1,63 @@
 // [...nextauth].js
-import NextAuth from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
-import { Pool } from '@neondatabase/serverless'; // For Neon
-import PgAdapter from "@auth/pg-adapter"; // Corrected: PgAdapter is a default export
-
-// Initialize the Neon database connection pool
-// Auth.js will use this for its adapter
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+import NextAuth from "next-auth"
+import GoogleProvider from "next-auth/providers/google"
+import { PrismaAdapter } from "@auth/prisma-adapter"
+import prisma from '../../../lib/prisma'; // Adjust path if needed
 
 export const authOptions = {
-  // Configure one or more authentication providers
-  adapter: PgAdapter(pool), // Use the official PostgreSQL adapter with your Neon pool
+  adapter: PrismaAdapter(prisma),
   providers: [
-    // This robust import pattern handles module resolution inconsistencies between
-    // different environments (e.g., local dev vs. Vercel deployment) for next-auth v4.
-    (GoogleProvider.default || GoogleProvider)({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
-    // You can add other providers here (e.g., GitHub, Credentials for email/password)
+    GoogleProvider.default({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      }
+    ),
   ],
+  // Use JWTs for session management, which enables the update() function.
   session: {
-    // Use JSON Web Tokens for session strategy
     strategy: "jwt",
   },
   callbacks: {
-    async signIn({ user, account, profile, email, credentials }) {
-      // For new users created via OAuth, the adapter's createUser method
-      // should be called. The user object passed here might be the one
-      // the adapter intends to create.
-      // If an id is missing, it's an issue with the adapter's createUser input.
-      // console.log("signIn callback user:", user);
-      // console.log("signIn callback account:", account);
-      // console.log("signIn callback profile:", profile);
-      return true; // Allow sign in
-    },
-    async redirect({ baseUrl }) {
-      // Always redirect to the base URL (homepage) after sign-in
-      return baseUrl; // Default redirect to base URL (homepage)
-    },
-    async jwt({ token, user }) {
+    /**
+     * This callback is called whenever a JWT is created or updated.
+     * @param  {object}  token     Decrypted JSON Web Token
+     * @param  {object}  user      User object      (only available on initial sign-in)
+     * @param  {string}  trigger   "create" | "update" | "signIn"
+     * @param  {object}  session   Data from client-side update() call
+     * @return {object}            JSON Web Token that will be saved
+     */
+    async jwt({ token, user, trigger, session }) {
+      // The `user` object is only passed on initial sign-in.
+      // We persist the user's id, role, and country to the token.
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.country = user.country;
       }
+
+      // This is called when the session is updated with update() on the client.
+      // e.g. from the CountrySelector component.
+      if (trigger === "update" && session?.country) {
+        token.country = session.country;
+      }
+
       return token;
     },
+
+    // The session callback is called whenever a session is checked.
+    // It receives the JWT token and is used to populate the session object.
     async session({ session, token }) {
-      if (session.user && token) {
+      if (token) {
         session.user.id = token.id;
         session.user.role = token.role;
+        session.user.country = token.country;
       }
       return session;
-    }
+    },
   },
-  secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === 'development',
-};
 
-// Use a robust import for NextAuth to handle module resolution issues
-export default (NextAuth.default || NextAuth)(authOptions);
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development",
+}
+
+export default NextAuth.default(authOptions)

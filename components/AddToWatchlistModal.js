@@ -9,6 +9,10 @@ import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
 import { CalendarIcon, Clapperboard, Tv2, X, PlayCircle, CheckCircle, Clock, Star } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
+import WhereToWatch from './WhereToWatch'; // Import the new component
+import useSWR from 'swr';
+
+const fetcher = (url) => fetch(url).then((res) => res.json());
 
 export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode }) {
   if (!item) {
@@ -17,7 +21,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
   }
 
   const [status, setStatus] = useState(item?.status || 'to_watch');
-  const [watchedDate, setWatchedDate] = useState(item?.watched_date || '');
+  const [watchedDate, setWatchedDate] = useState(item?.watched_date ? new Date(item.watched_date).toISOString().split('T')[0] : '');
   const [selectedPlatformId, setSelectedPlatformId] = useState('none');
   const [notes, setNotes] = useState(item?.notes || '');
   const [platforms, setPlatforms] = useState([]);
@@ -27,6 +31,17 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
   const { addToast } = useToast();
 
   const isEditing = mode === 'edit';
+  const tmdbId = isEditing ? item?.movie_id : item?.id;
+  
+  // Use SWR to fetch full details, which includes watch providers, unifying the data source.
+  const { data: details, error: detailsError } = useSWR(
+    tmdbId && item?.media_type ? `/api/details?id=${tmdbId}&media_type=${item.media_type}` : null,
+    fetcher
+  );
+
+  const providers = details?.watch_providers;
+  const isLoadingProviders = !details && !detailsError;
+
   const mediaTypeLabel = item?.media_type === 'tv' ? 'Show' : 'Movie';
   const displayInfo = item?.release_date || item?.first_air_date
     ? `${(item.release_date || item.first_air_date).split('-')[0]} • ${item.genres || 'N/A'}`
@@ -45,6 +60,10 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
     if (status !== 'watched' && watchedDate) {
       setWatchedDate('');
     }
+    // If status is changed to 'watched' and there's no date, set it to today.
+    else if (status === 'watched' && !watchedDate) {
+      setWatchedDate(new Date().toISOString().split('T')[0]);
+    }
   }, [status]);
 
   // Effect to handle Escape key press
@@ -56,14 +75,13 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
     };
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [onClose]); // Re-run effect if onClose changes
+  }, [onClose]);
 
   useEffect(() => {
     async function fetchPlatforms() {
       setIsPlatformsLoading(true);
       try {
-        // userId no longer needed in query, API is session-aware
-        const res = await fetch(`/api/platforms`); 
+        const res = await fetch(`/api/platforms`);
         if (!res.ok) throw new Error('Failed to fetch platforms');
         const data = await res.json();
         const sortedPlatforms = data.sort((a, b) => {
@@ -93,7 +111,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
         setIsPlatformsLoading(false);
       }
     }
-    fetchPlatforms(); // Removed userId from dependency array
+    fetchPlatforms();
   }, [item?.platform, addToast]);
 
   const handleSubmit = async (e) => {
@@ -124,10 +142,8 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
       if (isEditing) {
         apiPayload.id = item.id; // DB ID of the watchlist entry
         apiPayload.movie_id = item.movie_id; // TMDB ID
-        // apiPayload.user_id = item.user_id; // No longer needed, API uses session
       } else { // Adding new
         apiPayload.movie_id = item.id; // TMDB ID
-        // apiPayload.user_id = userId; // No longer needed, API uses session
       }
 
       console.log('Saving to watchlist. Mode:', mode, 'Payload:', apiPayload);
@@ -157,6 +173,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
         title: 'Success',
         description: `${apiPayload.title || (isEditing ? 'Item' : 'Item')} ${isEditing ? 'updated' : 'added to watchlist'}`,
       });
+
       onClose();
     } catch (error) {
       console.error(`Error ${isEditing ? 'updating' : 'saving'} to watchlist:`, error);
@@ -244,6 +261,8 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
               </span>
               <Star className="h-4 w-4 text-[#F5C518] fill-current ml-1" />
             </div>
+            {/* Where to Watch component added here */}
+            <WhereToWatch providers={providers} isLoading={isLoadingProviders} />
           </div>
         </div>
         <div className="mb-4 bg-gray-800 rounded-lg p-3">
@@ -256,7 +275,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
         </div>
         <form onSubmit={handleSubmit}>
           <RadioGroup value={status} onValueChange={setStatus} className="space-y-2 mb-4 text-white">
-            <div className={`flex items-center space-x-2 rounded-lg p-3 transition cursor-pointer 
+            <div className={`flex items-center space-x-2 rounded-lg p-3 transition cursor-pointer
               ${status === 'to_watch' ? 'bg-blue-700 hover:bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
               <RadioGroupItem value="to_watch" id="status-to-watch" />
               <Label
@@ -270,7 +289,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
                 </div>
               </Label>
             </div>
-            <div className={`flex items-center space-x-2 rounded-lg p-3 transition cursor-pointer 
+            <div className={`flex items-center space-x-2 rounded-lg p-3 transition cursor-pointer
               ${status === 'watching' ? 'bg-yellow-700 hover:bg-yellow-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
               <RadioGroupItem value="watching" id="status-watching" />
               <Label
@@ -284,7 +303,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
                 </div>
               </Label>
             </div>
-            <div className={`flex items-center space-x-2 rounded-lg p-3 transition cursor-pointer 
+            <div className={`flex items-center space-x-2 rounded-lg p-3 transition cursor-pointer
               ${status === 'watched' ? 'bg-green-700 hover:bg-green-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
               <RadioGroupItem value="watched" id="status-watched" />
               <Label

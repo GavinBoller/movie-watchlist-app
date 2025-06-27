@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(dbgenerated("gen_random_uuid()"))
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        BigInt?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  sessionToken String   @id
+  userId       String
+  expires      DateTime @db.Timestamptz(6)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String   @map("identifier")
+  token      String   @map("token")
+  expires    DateTime @db.Timestamptz(6)
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
+}
+
+/// This model contains an index with non-default null sort order and requires additional setup for migrations. Visit https://pris.ly/d/default-index-null-ordering for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model WatchlistItem {
+  id          Int                      @id @default(autoincrement()) @map("id")
+  movieId     String                   @map("movie_id") @db.VarChar(50)
+  title       String                   @db.VarChar(255)
+  overview    String?
+  poster      String?                  @db.VarChar(255)
+  releaseDate DateTime?                @map("release_date") @db.Date
+  mediaType   String?                  @map("media_type") @db.VarChar(10)
+  status      String?                  @default("to_watch") @db.VarChar(20)
+  platform    String?                  @db.VarChar(50)
+  notes       String?
+  watchedDate DateTime?                @map("watched_date") @db.Date
+  addedAt     DateTime?                @default(now()) @map("added_at") @db.Timestamp(6)
+  imdbId      String?                  @map("imdb_id") @db.VarChar(50)
+  voteAverage Decimal?                 @map("vote_average") @db.Decimal
+  runtime     Int?
+  seasons     Int?
+  episodes    Int?
+  titleTsv    Unsupported("tsvector")? @map("title_tsv")
+  genres      String?
+  userId      String                   @map("user_id")
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_watchlist_user")
+
+  @@index([movieId], map: "idx_watchlist_movie_id")
+  @@index([title(ops: raw("gin_trgm_ops"))], map: "idx_watchlist_title_trgm", type: Gin)
+  @@index([titleTsv], map: "idx_watchlist_title_tsv", type: Gin)
+  @@index([userId, addedAt(sort: Desc)], map: "idx_watchlist_user_id_added_at")
+  @@index([userId, releaseDate(sort: Desc)], map: "idx_watchlist_user_id_release_date_desc")
+  @@index([userId, title], map: "idx_watchlist_user_id_title_asc")
+  @@index([userId, voteAverage(sort: Desc)], map: "idx_watchlist_user_id_vote_average_desc")
+  @@map("watchlist")
+}
+
+model Platform {
+  id        Int       @id @default(autoincrement()) @map("id")
+  name      String    @db.VarChar(50)
+  logoUrl   String?   @map("logo_url") @db.VarChar(255)
+  isDefault Boolean?  @default(false) @map("is_default")
+  createdAt DateTime? @default(now()) @map("created_at") @db.Timestamp(6)
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_platforms_user")
+
+  @@map("platforms")
+}
+
+model User {
+  id             String          @id @default(dbgenerated("gen_random_uuid()"))
+  name           String?
+  email          String?         @unique
+  emailVerified  DateTime?       @db.Timestamptz(6)
+  image          String?
+  role           String          @default("user")
+  createdAt      DateTime?       @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime?       @default(now()) @db.Timestamptz(6)
+  country        String?         @default("AU") @db.VarChar(2)
+  accounts       Account[]
+  platforms      Platform[]
+  sessions       Session[]
+  watchlistItems WatchlistItem[]
+
+  @@map("users")
+}
