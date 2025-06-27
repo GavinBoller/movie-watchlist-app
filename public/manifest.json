@@ -1,0 +1,16 @@
+{
+  "name": "Watchlist App",
+  "short_name": "Watchlist",
+  "description": "Search and manage your movie and TV watchlist.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1A1A1A",
+  "theme_color": "#1A1A1A",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
