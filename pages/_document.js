@@ -4,11 +4,10 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        {/* Main icon for modern browsers (SVG) */}
-        <link rel="icon" href="/app-icon.svg" type="image/svg+xml" />
-
         {/* Fallback icon for older browsers (.ico) */}
-        <link rel="alternate icon" href="/favicon.ico" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        {/* Main icon for modern browsers (SVG) - will be preferred */}
+        <link rel="icon" href="/app-icon.svg" type="image/svg+xml" />
 
         {/* Specific icon for "Add to Home Screen" on iPhone */}
         <link rel="apple-touch-icon" href="/app-icon.svg" />
