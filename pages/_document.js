@@ -4,11 +4,13 @@ export default function Document() {
   return (
     <Html lang="en">
       <Head>
-        {/* This is the main icon for browsers and other platforms */}
-        <link rel="icon" href="/favicon.ico" sizes="any" />
+        {/* Main icon for modern browsers (SVG) */}
         <link rel="icon" href="/app-icon.svg" type="image/svg+xml" />
 
-        {/* This is the specific icon for when you "Add to Home Screen" on an iPhone */}
+        {/* Fallback icon for older browsers (.ico) */}
+        <link rel="alternate icon" href="/favicon.ico" />
+
+        {/* Specific icon for "Add to Home Screen" on iPhone */}
         <link rel="apple-touch-icon" href="/app-icon.svg" />
 
         {/* Web App Manifest for PWA features */}
