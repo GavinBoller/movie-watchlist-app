@@ -3,7 +3,6 @@
 
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import Footer from '../components/Footer';
 import Header from '../components/Header';
 import AddToWatchlistModal from '../components/AddToWatchlistModal';
 import ConfirmationModal from '../components/ConfirmationModal';
@@ -169,10 +168,9 @@ export default function WatchlistPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#1a1a1a] text-white">
+    <div className="min-h-screen bg-[#1a1a1a] text-white">
       <Header />
-      <main className="flex-grow">
-        <div className="container mx-auto p-4">
+      <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-4 text-center">My Watchlist</h1>
 
         <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -285,8 +283,8 @@ export default function WatchlistPage() {
             </Button>
           </div>
         )}
-        </div>
-      </main>
+      </div>
+
       {editingItem && (
         <AddToWatchlistModal
           item={editingItem}
@@ -305,7 +303,6 @@ export default function WatchlistPage() {
           message={`Are you sure you want to permanently delete "${itemToDelete.title}" from your watchlist?`}
         />
       )}
-      <Footer />
     </div>
   );
 }

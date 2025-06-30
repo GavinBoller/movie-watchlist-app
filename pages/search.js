@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import Footer from '../components/Footer';
 import Header from '../components/Header';
 import DetailsModal from '../components/DetailsModal';
 import AddToWatchlistModal from '../components/AddToWatchlistModal';
@@ -363,10 +362,9 @@ export default function SearchPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#1a1a1a] text-white">
+    <div className="min-h-screen bg-[#1a1a1a] text-white">
       <Header />
-      <main className="flex-grow">
-        <div className="container mx-auto p-4">
+      <div className="container mx-auto p-4">
         <h1 className="text-2xl font-bold mb-4 text-center">Search Movies & TV Shows</h1>
 
         {/* Discovery Mode Buttons */}
@@ -535,8 +533,7 @@ export default function SearchPage() {
               </div>
             </div>
           </div>
-        ) : (
-          searchResults.length === 0 ? (
+        ) : searchResults.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-300">No results found. Try a different search term.</p>
           </div>
@@ -551,7 +548,6 @@ export default function SearchPage() {
               />
             ))}
           </div>
-        )
         )}
 
         {totalPages > 1 && (
@@ -571,8 +567,7 @@ export default function SearchPage() {
             </Button>
           </div>
         )}
-        </div>
-      </main>
+      </div>
       {selectedItem && (
         <DetailsModal
           item={selectedItem}
@@ -589,7 +584,6 @@ export default function SearchPage() {
           onSaveSuccess={handleSaveNewItemSuccess}
         />
       )}
-      <Footer />
     </div>
   );
 }
