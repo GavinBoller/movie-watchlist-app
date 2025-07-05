@@ -354,32 +354,34 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
               />
             </div>
           )}
-          <div className="mb-4">
-            <Label htmlFor="platform-select" className="text-sm font-medium text-white block mb-2">
+          <div className="mb-4 flex items-center gap-2">
+            <Label htmlFor="platform-select" className="text-sm font-medium text-white mb-0 whitespace-nowrap">
               Platform (optional)
             </Label>
-            {isPlatformsLoading ? (
-              <p className="text-gray-400 text-sm">Loading platforms...</p>
-            ) : platforms.length === 0 ? (
-              <p className="text-gray-400 text-sm">No platforms available</p>
-            ) : (
-              <Select
-                value={selectedPlatformId}
-                onValueChange={(value) => setSelectedPlatformId(value !== 'none' ? value : 'none')}
-              >
-                <SelectTrigger className="w-full bg-gray-800 border-gray-600 text-white">
-                  <SelectValue placeholder="Select platform (optional)" />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-600 text-white">
-                  <SelectItem value="none">No platform</SelectItem>
-                  {platforms.map((platform) => (
-                    <SelectItem key={platform.id} value={platform.id.toString()}>
-                      {platform.name} {platform.is_default && '(Default)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <div className="flex-1">
+              {isPlatformsLoading ? (
+                <p className="text-gray-400 text-sm">Loading platforms...</p>
+              ) : platforms.length === 0 ? (
+                <p className="text-gray-400 text-sm">No platforms available</p>
+              ) : (
+                <Select
+                  value={selectedPlatformId}
+                  onValueChange={(value) => setSelectedPlatformId(value !== 'none' ? value : 'none')}
+                >
+                  <SelectTrigger className="w-full bg-gray-800 border-gray-600 text-white">
+                    <SelectValue placeholder="Select platform (optional)" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-800 border-gray-600 text-white">
+                    <SelectItem value="none">No platform</SelectItem>
+                    {platforms.map((platform) => (
+                      <SelectItem key={platform.id} value={platform.id.toString()}>
+                        {platform.name} {platform.is_default && '(Default)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </div>
           <div className="mb-4">
             <Label htmlFor="watch-notes" className="text-sm font-medium text-white block mb-2">

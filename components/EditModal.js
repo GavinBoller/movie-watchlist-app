@@ -151,29 +151,33 @@ export default function EditModal({ item, onSave, onClose }) {
           )}
 
           {/* Platform */}
-          <div>
-            <label className="block text-white mb-1">Platform</label>
-            <select
-              value={platform}
-              onChange={(e) => setPlatform(e.target.value)}
-              className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500"
-              disabled={isLoadingPlatforms}
-            >
-              {isLoadingPlatforms ? (
-                <option>Loading platforms...</option>
-              ) : platformsError ? (
-                <option>Error loading platforms</option>
-              ) : (
-                <>
-                  <option value="">Select Platform</option>
-                  {platforms.map((p) => (
-                    <option key={p.id} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
+          <div className="mb-4 flex items-center gap-2">
+            <label htmlFor="platform-select" className="text-sm font-medium text-white mb-0 whitespace-nowrap">
+              Platform (optional)
+            </label>
+            <div className="flex-1">
+              <select
+                value={platform}
+                onChange={(e) => setPlatform(e.target.value)}
+                className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-sm"
+                disabled={isLoadingPlatforms}
+              >
+                {isLoadingPlatforms ? (
+                  <option>Loading platforms...</option>
+                ) : platformsError ? (
+                  <option>Error loading platforms</option>
+                ) : (
+                  <>
+                    <option value="">Select Platform</option>
+                    {platforms.map((p) => (
+                      <option key={p.id} value={p.name}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </>
+                )}
+              </select>
+            </div>
           </div>
 
           {/* Notes */}
