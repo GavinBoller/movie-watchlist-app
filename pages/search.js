@@ -9,7 +9,7 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List, X } from 'lucide-react'; 
+import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List, X, Edit } from 'lucide-react'; 
 import { useToast, useWatchlist, WatchlistProvider } from '../components/ToastContext';
 import { useSWRConfig } from 'swr';
 
@@ -21,6 +21,14 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
   const isInWatchlist = Array.isArray(watchlist) && watchlist.some((item) => 
     item.movie_id === movie.id.toString() || item.movie_id === movie.id
   );
+
+  // Find the watchlist item if it exists, for editing
+  const watchlistItem = useMemo(() => {
+    if (!isInWatchlist || !Array.isArray(watchlist)) return null;
+    return watchlist.find(item => 
+      item.movie_id === movie.id.toString() || item.movie_id === movie.id
+    );
+  }, [isInWatchlist, watchlist, movie.id]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -43,7 +51,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
 
   const handleAddClick = (e) => {
     e.stopPropagation();
-    onAddToWatchlist();
+    onAddToWatchlist(isInWatchlist ? watchlistItem : movie);
   };
 
   const title = movie.title || movie.name || 'Unknown';
@@ -87,16 +95,20 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
       >
         {typeBadge}
       </div>
-      {isMobile && !showInfo && !isInWatchlist && (
+      {/* Show the + or Edit button only when not hovered (desktop) or not showing info (mobile) */}
+      {(!isHovered || isMobile) && !showInfo && (
         <div className="absolute bottom-2 right-2 z-10">
           <button
             type="button"
-            className="bg-[#E50914] text-white rounded-full p-2 shadow-lg touch-manipulation"
+            className={`${isInWatchlist ? 'bg-blue-600' : 'bg-[#E50914]'} text-white rounded-full p-2 shadow-lg touch-manipulation`}
             onClick={handleAddClick}
-            aria-label="Add to watchlist"
-            disabled={isInWatchlist}
+            aria-label={isInWatchlist ? "Edit in watchlist" : "Add to watchlist"}
           >
-            <PlusCircle className="h-6 w-6" />
+            {isInWatchlist ? (
+              <Edit className="h-6 w-6" />
+            ) : (
+              <PlusCircle className="h-6 w-6" />
+            )}
           </button>
         </div>
       )}
@@ -121,17 +133,27 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
         </div>
         {isMobile ? (
           <div className="flex flex-col mt-3 space-y-2">
-            {!isInWatchlist && (
-              <Button
-                onClick={handleAddClick}
-                className="bg-[#E50914] text-white text-sm font-medium rounded-lg py-2 px-3 hover:bg-red-700 transition flex items-center justify-center"
-                disabled={isInWatchlist}
-              >
-                <PlusCircle className="h-4 w-4 mr-2" />
-                Add to Watchlist
-              </Button>
-            )}
-            <div className="flex flex-wrap gap-2"> {/* Changed to flex-wrap gap-2 */}
+            <Button
+              onClick={handleAddClick}
+              className={`${
+                isInWatchlist 
+                  ? 'bg-blue-800 hover:bg-blue-700' 
+                  : 'bg-[#E50914] hover:bg-red-700'
+              } text-white text-sm font-medium rounded-lg py-2 px-3 transition flex items-center justify-center`}
+            >
+              {isInWatchlist ? (
+                <>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit in Watchlist
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  Add to Watchlist
+                </>
+              )}
+            </Button>
+            <div className="flex flex-wrap gap-2">
               <Button
                 onClick={(e) => { e.stopPropagation(); onShowDetails(movie); }}
                 className="bg-gray-700 text-white text-sm rounded-lg py-2 w-full sm:w-auto flex items-center justify-center"
@@ -182,16 +204,26 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
                 </a>
               </Button>
             )}
-            {!isInWatchlist && (
-              <Button
-                onClick={handleAddClick}
-                className="bg-[#E50914] text-white text-xs rounded-full py-1 px-3 hover:bg-red-700 transition-colors flex-grow min-w-[120px]"
-                disabled={isInWatchlist}
-              >
-                <PlusCircle className="h-3 w-3 mr-1" />
-                Add to Watchlist
-              </Button>
-            )}
+            <Button
+              onClick={handleAddClick}
+              className={`${
+                isInWatchlist 
+                  ? 'bg-blue-800 text-white hover:bg-blue-700' 
+                  : 'bg-[#E50914] text-white hover:bg-red-700'
+              } text-xs rounded-full py-1 px-3 transition-colors flex-grow min-w-[120px]`}
+            >
+              {isInWatchlist ? (
+                <>
+                  <Edit className="h-3 w-3 mr-1" />
+                  Edit in Watchlist
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="h-3 w-3 mr-1" />
+                  Add to Watchlist
+                </>
+              )}
+            </Button>
           </div>
         )}
       </div>
@@ -285,18 +317,16 @@ export default function SearchPage() {
   };
 
   const handleAddToWatchlist = (item) => {
-    const isInWatchlist = watchlist.some((wItem) => 
-      wItem.movie_id === item.id.toString() || wItem.movie_id === item.id
-    );
-    if (isInWatchlist) {
-      addToast({
-        id: Date.now(),
-        title: 'Info',
-        description: `${item.title || item.name} is already in your watchlist`,
-      });
-      return;
+    if (Array.isArray(watchlist) && watchlist.some(w => 
+      w.movie_id === item.id.toString() || w.movie_id === item.id)) {
+      // Item is already in watchlist - find it for editing
+      const existingItem = watchlist.find(w => 
+        w.movie_id === item.id.toString() || w.movie_id === item.id);
+      setWatchlistItem({...existingItem, mode: 'edit'});
+    } else {
+      // New item - add to watchlist
+      setWatchlistItem(item);
     }
-    setWatchlistItem({ ...item, media_type: item.media_type || 'movie', poster_path: item.poster_path });
   };
 
   const handleShowDetails = (item) => {
@@ -579,7 +609,7 @@ export default function SearchPage() {
       {watchlistItem && (
         <AddToWatchlistModal
           item={watchlistItem}
-          mode="add"
+          mode={watchlistItem.mode || "add"}
           onClose={() => setWatchlistItem(null)}
           onSaveSuccess={handleSaveNewItemSuccess}
         />

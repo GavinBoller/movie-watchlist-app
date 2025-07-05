@@ -1,7 +1,7 @@
 // DetailsModal.js
 import React, { useEffect } from 'react';
 import useSWR from 'swr';
-import { PlusCircle, ExternalLink, Star, X, Loader2 } from 'lucide-react';
+import { PlusCircle, ExternalLink, Star, X, Loader2, Edit } from 'lucide-react';
 import { Button } from './ui/button';
 import WhereToWatch from './WhereToWatch';
 
@@ -118,15 +118,26 @@ const DetailsModal = ({ item, onClose, onAddToWatchlist, isInWatchlist }) => {
                     </a>
                   </Button>
                 )}
-                {!isInWatchlist && (
-                  <Button
-                    onClick={handleAddToWatchlistClick}
-                    className="bg-[#E50914] hover:bg-red-700"
-                  >
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Add to Watchlist
-                  </Button>
-                )}
+                <Button
+                  onClick={handleAddToWatchlistClick}
+                  className={`${
+                    isInWatchlist
+                      ? 'bg-blue-800 hover:bg-blue-700'
+                      : 'bg-[#E50914] hover:bg-red-700'
+                  }`}
+                >
+                  {isInWatchlist ? (
+                    <>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit in Watchlist
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      Add to Watchlist
+                    </>
+                  )}
+                </Button>
               </div>
             </div>
           </div>
