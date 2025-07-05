@@ -29,6 +29,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
   const [isMobile, setIsMobile] = useState(false);
   const [isPlatformsLoading, setIsPlatformsLoading] = useState(true);
   const { addToast } = useToast();
+  const [seasonNumber, setSeasonNumber] = useState(item?.seasonNumber || '');
 
   const isEditing = mode === 'edit';
   const tmdbId = isEditing ? item?.movie_id : item?.id;
@@ -124,6 +125,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
         platform: platforms.find((p) => p.id.toString() === selectedPlatformId)?.name || null,
         watched_date: status === 'watched' ? watchedDate : null,
         notes: notes || null,
+        seasonNumber: item.media_type === 'tv' ? seasonNumber || null : null,
 
         // Fields derived from 'item' prop
         title: item.title || item.name,
@@ -335,6 +337,21 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
                   onChange={(e) => setWatchedDate(e.target.value)}
                 />
               </div>
+            </div>
+          )}
+          {item.media_type === 'tv' && (
+            <div className="mb-4">
+              <label htmlFor="seasonNumber" className="block text-sm font-medium text-white mb-2">
+                Season Number (optional)
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={seasonNumber}
+                onChange={e => setSeasonNumber(e.target.value)}
+                className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500"
+                placeholder="Enter season number"
+              />
             </div>
           )}
           <div className="mb-4">

@@ -115,7 +115,10 @@ export default async function handler(req, res) {
         const { rows } = await client.query(finalQuery, finalParams);
 
         const firstRow = rows[0] || {};
-        const items = rows.map(({ total, movie, tv, to_watch, watching, watched, ...item }) => item);
+        const items = rows.map(({ total, movie, tv, to_watch, watching, watched, ...item }) => ({
+          ...item,
+          seasonNumber: item.seasonNumber ?? item.seasonnumber ?? null,
+        }));
 
         console.timeEnd(timerLabel);
         console.log(`Database query returned ${items.length} items in ${Date.now() - start}ms`);
@@ -190,9 +193,9 @@ export default async function handler(req, res) {
           `
           INSERT INTO watchlist (
             user_id, movie_id, title, overview, poster, release_date, media_type, genres, runtime, status,
-            platform, notes, watched_date, imdb_id, vote_average, seasons, episodes, added_at 
+            platform, notes, watched_date, imdb_id, vote_average, seasons, episodes, seasonNumber, added_at 
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW()
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW()
           ) RETURNING *
         `,
           [
@@ -213,6 +216,7 @@ export default async function handler(req, res) {
             vote_average ? parseFloat(vote_average) : null,
             seasons || null,
             episodes || null,
+            req.body.seasonNumber || null,
           ]
         );
         invalidateUserCache(userId);
@@ -284,8 +288,9 @@ export default async function handler(req, res) {
             runtime = $12,        
             seasons = $13, 
             episodes = $14,
-            genres = $15
-          WHERE id = $16 AND user_id = $17
+            genres = $15,
+            seasonNumber = $16
+          WHERE id = $17 AND user_id = $18
           RETURNING *
         `,
           [
@@ -304,6 +309,7 @@ export default async function handler(req, res) {
             seasons || null,
             episodes || null,
             genres || null,
+            req.body.seasonNumber || null,
             id,
             userId,
           ]

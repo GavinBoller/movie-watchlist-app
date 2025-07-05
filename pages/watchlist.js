@@ -167,6 +167,14 @@ export default function WatchlistPage() {
     );
   };
 
+  const handleEdit = (item) => {
+    // Map seasonnumber (from DB) to seasonNumber (for modal)
+    setEditingItem({
+      ...item,
+      seasonNumber: item.seasonNumber ?? item.seasonnumber ?? '',
+    });
+  };
+
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white">
       <Header />

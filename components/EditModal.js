@@ -13,6 +13,7 @@ export default function EditModal({ item, onSave, onClose }) {
   );
   const [platform, setPlatform] = useState(item.platform || '');
   const [notes, setNotes] = useState(item.notes || '');
+  const [seasonNumber, setSeasonNumber] = useState(item.seasonNumber || item.seasonnumber || '');
   const [saving, setSaving] = useState(false);
   const { addToast } = useToast();
 
@@ -32,6 +33,10 @@ export default function EditModal({ item, onSave, onClose }) {
     }
   }, [status]); // This effect runs whenever the 'status' changes.
 
+  useEffect(() => {
+    setSeasonNumber(item.seasonNumber || item.seasonnumber || '');
+  }, [item.seasonNumber, item.seasonnumber]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -41,6 +46,7 @@ export default function EditModal({ item, onSave, onClose }) {
         watched_date: status === 'watched' ? watchedDate : null,
         platform,
         notes,
+        seasonNumber: item.media_type === 'tv' ? seasonNumber || null : null,
       };
       const res = await fetch('/api/watchlist', {
         method: 'PUT',
@@ -126,6 +132,21 @@ export default function EditModal({ item, onSave, onClose }) {
               disabled={status !== 'watched'}
             />
           </div>
+
+          {/* Season Number - New Input for TV Shows */}
+          {item.media_type === 'tv' && (
+            <div>
+              <label className="block text-white mb-1">Season Number (optional)</label>
+              <input
+                type="number"
+                min="1"
+                value={seasonNumber}
+                onChange={e => setSeasonNumber(e.target.value)}
+                className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500"
+                placeholder="Enter season number"
+              />
+            </div>
+          )}
 
           {/* Platform */}
           <div>
