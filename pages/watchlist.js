@@ -54,7 +54,7 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
       </div>
       
       <div
-        className={`absolute inset-0 bg-black bg-opacity-90 flex flex-col justify-end p-4 transition-opacity duration-300 ${
+        className={`absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-300 ${
           isHovered ? 'opacity-100' : 'opacity-0'
         }`}
       >

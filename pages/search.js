@@ -124,7 +124,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
         </div>
       )}
       <div // This is the movie-info div that appears on hover/tap
-        className={`movie-info absolute inset-0 bg-black bg-opacity-85 flex flex-col justify-end p-4 mx-2 transition-opacity duration-300 ${
+        className={`movie-info absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-300 ${
           isMobile ? (showInfo ? 'opacity-100' : 'opacity-0') : isHovered ? 'opacity-100' : 'opacity-0'
         }`}
       >
