@@ -144,26 +144,6 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
         </div>
         {isMobile ? (
           <div className="flex flex-col mt-3 space-y-2">
-            <Button
-              onClick={handleAddClick}
-              className={`${
-                isInWatchlist 
-                  ? 'bg-blue-800 hover:bg-blue-700' 
-                  : 'bg-[#E50914] hover:bg-red-700'
-              } text-white text-sm font-medium rounded-lg py-2 px-3 transition flex items-center justify-center`}
-            >
-              {isInWatchlist ? (
-                <>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit in Watchlist
-                </>
-              ) : (
-                <>
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Add to Watchlist
-                </>
-              )}
-            </Button>
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={(e) => { e.stopPropagation(); onShowDetails(movie); }}
@@ -189,6 +169,26 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
                 </Button>
               )}
             </div>
+            <Button
+              onClick={handleAddClick}
+              className={`${
+                isInWatchlist 
+                  ? 'bg-blue-800 hover:bg-blue-700' 
+                  : 'bg-[#E50914] hover:bg-red-700'
+              } text-white text-sm font-medium rounded-lg py-2 px-3 transition flex items-center justify-center`}
+            >
+              {isInWatchlist ? (
+                <>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit in Watchlist
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  Add to Watchlist
+                </>
+              )}
+            </Button>
           </div>
         ) : (
           <div className="flex flex-wrap mt-2 gap-2">
