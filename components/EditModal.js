@@ -135,15 +135,17 @@ export default function EditModal({ item, onSave, onClose }) {
 
           {/* Season Number - New Input for TV Shows */}
           {item.media_type === 'tv' && (
-            <div>
-              <label className="block text-white mb-1">Season Number (optional)</label>
+            <div className="mb-4 flex items-center gap-2">
+              <label htmlFor="seasonNumber" className="text-sm font-medium text-white mb-0 whitespace-nowrap">
+                Season Number (optional)
+              </label>
               <input
                 type="number"
                 min="1"
                 value={seasonNumber}
                 onChange={e => setSeasonNumber(e.target.value)}
-                className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500"
-                placeholder="Enter season number"
+                className="p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-sm w-32"
+                placeholder="e.g. 1"
               />
             </div>
           )}
