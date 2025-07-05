@@ -82,7 +82,7 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
           </div>
         )}
         
-        <div className="flex mt-2 space-x-2 flex-wrap gap-y-2">
+        <div className="flex flex-wrap mt-2 gap-2">
           {item.imdb_id && (
             <Button 
               asChild
