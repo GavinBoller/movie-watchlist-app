@@ -41,67 +41,79 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
     >
       <img src={posterUrl} alt={item.title} className="w-full aspect-[2/3] object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
       
-      <div className={`absolute top-2 right-2 ${item.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]'} text-white text-xs font-bold py-1 px-2 rounded-full`}>
+      <div className={`absolute top-2 right-2 ${item.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]'} text-white text-xs font-bold py-1 px-2 rounded-full z-20`}>
         {item.media_type === 'tv' ? 'TV' : 'Movie'}
       </div>
       
+      {/* Always visible status indicator in top left */}
+      <div className={`absolute top-2 left-2 z-20 text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap capitalize shadow-md ${
+        item.status === 'watched' ? 'bg-green-800' :
+        item.status === 'watching' ? 'bg-yellow-800' : 'bg-blue-800'
+      }`}>
+        {(item.status || '').replace('_', ' ')}
+      </div>
+      
       <div
-        className={`absolute inset-0 bg-black bg-opacity-90 flex flex-col justify-between p-3 transition-opacity duration-300 ${
+        className={`absolute inset-0 bg-black bg-opacity-90 flex flex-col justify-end p-4 transition-opacity duration-300 ${
           isHovered ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        <div>
-          <h3 className="font-bold text-md mb-1">{item.title}</h3>
-          <p className="text-xs text-gray-300 mb-1">
-            {(item.release_date || '').split('-')[0]}
-            {item.genres && ` • ${item.genres}`}
-          </p>
-          <div className="flex items-center text-xs text-gray-400 mb-2">
-            <Clock className="h-3 w-3 mr-1" />
-            <span>
-              {item.media_type === 'tv'
-                ? `${item.seasons || 'N/A'} seasons, ${item.episodes || 'N/A'} episodes`
-                : item.runtime
-                ? `${Math.floor(item.runtime / 60)}h ${item.runtime % 60}m`
-                : 'N/A'}
-            </span>
-          </div>
-          {item.vote_average != null && !isNaN(parseFloat(item.vote_average)) && (
-            <div className="flex items-center mt-1">
-              <span className="text-[#F5C518] font-bold text-xs sm:text-sm">
-                {parseFloat(item.vote_average).toFixed(1)}
-              </span>
-              <Star className="h-3 sm:h-4 w-4 text-[#F5C518] fill-current ml-1" />
-            </div>
-          )}
-        </div>
-        
-        <div className="flex flex-col items-start mt-auto space-y-2">
-          <span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap capitalize self-start ${
-            item.status === 'watched' ? 'bg-green-800' :
-            item.status === 'watching' ? 'bg-yellow-800' : 'bg-blue-800'
-          }`}>
-            {(item.status || '').replace('_', ' ')}
+        <h3 className="font-bold text-sm sm:text-base md:text-lg">{item.title}</h3>
+        <p className="text-xs sm:text-sm text-gray-300">
+          {(item.release_date || '').split('-')[0]}
+          {item.genres && ` • ${item.genres}`}
+        </p>
+        <div className="flex items-center text-xs text-gray-400 mt-1">
+          <Clock className="h-3 w-3 mr-1" />
+          <span>
+            {item.media_type === 'tv'
+              ? `${item.seasons || 'N/A'} seasons, ${item.episodes || 'N/A'} episodes`
+              : item.runtime
+              ? `${Math.floor(item.runtime / 60)}h ${item.runtime % 60}m`
+              : 'N/A'}
           </span>
-          <div className="flex flex-wrap items-center gap-1 w-full">
-            {item.imdb_id && (
-              <Button asChild size="sm" className="h-7 px-2 bg-[#F5C518] text-black hover:bg-yellow-400" aria-label="View on IMDb"
-                onClick={(e) => e.stopPropagation()}>
-                <a href={`https://www.imdb.com/title/${item.imdb_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} aria-label="View on IMDb">
-                  <ExternalLink className="h-3 w-3 mr-1" />
-                  IMDb
-                </a>
-              </Button>
-            )}
-            <Button size="sm" onClick={(e) => { e.stopPropagation(); onEdit(item); }}
-              className="bg-blue-800 hover:bg-blue-700 h-7 px-2 text-white" aria-label="Edit">
-              <Edit className="h-4 w-4 mr-1" /> Edit
-            </Button>
-            <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); onDelete(item); }} 
-              className="bg-red-800 hover:bg-red-700 h-7 px-2" aria-label="Delete">
-              <Trash2 className="h-4 w-4 mr-1" /> Delete
-            </Button>
+        </div>
+        {item.vote_average != null && !isNaN(parseFloat(item.vote_average)) && (
+          <div className="flex items-center mt-1">
+            <span className="text-[#F5C518] font-bold text-xs sm:text-sm">
+              {parseFloat(item.vote_average).toFixed(1)}
+            </span>
+            <Star className="h-3 sm:h-4 w-4 text-[#F5C518] fill-current ml-1" />
           </div>
+        )}
+        
+        <div className="flex mt-2 space-x-2 flex-wrap gap-y-2">
+          {item.imdb_id && (
+            <Button 
+              asChild
+              size="sm" 
+              className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 min-w-[80px]" 
+              aria-label="View on IMDb"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <a href={`https://www.imdb.com/title/${item.imdb_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} aria-label="View on IMDb">
+                <ExternalLink className="h-3 w-3 mr-1" />
+                IMDb
+              </a>
+            </Button>
+          )}
+          <Button 
+            size="sm" 
+            onClick={(e) => { e.stopPropagation(); onEdit(item); }}
+            className="bg-blue-800 hover:bg-blue-700 text-white text-xs rounded-full py-1 px-3 min-w-[80px]" 
+            aria-label="Edit"
+          >
+            <Edit className="h-3 w-3 mr-1" /> Edit
+          </Button>
+          <Button 
+            size="sm" 
+            variant="destructive" 
+            onClick={(e) => { e.stopPropagation(); onDelete(item); }} 
+            className="bg-red-800 hover:bg-red-700 text-white text-xs rounded-full py-1 px-3 min-w-[80px]" 
+            aria-label="Delete"
+          >
+            <Trash2 className="h-3 w-3 mr-1" /> Delete
+          </Button>
         </div>
       </div>
     </div>

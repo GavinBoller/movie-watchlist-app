@@ -91,10 +91,21 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
         loading="lazy"
       />
       <div
-        className={`absolute top-2 right-2 ${badgeClass} text-white text-xs font-bold py-1 px-2 rounded-full`}
+        className={`absolute top-2 right-2 ${badgeClass} text-white text-xs font-bold py-1 px-2 rounded-full z-20`}
       >
         {typeBadge}
       </div>
+      
+      {/* Show watch status indicator if item is in watchlist */}
+      {isInWatchlist && watchlistItem && (
+        <div className={`absolute top-2 left-2 z-20 text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap capitalize shadow-md ${
+          watchlistItem.status === 'watched' ? 'bg-green-800' :
+          watchlistItem.status === 'watching' ? 'bg-yellow-800' : 'bg-blue-800'
+        }`}>
+          {(watchlistItem.status || '').replace('_', ' ')}
+        </div>
+      )}
+      
       {/* Show the + or Edit button only when not hovered (desktop) or not showing info (mobile) */}
       {(!isHovered || isMobile) && !showInfo && (
         <div className="absolute bottom-2 right-2 z-10">
