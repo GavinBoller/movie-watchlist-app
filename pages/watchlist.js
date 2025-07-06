@@ -1,11 +1,11 @@
 // watchlist.js
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import useSWR from 'swr';
 import Header from '../components/Header';
-import AddToWatchlistModal from '../components/AddToWatchlistModal';
-import ConfirmationModal from '../components/ConfirmationModal';
+import DynamicAddToWatchlistModal from '../components/DynamicAddToWatchlistModal';
+import DynamicConfirmationModal from '../components/DynamicConfirmationModal';
 import { Skeleton } from '../components/ui/skeleton';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -23,7 +23,7 @@ const fetcher = async (url) => {
   }
 };
 
-function WatchlistItemCard({ item, onEdit, onDelete }) {
+const WatchlistItemCard = React.memo(({ item, onEdit, onDelete }) => {
   const [isHovered, setIsHovered] = useState(false);
 
   const posterUrl = item.poster
@@ -127,7 +127,7 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
       </div>
     </div>
   );
-}
+});
 
 export default function WatchlistPage() {
   const WATCHLIST_LIMIT = 50; // Temporarily lowered for testing
@@ -146,7 +146,12 @@ export default function WatchlistPage() {
     setPage(1);
   }, [sortOrder, search, mediaFilter, statusFilter]);
 
-  const swrKey = `/api/watchlist?sort_by=${sortOrder}&search=${search}&media=${mediaFilter}&status=${statusFilter}&page=${page}&limit=${WATCHLIST_LIMIT}`;
+  // Memoize the SWR key to prevent unnecessary re-renders
+  const swrKey = useMemo(() => 
+    `/api/watchlist?sort_by=${sortOrder}&search=${search}&media=${mediaFilter}&status=${statusFilter}&page=${page}&limit=${WATCHLIST_LIMIT}`,
+    [sortOrder, search, mediaFilter, statusFilter, page, WATCHLIST_LIMIT]
+  );
+  
   const { data, error, mutate, isValidating } = useSWR(swrKey, fetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 10000, // 10 seconds (watchlist changes frequently by user)
@@ -164,13 +169,18 @@ export default function WatchlistPage() {
 
   const isLoading = !data && !error;
 
-  const totalPages = data ? Math.ceil(data.total / WATCHLIST_LIMIT) : 0;
+  // Memoize the totalPages calculation to prevent recalculating on every render
+  const totalPages = useMemo(() => 
+    data ? Math.ceil(data.total / WATCHLIST_LIMIT) : 0,
+    [data, WATCHLIST_LIMIT]
+  );
 
-  const handleDeleteClick = (item) => {
+  // Memoize event handlers with useCallback to prevent unnecessary re-renders
+  const handleDeleteClick = useCallback((item) => {
     setItemToDelete(item);
-  };
+  }, []);
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = useCallback(async () => {
     if (!itemToDelete) return;
     
     setIsDeletingItem(true);
@@ -229,9 +239,9 @@ export default function WatchlistPage() {
       setIsDeletingItem(false);
       setItemToDelete(null);
     }
-  };
+  }, [itemToDelete, addToast, mutate]);
 
-  const handleSaveSuccess = (updatedItem) => {
+  const handleSaveSuccess = useCallback((updatedItem) => {
     // Optimistic UI update for a snappier experience
     mutate(
       (currentData) => {
@@ -243,15 +253,15 @@ export default function WatchlistPage() {
       },
       true // Tell SWR to re-fetch immediately after the optimistic update to ensure consistency
     );
-  };
+  }, [mutate]);
 
-  const handleEdit = (item) => {
+  const handleEdit = useCallback((item) => {
     // Map seasonnumber (from DB) to seasonNumber (for modal)
     setEditingItem({
       ...item,
       seasonNumber: item.seasonNumber ?? item.seasonnumber ?? '',
     });
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] text-white">
@@ -438,7 +448,7 @@ export default function WatchlistPage() {
       </div>
 
       {editingItem && (
-        <AddToWatchlistModal
+        <DynamicAddToWatchlistModal
           item={editingItem}
           onClose={() => setEditingItem(null)}
           mode="edit"
@@ -447,7 +457,7 @@ export default function WatchlistPage() {
       )}
 
       {itemToDelete && (
-        <ConfirmationModal
+        <DynamicConfirmationModal
           isOpen={!!itemToDelete}
           onClose={() => !isDeletingItem && setItemToDelete(null)}
           onConfirm={handleConfirmDelete}

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Header from '../components/Header';
-import DetailsModal from '../components/DetailsModal';
-import AddToWatchlistModal from '../components/AddToWatchlistModal';
+import DynamicDetailsModal from '../components/DynamicDetailsModal';
+import DynamicAddToWatchlistModal from '../components/DynamicAddToWatchlistModal';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
 import { Input } from '../components/ui/input';
@@ -13,13 +13,18 @@ import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List, X, Edit, A
 import { useToast, useWatchlist, WatchlistProvider } from '../components/ToastContext';
 import { useSWRConfig } from 'swr';
 
-function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
+const MovieCard = React.memo(({ movie, onAddToWatchlist, onShowDetails }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const { watchlist } = useWatchlist();
-  const isInWatchlist = Array.isArray(watchlist) && watchlist.some((item) => 
-    item.movie_id === movie.id.toString() || item.movie_id === movie.id
+  
+  // Memoize watchlist check for performance
+  const isInWatchlist = useMemo(() => 
+    Array.isArray(watchlist) && watchlist.some((item) => 
+      item.movie_id === movie.id.toString() || item.movie_id === movie.id
+    ),
+    [watchlist, movie.id]
   );
 
   // Find the watchlist item if it exists, for editing
@@ -246,7 +251,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
       </div>
     </div>
   );
-}
+});
 
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -281,7 +286,8 @@ export default function SearchPage() {
   const [movieCount, setMovieCount] = useState(0);
   const [tvCount, setTvCount] = useState(0);
 
-  const handleSearch = async (query) => {
+  // Memoize expensive functions with useCallback
+  const handleSearch = useCallback(async (query) => {
     // Don't search if in text mode and there's no query and no filters are selected
     // For discovery modes, always search even if query is empty.
     if (discoveryMode === 'text' && !query.trim() && selectedGenreId === 'all' && minRating === '0') {
@@ -331,9 +337,9 @@ export default function SearchPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [discoveryMode, selectedGenreId, minRating, mediaFilter, sortOrder, page, SEARCH_LIMIT, excludeWatchlist, watchlist, addToast]);
 
-  const handleAddToWatchlist = (item) => {
+  const handleAddToWatchlist = useCallback((item) => {
     if (Array.isArray(watchlist) && watchlist.some(w => 
       w.movie_id === item.id.toString() || w.movie_id === item.id)) {
       // Item is already in watchlist - find it for editing
@@ -344,22 +350,24 @@ export default function SearchPage() {
       // New item - add to watchlist
       setWatchlistItem(item);
     }
-  };
+  }, [watchlist]);
 
-  const handleShowDetails = (item) => {
+  const handleShowDetails = useCallback((item) => {
     // Normalize the item from TMDB to match the structure DetailsModal expects,
     // which is similar to our database schema (e.g., using 'poster' instead of 'poster_path').
     setSelectedItem({ 
       ...item, 
       poster: item.poster_path, // Map poster_path to poster
       media_type: item.media_type || 'movie' });
-  };
+  }, []);
 
-  const handleSaveNewItemSuccess = async (savedItem) => {
+  const handleSaveNewItemSuccess = useCallback(async (savedItem) => {
     // Revalidate any SWR key that starts with /api/watchlist to ensure
     // the watchlist page gets the latest data.
     mutate((key) => typeof key === 'string' && key.startsWith('/api/watchlist'), undefined, { revalidate: true });
-  };
+    // Close the modal
+    setWatchlistItem(null);
+  }, [mutate]);
 
   // Fetch genres on component mount
   useEffect(() => {
@@ -644,7 +652,7 @@ export default function SearchPage() {
         )}
       </div>
       {selectedItem && (
-        <DetailsModal
+        <DynamicDetailsModal
           item={selectedItem}
           onClose={() => setSelectedItem(null)}
           onAddToWatchlist={() => handleAddToWatchlist(selectedItem)}
@@ -652,7 +660,7 @@ export default function SearchPage() {
         />
       )}
       {watchlistItem && (
-        <AddToWatchlistModal
+        <DynamicAddToWatchlistModal
           item={watchlistItem}
           mode={watchlistItem.mode || "add"}
           onClose={() => setWatchlistItem(null)}
