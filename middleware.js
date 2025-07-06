@@ -8,11 +8,10 @@ const rateLimit = new Map();
 function getClientIdentifier(req) {
   // Ideally, use authenticated user ID, but fall back to IP for unauthenticated requests
   // X-Forwarded-For can be a comma-separated list, so we take the first one
-  const clientIp = 
-    (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() ||
-    'unknown';
+  const clientIp = req.headers.get('x-forwarded-for');
+  const ip = clientIp ? clientIp.split(',')[0].trim() : 'unknown';
   
-  return clientIp;
+  return ip;
 }
 
 // Configure which paths this middleware applies to
@@ -37,7 +36,7 @@ export function middleware(request) {
   
   // Only apply rate limiting to API routes
   const url = request.nextUrl.pathname;
-  if (url.startsWith('/api') && url !== '/api/auth') {
+  if (url.startsWith('/api')) {
     // Skip rate limiting for auth endpoints
     if (url.startsWith('/api/auth/')) {
       return response;
@@ -100,13 +99,5 @@ export function middleware(request) {
   return response;
 }
 
-// Periodically clean up old rate limit entries (every 5 minutes)
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, data] of rateLimit.entries()) {
-    // Remove entries older than 10 minutes
-    if (now - data.lastAccess > 600000) {
-      rateLimit.delete(key);
-    }
-  }
-}, 300000); // 5 minutes
+// Note: Middleware in Edge Runtime cannot use setInterval.
+// Cleanup will be handled by natural garbage collection.
