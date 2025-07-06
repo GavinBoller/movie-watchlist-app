@@ -41,14 +41,14 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
     >
       <img src={posterUrl} alt={item.title} className="w-full aspect-[2/3] object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
       
-      <div className={`absolute top-2 right-2 ${item.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]'} text-white text-xs font-bold py-1 px-2 rounded-full z-20`}>
+      <div className={`absolute top-2 right-2 ${item.media_type === 'tv' ? 'bg-teal-600' : 'bg-purple-600'} text-white text-xs font-bold py-1 px-2 rounded-full z-20`}>
         {item.media_type === 'tv' ? 'TV' : 'Movie'}
       </div>
       
       {/* Always visible status indicator in top left */}
       <div className={`absolute top-2 left-2 z-20 text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap capitalize shadow-md ${
         item.status === 'watched' ? 'bg-green-800' :
-        item.status === 'watching' ? 'bg-yellow-800' : 'bg-blue-800'
+        item.status === 'watching' ? 'bg-amber-700' : 'bg-blue-800'
       }`}>
         {(item.status || '').replace('_', ' ')}
       </div>
@@ -100,7 +100,7 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
           <Button 
             size="sm" 
             onClick={(e) => { e.stopPropagation(); onEdit(item); }}
-            className="bg-blue-800 hover:bg-blue-700 text-white text-xs rounded-full py-1 px-3 min-w-[80px]" 
+            className="bg-indigo-700 hover:bg-indigo-600 text-white text-xs rounded-full py-1 px-3 min-w-[80px]" 
             aria-label="Edit"
           >
             <Edit className="h-3 w-3 mr-1" /> Edit

@@ -122,7 +122,7 @@ const DetailsModal = ({ item, onClose, onAddToWatchlist, isInWatchlist }) => {
                   onClick={handleAddToWatchlistClick}
                   className={`${
                     isInWatchlist
-                      ? 'bg-blue-800 hover:bg-blue-700'
+                      ? 'bg-indigo-700 hover:bg-indigo-600'
                       : 'bg-[#E50914] hover:bg-red-700'
                   }`}
                 >

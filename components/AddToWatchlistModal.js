@@ -237,7 +237,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
             />
             <div
               className={`absolute top-2 right-2 text-white text-xs font-bold py-1 px-2 rounded-full ${
-                item.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]'
+                item.media_type === 'tv' ? 'bg-teal-600' : 'bg-purple-600'
               }`}
             >
               {item.media_type === 'tv' ? 'TV' : 'Movie'}
@@ -292,7 +292,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
               </Label>
             </div>
             <div className={`flex items-center space-x-2 rounded-lg p-3 transition cursor-pointer
-              ${status === 'watching' ? 'bg-yellow-700 hover:bg-yellow-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
+              ${status === 'watching' ? 'bg-amber-700 hover:bg-amber-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
               <RadioGroupItem value="watching" id="status-watching" />
               <Label
                 htmlFor="status-watching"

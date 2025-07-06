@@ -58,7 +58,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
   const posterUrl = movie.poster_path
     ? `https://image.tmdb.org/t/p/w300${movie.poster_path}`
     : 'https://placehold.co/300x450?text=No+Image';
-  const badgeClass = movie.media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]';
+  const badgeClass = movie.media_type === 'tv' ? 'bg-teal-600' : 'bg-purple-600';
   const typeBadge = movie.media_type === 'tv' ? 'TV' : 'Movie';
   const displayInfo = movie.release_date || movie.first_air_date
     ? `${(movie.release_date || movie.first_air_date).split('-')[0]} • ${movie.genres || 'N/A'}`
@@ -100,7 +100,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
       {isInWatchlist && watchlistItem && (
         <div className={`absolute top-2 left-2 z-20 text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap capitalize shadow-md ${
           watchlistItem.status === 'watched' ? 'bg-green-800' :
-          watchlistItem.status === 'watching' ? 'bg-yellow-800' : 'bg-blue-800'
+          watchlistItem.status === 'watching' ? 'bg-amber-700' : 'bg-blue-800'
         }`}>
           {(watchlistItem.status || '').replace('_', ' ')}
         </div>
@@ -111,7 +111,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
         <div className="absolute bottom-2 right-2 z-10">
           <button
             type="button"
-            className={`${isInWatchlist ? 'bg-blue-600' : 'bg-[#E50914]'} text-white rounded-full p-2 shadow-lg touch-manipulation`}
+            className={`${isInWatchlist ? 'bg-indigo-700' : 'bg-[#E50914]'} text-white rounded-full p-2 shadow-lg touch-manipulation`}
             onClick={handleAddClick}
             aria-label={isInWatchlist ? "Edit in watchlist" : "Add to watchlist"}
           >
@@ -173,7 +173,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
               onClick={handleAddClick}
               className={`${
                 isInWatchlist 
-                  ? 'bg-blue-800 hover:bg-blue-700' 
+                  ? 'bg-indigo-700 hover:bg-indigo-600' 
                   : 'bg-[#E50914] hover:bg-red-700'
               } text-white text-sm font-medium rounded-lg py-2 px-3 transition flex items-center justify-center`}
             >
@@ -219,7 +219,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
               onClick={handleAddClick}
               className={`${
                 isInWatchlist 
-                  ? 'bg-blue-800 text-white hover:bg-blue-700' 
+                  ? 'bg-indigo-700 text-white hover:bg-indigo-600' 
                   : 'bg-[#E50914] text-white hover:bg-red-700'
               } text-xs rounded-full py-1 px-3 transition-colors flex-grow min-w-[120px]`}
             >
