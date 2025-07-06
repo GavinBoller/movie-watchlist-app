@@ -2,6 +2,7 @@ import '../styles/globals.css';
 import { ToastProvider, WatchlistProvider } from '../components/ToastContext';
 import Head from 'next/head';
 import { SessionProvider } from "next-auth/react"
+import { SWRConfig } from 'swr';
 
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }) {
   return (
@@ -17,11 +18,21 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         The SessionProvider will use this initial session if available.
       */}
       <SessionProvider session={session}>
-        <ToastProvider>
-          <WatchlistProvider>
-            <Component {...pageProps} />
-          </WatchlistProvider>
-        </ToastProvider>
+        <SWRConfig 
+          value={{
+            revalidateOnFocus: false,
+            dedupingInterval: 60000, // 1 minute
+            errorRetryCount: 3,
+            shouldRetryOnError: true,
+            focusThrottleInterval: 10000, // 10 seconds
+          }}
+        >
+          <ToastProvider>
+            <WatchlistProvider>
+              <Component {...pageProps} />
+            </WatchlistProvider>
+          </ToastProvider>
+        </SWRConfig>
       </SessionProvider>
     </>
   );

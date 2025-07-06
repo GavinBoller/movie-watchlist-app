@@ -1,14 +1,10 @@
 import axios from 'axios';
+import { secureApiHandler } from '../../lib/secureApiHandler';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
 
-export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    res.setHeader('Allow', ['GET']);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
-  }
-
+async function handler(req, res) {
   try {
     const response = await axios.get(`${TMDB_BASE_URL}/configuration/countries`, {
       params: {
@@ -22,3 +18,8 @@ export default async function handler(req, res) {
     res.status(error.response?.status || 500).json({ message: 'Failed to fetch countries from TMDB.' });
   }
 }
+
+export default secureApiHandler(handler, {
+  allowedMethods: ['GET'],
+  requireAuth: false
+});

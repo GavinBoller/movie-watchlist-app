@@ -9,7 +9,7 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List, X, Edit } from 'lucide-react'; 
+import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List, X, Edit, AlertCircle } from 'lucide-react'; 
 import { useToast, useWatchlist, WatchlistProvider } from '../components/ToastContext';
 import { useSWRConfig } from 'swr';
 
@@ -57,7 +57,7 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
   const title = movie.title || movie.name || 'Unknown';
   const posterUrl = movie.poster_path
     ? `https://image.tmdb.org/t/p/w300${movie.poster_path}`
-    : 'https://placehold.co/300x450?text=No+Image';
+    : '/placeholder-image.svg';
   const badgeClass = movie.media_type === 'tv' ? 'bg-teal-600' : 'bg-purple-600';
   const typeBadge = movie.media_type === 'tv' ? 'TV' : 'Movie';
   const displayInfo = movie.release_date || movie.first_air_date
@@ -89,6 +89,12 @@ function MovieCard({ movie, onAddToWatchlist, onShowDetails }) {
         alt={title}
         className="w-full aspect-[2/3] object-cover"
         loading="lazy"
+        width="300"
+        height="450"
+        onError={(e) => {
+          e.target.onerror = null;
+          e.target.src = '/placeholder-image.svg';
+        }}
       />
       <div
         className={`absolute top-2 right-2 ${badgeClass} text-white text-xs font-bold py-1 px-2 rounded-full z-20`}
@@ -445,7 +451,7 @@ export default function SearchPage() {
                 placeholder="Search for movies or TV shows..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)} 
-                className="w-full bg-gray-800 border-gray-700 text-white rounded-full py-2 pl-4 pr-10"
+                className="w-full bg-gray-800 border-gray-700 text-white rounded-full py-2 pl-4 pr-10 min-h-[44px]"
               />
               {searchQuery && (
                 <Button
@@ -477,13 +483,13 @@ export default function SearchPage() {
         <div className="mb-4 flex flex-wrap justify-center gap-2">
           {/* Genre Filter */}
           <Select onValueChange={setSelectedGenreId} value={selectedGenreId}>
-            <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700">
+            <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700 min-h-[44px]">
               <SelectValue placeholder="Select Genre" />
             </SelectTrigger>
             <SelectContent className="bg-gray-800 text-white border-gray-700">
-              <SelectItem value="all">All Genres</SelectItem>
+              <SelectItem value="all" className="min-h-[40px]">All Genres</SelectItem>
               {genres.map((genre) => (
-                <SelectItem key={genre.id} value={genre.id.toString()}>
+                <SelectItem key={genre.id} value={genre.id.toString()} className="min-h-[40px]">
                   {genre.name}
                 </SelectItem>
               ))}
@@ -492,30 +498,30 @@ export default function SearchPage() {
 
           {/* Minimum Rating Filter */}
           <Select onValueChange={setMinRating} value={minRating}>
-            <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700">
+            <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700 min-h-[44px]">
               <SelectValue placeholder="Min Rating" />
             </SelectTrigger>
             <SelectContent className="bg-gray-800 text-white border-gray-700">
-              <SelectItem value="0">Any Rating</SelectItem>
-              <SelectItem value="6">6+</SelectItem>
-              <SelectItem value="7">7+</SelectItem>
-              <SelectItem value="8">8+</SelectItem>
-              <SelectItem value="9">9+</SelectItem>
+              <SelectItem value="0" className="min-h-[40px]">Any Rating</SelectItem>
+              <SelectItem value="6" className="min-h-[40px]">6+</SelectItem>
+              <SelectItem value="7" className="min-h-[40px]">7+</SelectItem>
+              <SelectItem value="8" className="min-h-[40px]">8+</SelectItem>
+              <SelectItem value="9" className="min-h-[40px]">9+</SelectItem>
             </SelectContent>
           </Select>
 
           {/* Sort By Filter */}
           <Select onValueChange={setSortOrder} value={sortOrder}>
-            <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700">
+            <SelectTrigger className="w-full sm:w-[180px] bg-gray-800 border-gray-700 min-h-[44px]">
               <SelectValue placeholder="Sort By" />
             </SelectTrigger>
             <SelectContent className="bg-gray-800 text-white border-gray-700">
-              <SelectItem value="popularity.desc">Relevance</SelectItem>
-              <SelectItem value="release_date.desc">Release Date (Newest)</SelectItem>
-              <SelectItem value="release_date.asc">Release Date (Oldest)</SelectItem>
-              <SelectItem value="title.asc">Title (A-Z)</SelectItem>
-              <SelectItem value="title.desc">Title (Z-A)</SelectItem>
-              <SelectItem value="vote_average.desc">Rating (High-Low)</SelectItem>
+              <SelectItem value="popularity.desc" className="min-h-[40px]">Relevance</SelectItem>
+              <SelectItem value="release_date.desc" className="min-h-[40px]">Release Date (Newest)</SelectItem>
+              <SelectItem value="release_date.asc" className="min-h-[40px]">Release Date (Oldest)</SelectItem>
+              <SelectItem value="title.asc" className="min-h-[40px]">Title (A-Z)</SelectItem>
+              <SelectItem value="title.desc" className="min-h-[40px]">Title (Z-A)</SelectItem>
+              <SelectItem value="vote_average.desc" className="min-h-[40px]">Rating (High-Low)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -575,8 +581,36 @@ export default function SearchPage() {
             </div>
           </div>
         ) : searchResults.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-gray-300">No results found. Try a different search term.</p>
+          <div className="text-center py-12 bg-gray-800/30 rounded-lg max-w-md mx-auto">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-700 mb-4">
+              <AlertCircle className="h-8 w-8 text-gray-400" />
+            </div>
+            <h3 className="text-xl font-semibold text-white mb-2">No results found</h3>
+            <p className="text-gray-400 mb-6">
+              Try changing your search term or filters to find more content.
+            </p>
+            <div className="flex gap-3 justify-center">
+              {searchQuery && (
+                <Button 
+                  onClick={() => setSearchQuery('')} 
+                  className="bg-indigo-700 hover:bg-indigo-600"
+                >
+                  Clear search
+                </Button>
+              )}
+              {(mediaFilter !== 'all' || selectedGenreId !== 'all' || minRating !== '0') && (
+                <Button 
+                  onClick={() => {
+                    setMediaFilter('all');
+                    setSelectedGenreId('all');
+                    setMinRating('0');
+                  }} 
+                  className="bg-indigo-700 hover:bg-indigo-600"
+                >
+                  Reset filters
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">

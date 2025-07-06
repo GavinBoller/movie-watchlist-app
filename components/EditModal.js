@@ -18,7 +18,11 @@ export default function EditModal({ item, onSave, onClose }) {
   const { addToast } = useToast();
 
   // Fetch platforms dynamically using SWR
-  const { data: platformsData, error: platformsError } = useSWR('/api/platforms', fetcher);
+  const { data: platformsData, error: platformsError } = useSWR('/api/platforms', fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 3600000, // 1 hour (platforms rarely change)
+    keepPreviousData: true,
+  });
   const platforms = platformsData?.platforms || [];
   const isLoadingPlatforms = !platformsData && !platformsError;
 

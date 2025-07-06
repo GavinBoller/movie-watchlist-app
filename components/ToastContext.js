@@ -48,12 +48,13 @@ export function WatchlistProvider({ children }) {
   // Fetch ALL watchlist items for client-side operations like the 'exclude' filter on the search page.
   // A high limit is used to simulate fetching all items.
   const { data, error, mutate } = useSWR(shouldFetch ? '/api/watchlist?limit=9999' : null, fetcher, {
-    dedupingInterval: 60000,
-    revalidateOnFocus: true, // Revalidate when window regains focus
+    dedupingInterval: 120000, // 2 minutes
+    revalidateOnFocus: false, // Don't revalidate on window focus for better performance
     revalidateIfStale: true, // Revalidate if data is stale
+    revalidateOnMount: true, // Always revalidate on component mount
+    keepPreviousData: true, // Keep previous data to prevent UI flickering
     // onError can be simplified or made more user-friendly if needed
     onError: (err) => console.warn('Watchlist SWR Error (likely due to no session or API issue):', err.status, err.info),
-    onSuccess: (data) => console.log('Watchlist SWR Success:', { itemsCount: data?.items?.length || 0, total: data?.total }),
   });
 
   const watchlist = Array.isArray(data?.items)

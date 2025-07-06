@@ -1,9 +1,10 @@
 import { fetcher } from '../../utils/fetcher';
 import NodeCache from 'node-cache';
+import { secureApiHandler } from '../../lib/secureApiHandler';
 
 const cache = new NodeCache({ stdTTL: 86400 }); // Cache genres for 24 hours
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const cacheKey = 'tmdb_genres';
   const cached = cache.get(cacheKey);
 
@@ -30,6 +31,12 @@ export default async function handler(req, res) {
     cache.set(cacheKey, uniqueGenres);
     res.status(200).json(uniqueGenres);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch genres' });
+    console.error('Error fetching genres:', error);
+    throw error; // Let secureApiHandler handle this error
   }
 }
+
+export default secureApiHandler(handler, {
+  allowedMethods: ['GET'],
+  requireAuth: false // Genres can be publicly accessible
+});

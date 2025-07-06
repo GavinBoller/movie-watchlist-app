@@ -11,7 +11,12 @@ const DetailsModal = ({ item, onClose, onAddToWatchlist, isInWatchlist }) => {
   // Fetch all details, including country-specific watch providers, from our new API endpoint
   const { data: details, error } = useSWR(
     item ? `/api/details?id=${item.id}&media_type=${item.media_type}` : null,
-    fetcher
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 3600000, // 1 hour (movie/show details rarely change)
+      keepPreviousData: false,
+    }
   );
 
   const isLoading = !details && !error;
@@ -36,7 +41,7 @@ const DetailsModal = ({ item, onClose, onAddToWatchlist, isInWatchlist }) => {
 
   const posterUrl = details?.poster_path
     ? `https://image.tmdb.org/t/p/w500${details.poster_path}`
-    : 'https://placehold.co/500x750?text=No+Image';
+    : '/placeholder-image.svg';
 
   const handleAddToWatchlistClick = () => {
     onAddToWatchlist(details || item); // Use detailed data if available
@@ -72,6 +77,13 @@ const DetailsModal = ({ item, onClose, onAddToWatchlist, isInWatchlist }) => {
                 src={posterUrl}
                 alt={details.title || details.name}
                 className="w-48 h-auto rounded-lg object-cover mx-auto"
+                width="192"
+                height="288"
+                loading="eager"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = '/placeholder-image.svg';
+                }}
               />
             </div>
             <div className="flex-grow">

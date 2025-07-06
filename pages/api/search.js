@@ -1,6 +1,7 @@
 // search.js
 import { fetcher } from '../../utils/fetcher';
 import NodeCache from 'node-cache';
+import { sanitizeInput, validateInput } from '../../lib/security';
 
 // Cache for raw, multi-page TMDB search results. Longer TTL since this data is less specific.
 const rawSearchCache = new NodeCache({ stdTTL: 3600 * 6 }); // 6-hour TTL

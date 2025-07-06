@@ -1,7 +1,7 @@
 // watchlist.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import useSWR from 'swr';
 import Header from '../components/Header';
 import AddToWatchlistModal from '../components/AddToWatchlistModal';
@@ -10,19 +10,17 @@ import { Skeleton } from '../components/ui/skeleton';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Film, Tv, Edit, Trash2, List, ExternalLink, Clock, Star, X } from 'lucide-react';
+import { Film, Tv, Edit, Trash2, List, ExternalLink, Clock, Star, X, AlertCircle, RefreshCcw } from 'lucide-react';
 import { useToast } from '../components/ToastContext';
+import clientFetcher from '../utils/clientFetcher';
 
 const fetcher = async (url) => {
-  const res = await fetch(url);
-  if (!res.ok) {
-    const error = new Error('An error occurred while fetching the data.');
-    // Attach extra info to the error object.
-    error.info = await res.json().catch(() => ({})); // Handle cases where the error body isn't JSON
-    error.status = res.status;
+  try {
+    return await clientFetcher(url);
+  } catch (error) {
+    console.error("Error fetching data:", error);
     throw error;
   }
-  return res.json();
 };
 
 function WatchlistItemCard({ item, onEdit, onDelete }) {
@@ -30,7 +28,7 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
 
   const posterUrl = item.poster
     ? `https://image.tmdb.org/t/p/w300${item.poster}`
-    : 'https://placehold.co/300x450?text=No+Image';
+    : '/placeholder-image.svg';
 
   return (
     <div
@@ -39,7 +37,18 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
       onMouseLeave={() => setIsHovered(false)}
       onClick={() => onEdit(item)} // Clicking the card opens the edit modal
     >
-      <img src={posterUrl} alt={item.title} className="w-full aspect-[2/3] object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
+      <img 
+        src={posterUrl} 
+        alt={item.title} 
+        className="w-full aspect-[2/3] object-cover transition-transform duration-300 group-hover:scale-105" 
+        loading="lazy" 
+        width="300"
+        height="450"
+        onError={(e) => {
+          e.target.onerror = null;
+          e.target.src = '/placeholder-image.svg';
+        }}
+      />
       
       <div className={`absolute top-2 right-2 ${item.media_type === 'tv' ? 'bg-teal-600' : 'bg-purple-600'} text-white text-xs font-bold py-1 px-2 rounded-full z-20`}>
         {item.media_type === 'tv' ? 'TV' : 'Movie'}
@@ -87,7 +96,7 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
             <Button 
               asChild
               size="sm" 
-              className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 min-w-[80px]" 
+              className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 min-w-[80px] min-h-[40px]" 
               aria-label="View on IMDb"
               onClick={(e) => e.stopPropagation()}
             >
@@ -100,7 +109,7 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
           <Button 
             size="sm" 
             onClick={(e) => { e.stopPropagation(); onEdit(item); }}
-            className="bg-indigo-700 hover:bg-indigo-600 text-white text-xs rounded-full py-1 px-3 min-w-[80px]" 
+            className="bg-indigo-700 hover:bg-indigo-600 text-white text-xs rounded-full py-1 px-3 min-w-[80px] min-h-[40px]" 
             aria-label="Edit"
           >
             <Edit className="h-3 w-3 mr-1" /> Edit
@@ -109,7 +118,7 @@ function WatchlistItemCard({ item, onEdit, onDelete }) {
             size="sm" 
             variant="destructive" 
             onClick={(e) => { e.stopPropagation(); onDelete(item); }} 
-            className="bg-red-800 hover:bg-red-700 text-white text-xs rounded-full py-1 px-3 min-w-[80px]" 
+            className="bg-red-800 hover:bg-red-700 text-white text-xs rounded-full py-1 px-3 min-w-[80px] min-h-[40px]" 
             aria-label="Delete"
           >
             <Trash2 className="h-3 w-3 mr-1" /> Delete
@@ -129,6 +138,7 @@ export default function WatchlistPage() {
   const [page, setPage] = useState(1);
   const [editingItem, setEditingItem] = useState(null);
   const [itemToDelete, setItemToDelete] = useState(null);
+  const [isDeletingItem, setIsDeletingItem] = useState(false);
   const { addToast } = useToast();
 
   // Reset to page 1 whenever filters change to avoid viewing a non-existent page
@@ -137,7 +147,20 @@ export default function WatchlistPage() {
   }, [sortOrder, search, mediaFilter, statusFilter]);
 
   const swrKey = `/api/watchlist?sort_by=${sortOrder}&search=${search}&media=${mediaFilter}&status=${statusFilter}&page=${page}&limit=${WATCHLIST_LIMIT}`;
-  const { data, error, mutate } = useSWR(swrKey, fetcher);
+  const { data, error, mutate, isValidating } = useSWR(swrKey, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 10000, // 10 seconds (watchlist changes frequently by user)
+    keepPreviousData: true, // Maintain previous data while loading new data
+    onError: (err) => {
+      console.error("SWR Error:", err);
+      addToast({
+        id: Date.now(),
+        title: 'Error',
+        description: 'Failed to load your watchlist. Please try again.',
+        variant: 'destructive'
+      });
+    }
+  });
 
   const isLoading = !data && !error;
 
@@ -149,18 +172,61 @@ export default function WatchlistPage() {
 
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
+    
+    setIsDeletingItem(true);
     try {
       const res = await fetch('/api/watchlist', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: itemToDelete.id }),
       });
-      if (!res.ok) throw new Error('Failed to delete item.');
-      addToast({ id: Date.now(), title: 'Success', description: `"${itemToDelete.title}" removed from watchlist.` });
-      mutate();
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to delete item.');
+      }
+      
+      addToast({ 
+        id: Date.now(), 
+        title: 'Success', 
+        description: `"${itemToDelete.title}" removed from watchlist.` 
+      });
+      
+      // Optimistically update the UI
+      mutate(
+        (currentData) => {
+          if (!currentData) return null;
+          return {
+            ...currentData,
+            items: currentData.items.filter(item => item.id !== itemToDelete.id),
+            total: currentData.total - 1,
+            filterCounts: {
+              ...currentData.filterCounts,
+              media: {
+                ...currentData.filterCounts.media,
+                [itemToDelete.media_type]: currentData.filterCounts.media[itemToDelete.media_type] - 1,
+                all: currentData.filterCounts.media.all - 1
+              },
+              status: {
+                ...currentData.filterCounts.status,
+                [itemToDelete.status]: currentData.filterCounts.status[itemToDelete.status] - 1,
+                all: currentData.filterCounts.status.all - 1
+              }
+            }
+          };
+        },
+        true // Revalidate data
+      );
     } catch (err) {
-      addToast({ id: Date.now(), title: 'Error', description: err.message, variant: 'destructive' });
+      console.error('Delete error:', err);
+      addToast({ 
+        id: Date.now(), 
+        title: 'Error', 
+        description: err.message, 
+        variant: 'destructive' 
+      });
     } finally {
+      setIsDeletingItem(false);
       setItemToDelete(null);
     }
   };
@@ -201,7 +267,7 @@ export default function WatchlistPage() {
               placeholder="Search your watchlist..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-gray-800 border-gray-700 text-white py-2 pl-4 pr-10" // Added pr-10 for button space
+              className="w-full bg-gray-800 border-gray-700 text-white py-2 pl-4 pr-10 min-h-[44px]" // Added pr-10 for button space
             />
             {search && ( // Only show the clear button if there's text in the search field
               <Button
@@ -216,42 +282,45 @@ export default function WatchlistPage() {
             )}
           </div>
           <Select onValueChange={setSortOrder} defaultValue={sortOrder}>
-            <SelectTrigger className="w-full md:w-[200px] bg-gray-800 border-gray-700">
+            <SelectTrigger className="w-full md:w-[200px] bg-gray-800 border-gray-700 min-h-[44px]">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent className="bg-gray-800 text-white border-gray-700">
-              <SelectItem value="added_at_desc">Recently Added</SelectItem>
-              <SelectItem value="release_date_desc">Release Date (Newest)</SelectItem>
-              <SelectItem value="release_date_asc">Release Date (Oldest)</SelectItem>
-              <SelectItem value="title_asc">Title (A-Z)</SelectItem>
-              <SelectItem value="title_desc">Title (Z-A)</SelectItem>
-              <SelectItem value="vote_average_desc">Rating (High-Low)</SelectItem>
+              <SelectItem value="added_at_desc" className="min-h-[40px]">Recently Added</SelectItem>
+              <SelectItem value="release_date_desc" className="min-h-[40px]">Release Date (Newest)</SelectItem>
+              <SelectItem value="release_date_asc" className="min-h-[40px]">Release Date (Oldest)</SelectItem>
+              <SelectItem value="title_asc" className="min-h-[40px]">Title (A-Z)</SelectItem>
+              <SelectItem value="title_desc" className="min-h-[40px]">Title (Z-A)</SelectItem>
+              <SelectItem value="vote_average_desc" className="min-h-[40px]">Rating (High-Low)</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="mb-4 flex justify-center gap-2 flex-wrap">
-          <Button onClick={() => setMediaFilter('all')} className={`flex items-center gap-1 ${mediaFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}>
+          <Button onClick={() => setMediaFilter('all')} className={`flex items-center gap-1 ${mediaFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'} ${isValidating && !isLoading ? 'opacity-80' : ''}`}>
             <List className="h-4 w-4" /> All ({data?.filterCounts?.media?.all || 0})
+            {isValidating && !isLoading && <span className="ml-1 h-2 w-2 rounded-full bg-white animate-pulse"></span>}
           </Button>
-          <Button onClick={() => setMediaFilter('movie')} className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}>
+          <Button onClick={() => setMediaFilter('movie')} className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'} ${isValidating && !isLoading ? 'opacity-80' : ''}`}>
             <Film className="h-4 w-4" /> Movies ({data?.filterCounts?.media?.movie || 0})
+            {isValidating && !isLoading && <span className="ml-1 h-2 w-2 rounded-full bg-white animate-pulse"></span>}
           </Button>
-          <Button onClick={() => setMediaFilter('tv')} className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}>
+          <Button onClick={() => setMediaFilter('tv')} className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'} ${isValidating && !isLoading ? 'opacity-80' : ''}`}>
             <Tv className="h-4 w-4" /> TV ({data?.filterCounts?.media?.tv || 0})
+            {isValidating && !isLoading && <span className="ml-1 h-2 w-2 rounded-full bg-white animate-pulse"></span>}
           </Button>
         </div>
         <div className="mb-6 flex justify-center gap-2 flex-wrap">
-          <Button onClick={() => setStatusFilter('all')} className={`text-xs h-8 ${statusFilter === 'all' ? 'bg-gray-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
+          <Button onClick={() => setStatusFilter('all')} className={`text-xs h-8 min-h-[40px] min-w-[90px] ${statusFilter === 'all' ? 'bg-gray-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
             All Status ({data?.filterCounts?.status?.all || 0})
           </Button>
-          <Button onClick={() => setStatusFilter('to_watch')} className={`text-xs h-8 ${statusFilter === 'to_watch' ? 'bg-blue-800' : 'bg-gray-800 hover:bg-gray-700'}`}>
+          <Button onClick={() => setStatusFilter('to_watch')} className={`text-xs h-8 min-h-[40px] min-w-[90px] ${statusFilter === 'to_watch' ? 'bg-blue-800' : 'bg-gray-800 hover:bg-gray-700'}`}>
             To Watch ({data?.filterCounts?.status?.to_watch || 0})
           </Button>
-          <Button onClick={() => setStatusFilter('watching')} className={`text-xs h-8 ${statusFilter === 'watching' ? 'bg-yellow-800' : 'bg-gray-800 hover:bg-gray-700'}`}>
+          <Button onClick={() => setStatusFilter('watching')} className={`text-xs h-8 min-h-[40px] min-w-[90px] ${statusFilter === 'watching' ? 'bg-yellow-800' : 'bg-gray-800 hover:bg-gray-700'}`}>
             Watching ({data?.filterCounts?.status?.watching || 0})
           </Button>
-          <Button onClick={() => setStatusFilter('watched')} className={`text-xs h-8 ${statusFilter === 'watched' ? 'bg-green-800' : 'bg-gray-800 hover:bg-gray-700'}`}>
+          <Button onClick={() => setStatusFilter('watched')} className={`text-xs h-8 min-h-[40px] min-w-[90px] ${statusFilter === 'watched' ? 'bg-green-800' : 'bg-gray-800 hover:bg-gray-700'}`}>
             Watched ({data?.filterCounts?.status?.watched || 0})
           </Button>
         </div>
@@ -267,11 +336,74 @@ export default function WatchlistPage() {
             ))}
           </div>
         ) : error ? (
-          <div className="text-center text-red-500">Failed to load watchlist.</div>
+          <div className="text-center py-10">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-900/20 mb-4">
+              <AlertCircle className="h-8 w-8 text-red-500" />
+            </div>
+            <h3 className="text-xl font-semibold text-white mb-2">Failed to load your watchlist</h3>
+            <p className="text-gray-400 mb-6 max-w-md mx-auto">
+              {error.info?.message || error.message || "There was a problem loading your watchlist. Please try again."}
+            </p>
+            <Button 
+              onClick={() => mutate()} 
+              className="bg-indigo-700 hover:bg-indigo-600 flex items-center"
+              disabled={isValidating}
+            >
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              {isValidating ? 'Retrying...' : 'Try Again'}
+            </Button>
+          </div>
         ) : data.items.length === 0 ? (
-          <div className="text-center text-gray-400 py-8">
-            <p>Your watchlist is empty.</p>
-            <p>Use the search page to find movies and TV shows to add.</p>
+          <div className="text-center py-12 bg-gray-800/30 rounded-lg max-w-md mx-auto">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-700 mb-4">
+              {search || mediaFilter !== 'all' || statusFilter !== 'all' ? (
+                <AlertCircle className="h-8 w-8 text-gray-400" />
+              ) : (
+                <List className="h-8 w-8 text-gray-400" />
+              )}
+            </div>
+            {search || mediaFilter !== 'all' || statusFilter !== 'all' ? (
+              <>
+                <h3 className="text-xl font-semibold text-white mb-2">No results found</h3>
+                <p className="text-gray-400 mb-6">
+                  Try changing your search term or filters to find items in your watchlist.
+                </p>
+                <div className="flex gap-3 justify-center">
+                  {search && (
+                    <Button 
+                      onClick={() => setSearch('')} 
+                      className="bg-indigo-700 hover:bg-indigo-600"
+                    >
+                      Clear search
+                    </Button>
+                  )}
+                  {(mediaFilter !== 'all' || statusFilter !== 'all') && (
+                    <Button 
+                      onClick={() => {
+                        setMediaFilter('all');
+                        setStatusFilter('all');
+                      }} 
+                      className="bg-indigo-700 hover:bg-indigo-600"
+                    >
+                      Reset filters
+                    </Button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="text-xl font-semibold text-white mb-2">Your watchlist is empty</h3>
+                <p className="text-gray-400 mb-6">
+                  Use the search page to find movies and TV shows to add to your watchlist.
+                </p>
+                <Button 
+                  onClick={() => window.location.href = '/search'} 
+                  className="bg-[#E50914] hover:bg-[#f6121d]"
+                >
+                  Find something to watch
+                </Button>
+              </>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -317,10 +449,11 @@ export default function WatchlistPage() {
       {itemToDelete && (
         <ConfirmationModal
           isOpen={!!itemToDelete}
-          onClose={() => setItemToDelete(null)}
+          onClose={() => !isDeletingItem && setItemToDelete(null)}
           onConfirm={handleConfirmDelete}
           title="Confirm Deletion"
           message={`Are you sure you want to permanently delete "${itemToDelete.title}" from your watchlist?`}
+          isLoading={isDeletingItem}
         />
       )}
     </div>

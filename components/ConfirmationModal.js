@@ -1,5 +1,5 @@
 import { Button } from './ui/button';
-import { AlertTriangle, Trash2 } from 'lucide-react';
+import { AlertTriangle, Trash2, Loader2 } from 'lucide-react';
 
 export default function ConfirmationModal({
   isOpen,
@@ -7,6 +7,7 @@ export default function ConfirmationModal({
   onConfirm,
   title,
   message,
+  isLoading = false,
 }) {
   if (!isOpen) {
     return null;
@@ -14,7 +15,7 @@ export default function ConfirmationModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div
@@ -29,12 +30,31 @@ export default function ConfirmationModal({
         </div>
         <p className="text-gray-300 mb-6">{message}</p>
         <div className="flex gap-3 justify-end">
-          <Button onClick={onClose} variant="outline" className="bg-gray-700 border-gray-600 hover:bg-gray-600">
+          <Button 
+            onClick={onClose} 
+            variant="outline" 
+            className="bg-gray-700 border-gray-600 hover:bg-gray-600 min-h-[44px] min-w-[100px]"
+            disabled={isLoading}
+          >
             Cancel
           </Button>
-          <Button onClick={onConfirm} variant="destructive" className="bg-red-700 hover:bg-red-600 flex items-center">
-            <Trash2 className="h-4 w-4 mr-2" />
-            Confirm Delete
+          <Button 
+            onClick={onConfirm} 
+            variant="destructive" 
+            className="bg-red-700 hover:bg-red-600 flex items-center min-h-[44px] min-w-[160px] justify-center"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Confirm Delete
+              </>
+            )}
           </Button>
         </div>
       </div>

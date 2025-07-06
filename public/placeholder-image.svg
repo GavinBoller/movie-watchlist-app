@@ -1,0 +1,5 @@
+<svg width="300" height="450" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="450" fill="#2d3748" />
+  <text x="150" y="225" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#a0aec0">No Image</text>
+  <text x="150" y="255" font-family="Arial, sans-serif" font-size="16" text-anchor="middle" fill="#a0aec0">Available</text>
+</svg>

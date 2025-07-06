@@ -1,27 +1,13 @@
 import { neon } from '@neondatabase/serverless';
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "./auth/[...nextauth]"
+import { secureApiHandler } from '../../lib/secureApiHandler';
+import { platformCreateSchema, platformUpdateSchema, platformDeleteSchema } from '../../lib/schemas/platforms';
 
-export default async function handler(req, res) {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-
+async function handler(req, res) {
   const sql = neon(process.env.DATABASE_URL);
-  const session = await getServerSession(req, res, authOptions);
-
-  if (!session || !session.user || !session.user.id) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  const authenticatedUserId = session.user.id;
+  const authenticatedUserId = req.session.user.id;
 
   try {
     if (req.method === 'GET') {
-      // userId from query is no longer needed as we use authenticatedUserId
-      // const { userId } = req.query;
-      // if (!userId) {
-      //   return res.status(400).json({ error: 'userId is required' });
-      // }
       const platforms = await sql`
         SELECT id, name, logo_url, is_default
         FROM platforms
@@ -30,19 +16,8 @@ export default async function handler(req, res) {
       `;
       res.status(200).json(platforms);
     } else if (req.method === 'POST') {
-      // userId from body is no longer needed
       const { name, logoUrl, isDefault } = req.body;
-      // --- Start Input Validation ---
-      if (!name || typeof name !== 'string' || name.trim() === '') {
-        return res.status(400).json({ error: 'Platform name (non-empty string) is required' });
-      }
-      if (logoUrl && typeof logoUrl !== 'string') {
-        return res.status(400).json({ error: 'logoUrl, if provided, must be a string' });
-      }
-      if (isDefault !== undefined && typeof isDefault !== 'boolean') {
-        return res.status(400).json({ error: 'isDefault, if provided, must be a boolean' });
-      }
-      // --- End Input Validation ---
+
       // Check for duplicate platform name
       const existing = await sql`
         SELECT id FROM platforms
@@ -79,22 +54,8 @@ export default async function handler(req, res) {
       `;
       res.status(201).json(platform);
     } else if (req.method === 'PUT') {
-      // userId from body is no longer needed
       const { id, name, logoUrl, isDefault } = req.body;
-      // --- Start Input Validation ---
-      if (!id) {
-        return res.status(400).json({ error: 'Platform ID is required' });
-      }
-      if (!name || typeof name !== 'string' || name.trim() === '') {
-        return res.status(400).json({ error: 'Platform name (non-empty string) is required' });
-      }
-      if (logoUrl && typeof logoUrl !== 'string') {
-        return res.status(400).json({ error: 'logoUrl, if provided, must be a string' });
-      }
-      if (isDefault !== undefined && typeof isDefault !== 'boolean') {
-        return res.status(400).json({ error: 'isDefault, if provided, must be a boolean' });
-      }
-      // --- End Input Validation ---
+
       // Check for duplicate platform name (excluding current platform)
       const existing = await sql`
         SELECT id FROM platforms
@@ -137,12 +98,7 @@ export default async function handler(req, res) {
     } else if (req.method === 'DELETE') {
       // Ensure delete is also scoped by user
       const { id } = req.body; // id of the platform to delete
-      if (!id) {
-        return res.status(400).json({ error: 'Platform ID is required for deletion' });
-      }
-      // --- Start Input Validation ---
-      // ID presence is already checked above.
-      // --- End Input Validation ---
+
       const [platform] = await sql`
         DELETE FROM platforms
         WHERE id = ${id} AND user_id = ${authenticatedUserId}
@@ -152,12 +108,22 @@ export default async function handler(req, res) {
         return res.status(404).json({ error: 'Platform not found' });
       }
       res.status(200).json({ message: 'Platform deleted' });
-    } else {
-      res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
-      res.status(405).json({ error: `Method ${req.method} Not Allowed` });
     }
   } catch (error) {
     console.error('API error:', error);
-    res.status(500).json({ error: 'Internal Server Error', details: error.message });
+    throw error; // Let secureApiHandler handle this error
   }
 }
+
+export default secureApiHandler(handler, {
+  allowedMethods: ['GET', 'POST', 'PUT', 'DELETE'],
+  requireAuth: true,
+  validationSchema: (req) => {
+    switch (req.method) {
+      case 'POST': return platformCreateSchema;
+      case 'PUT': return platformUpdateSchema;
+      case 'DELETE': return platformDeleteSchema;
+      default: return null; // No validation for GET
+    }
+  }
+});

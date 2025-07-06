@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from './auth/[...nextauth]';
 import axios from 'axios';
+import { sanitizeInput, validateInput } from '../../lib/security';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
@@ -11,14 +12,23 @@ export default async function handler(req, res) {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
 
-  const { id, media_type } = req.query;
+  // Validate and sanitize query parameters
+  const { id, media_type } = sanitizeInput(req.query);
 
-  if (!id || !media_type) {
-    return res.status(400).json({ message: 'Missing id or media_type parameter.' });
-  }
+  // Validate required parameters
+  const validation = validateInput(
+    { id, media_type },
+    {
+      id: { required: true },
+      media_type: { type: 'string', enum: ['movie', 'tv'], required: true }
+    }
+  );
 
-  if (media_type !== 'movie' && media_type !== 'tv') {
-    return res.status(400).json({ message: 'Invalid media_type. Must be "movie" or "tv".' });
+  if (!validation.isValid) {
+    return res.status(400).json({ 
+      error: 'Invalid parameters', 
+      details: validation.errors 
+    });
   }
 
   const session = await getServerSession(req, res, authOptions);
@@ -37,6 +47,7 @@ export default async function handler(req, res) {
           api_key: TMDB_API_KEY,
           append_to_response: 'credits,videos,external_ids,watch/providers',
         },
+        timeout: 5000, // Set a timeout for the request
       }
     );
 
@@ -48,10 +59,31 @@ export default async function handler(req, res) {
     return res.status(200).json({ ...details, watch_providers: watchProviders });
   } catch (error) {
     console.error(`Error fetching TMDB details for ${media_type} ID ${id}:`, error.message);
+    
+    // Don't expose sensitive details in production
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     if (error.response) {
-      console.error('TMDB API Error Response:', error.response.data);
-      return res.status(error.response.status).json(error.response.data);
+      // TMDB API returned an error
+      const statusCode = error.response.status;
+      const errorMessage = isProduction 
+        ? 'Error fetching data from TMDB' 
+        : error.response.data?.status_message || 'TMDB API error';
+        
+      return res.status(statusCode).json({ 
+        error: errorMessage,
+        code: isProduction ? undefined : error.response.data?.status_code
+      });
     }
-    return res.status(500).json({ message: 'Failed to fetch details from TMDB.' });
+    
+    if (error.code === 'ECONNABORTED') {
+      // Request timeout
+      return res.status(504).json({ error: 'Request to external API timed out' });
+    }
+    
+    // Generic server error
+    return res.status(500).json({ 
+      error: 'Failed to fetch details from external API' 
+    });
   }
 }

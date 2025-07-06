@@ -37,7 +37,12 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
   // Use SWR to fetch full details, which includes watch providers, unifying the data source.
   const { data: details, error: detailsError } = useSWR(
     tmdbId && item?.media_type ? `/api/details?id=${tmdbId}&media_type=${item.media_type}` : null,
-    fetcher
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 3600000, // 1 hour (movie/show details rarely change)
+      keepPreviousData: false,
+    }
   );
 
   const providers = details?.watch_providers;
@@ -194,7 +199,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
   const posterValue = item[posterFieldName];
   const posterUrl = posterValue
     ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${posterValue}`
-    : 'https://placehold.co/154x231?text=No+Image';
+    : '/placeholder-image.svg';
 
   const actionText = isEditing ? 'Update' : 'Add to';
   const buttonText = isLoading
@@ -234,6 +239,13 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
               src={posterUrl}
               alt={item.title || item.name}
               className={`rounded ${isMobile ? 'h-36' : 'w-24'}`}
+              width={isMobile ? "96" : "96"}
+              height={isMobile ? "144" : "144"}
+              loading="eager"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = '/placeholder-image.svg';
+              }}
             />
             <div
               className={`absolute top-2 right-2 text-white text-xs font-bold py-1 px-2 rounded-full ${
@@ -331,7 +343,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
                   type="date"
                   id="watch-date"
                   className={`w-full bg-gray-700 text-white rounded-lg pl-10 pr-3 py-3 border-gray-600 ${
-                    isMobile ? 'text-base' : ''
+                    isMobile ? 'text-base min-h-[44px]' : ''
                   }`}
                   value={watchedDate}
                   onChange={(e) => setWatchedDate(e.target.value)}
@@ -349,7 +361,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
                 min="1"
                 value={seasonNumber}
                 onChange={e => setSeasonNumber(e.target.value)}
-                className="p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-sm w-32"
+                className="p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 text-sm w-32 min-h-[40px]"
                 placeholder="e.g. 1"
               />
             </div>
@@ -368,13 +380,13 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
                   value={selectedPlatformId}
                   onValueChange={(value) => setSelectedPlatformId(value !== 'none' ? value : 'none')}
                 >
-                  <SelectTrigger className="w-full bg-gray-800 border-gray-600 text-white">
+                  <SelectTrigger className="w-full bg-gray-800 border-gray-600 text-white min-h-[44px]">
                     <SelectValue placeholder="Select platform (optional)" />
                   </SelectTrigger>
                   <SelectContent className="bg-gray-800 border-gray-600 text-white">
-                    <SelectItem value="none">No platform</SelectItem>
+                    <SelectItem value="none" className="min-h-[40px]">No platform</SelectItem>
                     {platforms.map((platform) => (
-                      <SelectItem key={platform.id} value={platform.id.toString()}>
+                      <SelectItem key={platform.id} value={platform.id.toString()} className="min-h-[40px]">
                         {platform.name} {platform.is_default && '(Default)'}
                       </SelectItem>
                     ))}
@@ -391,7 +403,7 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
               id="watch-notes"
               rows={3}
               className={`w-full bg-gray-700 text-white rounded-lg px-3 py-2 border-gray-600 ${
-                isMobile ? 'text-base' : ''
+                isMobile ? 'text-base min-h-[80px]' : ''
               }`}
               placeholder={`Add your thoughts about the ${item.media_type === 'tv' ? 'show' : 'movie'}...`}
               value={notes}
@@ -402,8 +414,9 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
             <Button
               type="submit"
               disabled={isLoading || isPlatformsLoading}
-              className={`w-full ${isMobile ? 'py-3 text-base' : ''} bg-[#E50914] hover:bg-[#f6121d] text-white`}
+              className={`w-full ${isMobile ? 'py-3 text-base' : ''} bg-[#E50914] hover:bg-[#f6121d] text-white min-h-[44px] flex items-center justify-center`}
             >
+              {isLoading && <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
               {buttonText}
             </Button>
           </div>

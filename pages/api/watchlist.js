@@ -3,6 +3,7 @@ import { Pool, types } from '@neondatabase/serverless';
 import NodeCache from 'node-cache';
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "./auth/[...nextauth]" // Adjust path if needed
+import { sanitizeInput, validateInput } from '../../lib/security';
 
 // Prevent node-postgres from parsing DATE columns into JS Date objects.
 // This returns them as "YYYY-MM-DD" strings, avoiding timezone issues.
@@ -36,10 +37,49 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {      
-      const { page = 1, limit = 50, search = '', media = 'all', status = 'all', sort_by = 'added_at_desc' } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(limit);
-      const cacheKey = `watchlist:${userId}:${page}:${limit}:${media}:${status}:${search}:${sort_by}`;
-      const timerLabel = `Database query page ${page} ${Date.now()}`;
+      // Validate and sanitize query parameters
+      const { 
+        page = '1', 
+        limit = '50', 
+        search = '', 
+        media = 'all', 
+        status = 'all', 
+        sort_by = 'added_at_desc' 
+      } = req.query;
+
+      // Validate parameters
+      const validation = validateInput(
+        { page, limit, media, status, sort_by },
+        {
+          page: { type: 'string', pattern: '^[0-9]+$', required: true },
+          limit: { type: 'string', pattern: '^[0-9]+$', required: true },
+          media: { type: 'string', enum: ['all', 'movie', 'tv'], required: true },
+          status: { type: 'string', enum: ['all', 'to_watch', 'watching', 'watched'], required: true },
+          sort_by: { 
+            type: 'string', 
+            enum: ['added_at_desc', 'release_date_desc', 'release_date_asc', 'title_asc', 'title_desc', 'vote_average_desc'], 
+            required: true 
+          }
+        }
+      );
+
+      if (!validation.isValid) {
+        return res.status(400).json({ error: 'Invalid query parameters', details: validation.errors });
+      }
+
+      // Safely parse to integers
+      const pageNum = parseInt(page, 10);
+      const limitNum = parseInt(limit, 10);
+
+      // Prevent abuse with excessive limit values
+      const safeLimit = Math.min(limitNum, 100); // Cap at 100 items per page
+      const offset = (pageNum - 1) * safeLimit;
+      
+      // Sanitize search input to prevent SQL injection and XSS
+      const sanitizedSearch = sanitizeInput(search);
+      
+      const cacheKey = `watchlist:${userId}:${pageNum}:${safeLimit}:${media}:${status}:${sanitizedSearch}:${sort_by}`;
+      const timerLabel = `Database query page ${pageNum} ${Date.now()}`;
       
       const cachedResult = cache.get(cacheKey);
       if (cachedResult) {
@@ -56,17 +96,21 @@ export default async function handler(req, res) {
         let queryParams = [userId];
         let paramIndex = 2; // Start parameter index for dynamic clauses
 
-        // --- Search Filter (The Fix is Here) ---
-        if (search.trim()) {
-            const searchTerm = search.trim();
+        // --- Search Filter with SQL Injection Prevention ---
+        if (sanitizedSearch.trim()) {
+            const searchTerm = sanitizedSearch.trim();
             
-            // This is the key change: combine Full-Text Search (FTS) with a simple ILIKE.
-            // FTS is great for relevance but fails on "stop words" like "You".
-            // ILIKE provides a fallback for exact substring matches, ensuring terms like "You" are found.
+            // Using placeholder parameters to prevent SQL injection
             whereClauses.push(`(title_tsv @@ to_tsquery('english', $${paramIndex++}) OR title ILIKE $${paramIndex++})`);
             
             // Prepare parameters for both search methods
-            queryParams.push(searchTerm.split(' ').filter(w => w).join(' & ')); // For to_tsquery
+            // Use a more secure approach for to_tsquery input
+            const tsQueryParam = searchTerm.split(' ')
+                .filter(w => w && w.length > 0)
+                .map(w => w.replace(/[^\w\s]/g, '') + ':*') // Remove special chars and add prefix search
+                .join(' & ');
+            
+            queryParams.push(tsQueryParam); // For to_tsquery
             queryParams.push(`%${searchTerm}%`); // For ILIKE
         }
 
@@ -140,6 +184,9 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      // Sanitize all inputs to prevent XSS
+      const sanitizedBody = sanitizeInput(req.body);
+      
       const {
         movie_id, 
         title,
@@ -157,25 +204,32 @@ export default async function handler(req, res) {
         genres,
         runtime,
         watched_date,
-      } = req.body;
+      } = sanitizedBody;
 
-      if (!movie_id || typeof movie_id !== 'string' && typeof movie_id !== 'number') {
+      // Enhanced validation with detailed schema
+      const validation = validateInput(
+        sanitizedBody,
+        {
+          movie_id: { required: true }, // Accept string or number
+          title: { type: 'string', required: true, minLength: 1, maxLength: 500 },
+          media_type: { type: 'string', enum: ['movie', 'tv'] },
+          status: { type: 'string', enum: ['to_watch', 'watching', 'watched'] },
+          vote_average: { type: 'number', min: 0, max: 10 },
+          runtime: { type: 'number', min: 0 },
+          // Optional fields don't need detailed validation
+        }
+      );
+
+      if (!validation.isValid) {
+        return res.status(400).json({ 
+          error: 'Invalid input data', 
+          details: validation.errors 
+        });
+      }
+
+      // Validate movie_id format
+      if (typeof movie_id !== 'string' && typeof movie_id !== 'number') {
         return res.status(400).json({ error: 'Valid movie_id (string or number) is required.' });
-      }
-      if (!title || typeof title !== 'string' || title.trim() === '') {
-        return res.status(400).json({ error: 'Title (non-empty string) is required.' });
-      }
-      if (media_type && !['movie', 'tv'].includes(media_type)) {
-        return res.status(400).json({ error: "Invalid media_type. Must be 'movie' or 'tv'." });
-      }
-      if (status && !['to_watch', 'watching', 'watched'].includes(status)) {
-        return res.status(400).json({ error: "Invalid status. Must be 'to_watch', 'watching', or 'watched'." });
-      }
-      if (vote_average !== undefined && vote_average !== null && (typeof vote_average !== 'number' || vote_average < 0 || vote_average > 10)) {
-        return res.status(400).json({ error: 'Invalid vote_average. Must be a number between 0 and 10.' });
-      }
-      if (runtime !== undefined && runtime !== null && (typeof runtime !== 'number' || runtime < 0)) {
-        return res.status(400).json({ error: 'Invalid runtime. Must be a non-negative number.' });
       }
       console.log(`Adding item ${movie_id} to watchlist`);
 
@@ -230,6 +284,9 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
+      // Sanitize all inputs to prevent XSS
+      const sanitizedBody = sanitizeInput(req.body);
+      
       const {
         id,
         title,
@@ -247,25 +304,27 @@ export default async function handler(req, res) {
         seasons,
         episodes,
         genres,
-      } = req.body;
+      } = sanitizedBody;
 
-      if (!id) {
-        return res.status(400).json({ error: 'Watchlist item ID is required for updating.' });
-      }
-      if (title !== undefined && (typeof title !== 'string' || title.trim() === '')) {
-        return res.status(400).json({ error: 'Title, if provided, must be a non-empty string.' });
-      }
-      if (media_type && !['movie', 'tv'].includes(media_type)) {
-        return res.status(400).json({ error: "Invalid media_type. Must be 'movie' or 'tv'." });
-      }
-      if (status && !['to_watch', 'watching', 'watched'].includes(status)) {
-        return res.status(400).json({ error: "Invalid status. Must be 'to_watch', 'watching', or 'watched'." });
-      }
-      if (vote_average !== undefined && vote_average !== null && (typeof vote_average !== 'number' || vote_average < 0 || vote_average > 10)) {
-        return res.status(400).json({ error: 'Invalid vote_average. Must be a number between 0 and 10.' });
-      }
-      if (runtime !== undefined && runtime !== null && (typeof runtime !== 'number' || runtime < 0)) {
-        return res.status(400).json({ error: 'Invalid runtime. Must be a non-negative number.' });
+      // Enhanced validation with detailed schema
+      const validation = validateInput(
+        sanitizedBody,
+        {
+          id: { required: true }, // Accept any non-null value for ID check
+          title: { type: 'string', minLength: 1, maxLength: 500 },
+          media_type: { type: 'string', enum: ['movie', 'tv'] },
+          status: { type: 'string', enum: ['to_watch', 'watching', 'watched'] },
+          vote_average: { type: 'number', min: 0, max: 10 },
+          runtime: { type: 'number', min: 0 },
+          // Optional fields don't need detailed validation
+        }
+      );
+
+      if (!validation.isValid) {
+        return res.status(400).json({ 
+          error: 'Invalid input data', 
+          details: validation.errors 
+        });
       }
 
       const client = await pool.connect();
@@ -328,9 +387,23 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'DELETE') {
-      const { id } = req.body;
-      if (!id) {
-        return res.status(400).json({ error: 'Watchlist item ID is required for deletion.' });
+      // Sanitize all inputs to prevent XSS
+      const sanitizedBody = sanitizeInput(req.body);
+      const { id } = sanitizedBody;
+
+      // Validate the ID
+      const validation = validateInput(
+        { id },
+        {
+          id: { required: true }
+        }
+      );
+
+      if (!validation.isValid) {
+        return res.status(400).json({ 
+          error: 'Invalid input data', 
+          details: validation.errors 
+        });
       }
 
       const client = await pool.connect();
@@ -353,9 +426,29 @@ export default async function handler(req, res) {
     }
 
     res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
-    return res.status(405).end();
+    return res.status(405).json({ error: 'Method not allowed', message: `The ${req.method} method is not supported for this endpoint.` });
   } catch (error) {
     console.error('Error:', error);
-    return res.status(500).json({ error: error.message || 'Internal server error' });
+    // Don't expose detailed error messages to clients in production
+    const isProduction = process.env.NODE_ENV === 'production';
+    const errorMessage = isProduction ? 'Internal server error' : error.message || 'Internal server error';
+    
+    // Set appropriate HTTP status code based on error type
+    let statusCode = 500;
+    if (error.code === '23505') {
+      // PostgreSQL unique violation
+      statusCode = 409; // Conflict
+    } else if (error.code === '22P02') {
+      // Invalid text representation (e.g., invalid UUID)
+      statusCode = 400; // Bad Request
+    } else if (error.code === '23503') {
+      // Foreign key violation
+      statusCode = 400; // Bad Request
+    }
+    
+    return res.status(statusCode).json({ 
+      error: errorMessage,
+      code: isProduction ? undefined : error.code
+    });
   }
 }

@@ -8,7 +8,7 @@ export default function MovieCard({ result, onAddToWatchlist, onInfoClick, isInW
   const displayDate = release_date || first_air_date;
   const posterUrl = poster_path
     ? `https://image.tmdb.org/t/p/w200${poster_path}`
-    : 'https://via.placeholder.com/200x300?text=No+Poster';
+    : '/placeholder-image.svg';
   const [imdbId, setImdbId] = useState(null);
   const [isHovered, setIsHovered] = useState(false);
   const { addToast } = useToast();
@@ -85,7 +85,14 @@ export default function MovieCard({ result, onAddToWatchlist, onInfoClick, isInW
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Poster */}
-      <img src={posterUrl} alt={displayTitle} className="w-full h-full object-cover" />
+      <img 
+        src={posterUrl} 
+        alt={displayTitle} 
+        className="w-full h-full object-cover" 
+        onError={(e) => {
+          e.target.src = '/placeholder-image.svg';
+        }}
+      />
       {/* Badge */}
       <div className={`absolute top-2 right-2 ${badgeClass} text-white text-xs font-bold py-1 px-2 rounded-full`}>
         {typeBadge}

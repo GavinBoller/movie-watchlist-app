@@ -1,26 +1,17 @@
 import { fetcher } from '../../utils/fetcher';
 import NodeCache from 'node-cache';
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "./auth/[...nextauth]" // Adjust path if needed
+import { secureApiHandler } from '../../lib/secureApiHandler';
+import Joi from 'joi';
 
 // Cache for TMDB watch provider responses.
 const providersCache = new NodeCache({ stdTTL: 3600 * 6 }); // 6-hour TTL
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const { tmdbId, media_type } = req.query;
-  const session = await getServerSession(req, res, authOptions);
-
-  if (!session?.user?.id) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  const userId = session.user.id;
-
-  if (!tmdbId || !media_type) {
-    return res.status(400).json({ error: 'Missing tmdbId or media_type query parameters.' });
-  }
+  const userId = req.session?.user?.id;
 
   // Default to user's country or Australia if not set
-  const country = session.user.country || 'AU';
+  const country = req.session?.user?.country || 'AU';
 
   const cacheKey = `tmdb:providers:${tmdbId}:${media_type}:${country}`;
   const cachedProviders = providersCache.get(cacheKey);
@@ -58,6 +49,27 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Error fetching TMDB provider data:', error);
-    res.status(500).json({ error: 'Failed to fetch streaming information.' });
+    throw error; // Let secureApiHandler handle this error
   }
 }
+
+// Validation schema for API parameters
+const whereToWatchSchema = Joi.object({
+  tmdbId: Joi.alternatives().try(
+    Joi.number().required(),
+    Joi.string().pattern(/^\d+$/).required()
+  ).messages({
+    'any.required': 'TMDB ID is required',
+    'string.pattern.base': 'TMDB ID must be a number'
+  }),
+  media_type: Joi.string().valid('movie', 'tv').required().messages({
+    'any.required': 'Media type is required',
+    'any.only': 'Media type must be either "movie" or "tv"'
+  })
+});
+
+export default secureApiHandler(handler, {
+  allowedMethods: ['GET'],
+  validationSchema: whereToWatchSchema,
+  requireAuth: true
+});
