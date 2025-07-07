@@ -2,46 +2,11 @@
 import { useEffect, useState } from 'react';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter } from 'next/router';
-import { markSignInComplete, forcePageRefresh } from '../../utils/auth';
 
 export default function SignIn() {
-  const { data: session, status, update } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [message, setMessage] = useState('Please wait while we sign you in...');
-  const [error, setError] = useState(null);
-  
-  // Handle direct callback processing
-  useEffect(() => {
-    // Extract parameters from URL that indicate a callback from OAuth provider
-    const params = new URLSearchParams(window.location.search);
-    const hasCallbackParams = params.has('state') || params.has('code');
-    
-    // If this appears to be a callback from OAuth provider, mark as complete
-    if (hasCallbackParams) {
-      console.log('Auth callback detected, marking sign-in as complete');
-      markSignInComplete();
-    }
-  }, []);
-  
-  // Handle session state changes
-  useEffect(() => {
-    const refreshSession = async () => {
-      if (status !== 'loading') {
-        try {
-          await update();
-          console.log('Session refreshed on signin page');
-        } catch (err) {
-          console.error('Failed to refresh session:', err);
-        }
-      }
-    };
-    
-    refreshSession();
-    
-    // Set up periodic refresh
-    const interval = setInterval(refreshSession, 1000);
-    return () => clearInterval(interval);
-  }, [status, update]);
   
   // Handle redirects based on authentication state
   useEffect(() => {
@@ -51,9 +16,6 @@ export default function SignIn() {
     if (status === 'authenticated' && session) {
       setMessage('Successfully signed in! Redirecting...');
       console.log('Authenticated, redirecting to callback URL');
-      
-      // Mark authentication as complete
-      markSignInComplete();
       
       // Get the callback URL from query params, or use search as default
       const callbackUrl = router.query.callbackUrl || '/search';
@@ -89,9 +51,6 @@ export default function SignIn() {
         <h2 className="text-2xl font-bold mb-6 text-[#E50914]">Signing In</h2>
         <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#E50914] mx-auto"></div>
         <p className="mt-6 text-gray-300">{message}</p>
-        {error && (
-          <p className="mt-4 text-red-500">{error}</p>
-        )}
         <p className="mt-4 text-sm text-gray-500">Status: {status}</p>
       </div>
     </div>
