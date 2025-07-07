@@ -35,18 +35,28 @@ export async function middleware(req) {
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   
-  // Content Security Policy - Restrict external resource loading to trusted sources
-  response.headers.set('Content-Security-Policy', 
-    "default-src 'self'; " +
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " + // Allow inline scripts for now but can be tightened
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " + // Allow inline styles and Google Fonts CSS
-    "img-src 'self' https://image.tmdb.org data:; " + // Allow TMDB images and data URIs
-    "font-src 'self' https://fonts.gstatic.com data:; " + // Allow Google Fonts and embedded fonts
-    "connect-src 'self' https://api.themoviedb.org; " + // Allow connection to TMDB API
-    "frame-ancestors 'none'; " + // Prevent framing (similar to X-Frame-Options)
-    "base-uri 'self'; " + // Restrict base URIs
-    "form-action 'self'; " // Restrict form submissions
-  );
+  // Content Security Policy - Balanced security with Next.js compatibility
+  // This CSP allows unsafe-inline for styles (required by Next.js CSS-in-JS) but removes unsafe-eval
+  // (except in development for hot reloading) and explicitly allows only trusted external sources
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  const cspPolicy = [
+    "default-src 'self'",
+    `script-src 'self'${isDevelopment ? " 'unsafe-eval'" : ""}`, // Allow eval in dev for Next.js hot reloading
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", // Allow inline styles for Next.js CSS-in-JS
+    "img-src 'self' https://image.tmdb.org https://*.googleusercontent.com data:", // TMDB images + Google profile images + data URIs
+    "font-src 'self' https://fonts.gstatic.com data:", // Google Fonts + embedded fonts
+    `connect-src 'self' https://api.themoviedb.org${isDevelopment ? " ws: wss:" : ""}`, // TMDB API + WebSocket for dev
+    "frame-ancestors 'none'", // Prevent framing (same as X-Frame-Options: DENY)
+    "base-uri 'self'", // Restrict base URIs to prevent injection
+    "form-action 'self'", // Restrict form submissions to same origin
+    "object-src 'none'", // Block plugins/objects for security
+    "media-src 'self'", // Restrict media sources to same origin
+    "worker-src 'self'", // Restrict web workers to same origin
+    "manifest-src 'self'" // Allow PWA manifest from same origin
+  ].join('; ');
+  
+  response.headers.set('Content-Security-Policy', cspPolicy);
   
   // Handle authentication and redirects
   const path = req.nextUrl.pathname;
