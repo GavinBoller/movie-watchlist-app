@@ -43,7 +43,7 @@ export default function LandingPage() {
           Organize, discover, and manage your personal watchlist with ease.
         </p>
         <Button
-          onClick={() => signIn('google')}
+          onClick={() => signIn('google', { callbackUrl: '/search' })}
           size="lg"
           className="bg-[#E50914] hover:bg-red-700 text-white font-semibold py-3 px-6 rounded-lg text-lg flex items-center gap-2"
         >

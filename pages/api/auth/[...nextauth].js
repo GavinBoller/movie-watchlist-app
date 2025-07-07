@@ -7,15 +7,17 @@ import prisma from '../../../lib/prisma'; // Adjust path if needed
 export const authOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
-    GoogleProvider.default({
+    GoogleProvider({
         clientId: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       }
     ),
   ],
-  // Use JWTs for session management, which enables the update() function.
+  // Session configuration
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours
   },
   callbacks: {
     /**
@@ -54,10 +56,71 @@ export const authOptions = {
       }
       return session;
     },
+    
+    // Handle redirect after sign in/out
+    async redirect({ url, baseUrl }) {
+      console.log('NextAuth redirect called with:', { url, baseUrl });
+      
+      // If the URL starts with the base URL, it's an internal redirect
+      if (url.startsWith(baseUrl)) {
+        console.log('Redirecting to internal URL:', url);
+        return url;
+      }
+      
+      // If URL is just a path, combine with base URL
+      if (url.startsWith('/')) {
+        const redirectUrl = `${baseUrl}${url}`;
+        console.log('Redirecting to path:', redirectUrl);
+        return redirectUrl;
+      }
+      
+      // For sign-out, always go to home page
+      if (url.includes('signout') || url.includes('signOut')) {
+        const homeUrl = `${baseUrl}/`;
+        console.log('Sign-out detected, redirecting to home:', homeUrl);
+        return homeUrl;
+      }
+      
+      // For any other case (sign-in), default to search page
+      const defaultUrl = `${baseUrl}/search`;
+      console.log('Redirecting to default URL:', defaultUrl);
+      return defaultUrl;
+    },
   },
 
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
+  
+  // Configure pages
+  pages: {
+    signIn: '/auth/signin',
+    error: '/auth/error',
+  },
+  
+  // Enhanced security settings
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === "development" 
+        ? `next-auth.session-token` 
+        : `__Secure-next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV !== "development",
+      },
+    },
+  },
+  
+  // CSRF protection
+  useSecureCookies: process.env.NODE_ENV !== "development",
+  
+  // JWT configuration
+  jwt: {
+    secret: process.env.NEXTAUTH_SECRET,
+    encryption: true,
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
 }
 
-export default NextAuth.default(authOptions)
+export default NextAuth(authOptions)

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Header from '../components/Header';
 import DynamicDetailsModal from '../components/DynamicDetailsModal';
 import DynamicAddToWatchlistModal from '../components/DynamicAddToWatchlistModal';
+import KeyboardShortcutsHelp from '../components/KeyboardShortcutsHelp';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
 import { Input } from '../components/ui/input';
@@ -12,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List, X, Edit, AlertCircle } from 'lucide-react'; 
 import { useToast, useWatchlist, WatchlistProvider } from '../components/ToastContext';
 import { useSWRConfig } from 'swr';
+import { useDebouncedSearch } from '../utils/useDebounce';
 
 const MovieCard = React.memo(({ movie, onAddToWatchlist, onShowDetails }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -254,7 +256,7 @@ const MovieCard = React.memo(({ movie, onAddToWatchlist, onShowDetails }) => {
 });
 
 export default function SearchPage() {
-  const [searchQuery, setSearchQuery] = useState('');
+  const { value: searchInput, debouncedValue: searchQuery, onChange: handleSearchChange, setValue: setSearchInput } = useDebouncedSearch('', 500);
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -369,6 +371,52 @@ export default function SearchPage() {
     setWatchlistItem(null);
   }, [mutate]);
 
+  // Effect to trigger search when debounced query changes
+  useEffect(() => {
+    if (searchQuery) {
+      handleSearch(searchQuery);
+    }
+  }, [searchQuery, handleSearch]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Don't trigger shortcuts if user is typing in an input field
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      
+      // Navigation shortcuts
+      if (e.key === 'ArrowRight' && page < totalPages) {
+        // Next page with right arrow
+        setPage(prev => Math.min(prev + 1, totalPages));
+      } else if (e.key === 'ArrowLeft' && page > 1) {
+        // Previous page with left arrow
+        setPage(prev => Math.max(prev - 1, 1));
+      } else if (e.key === '/') {
+        // Focus search with forward slash
+        e.preventDefault();
+        document.querySelector('input[type="text"]')?.focus();
+      } else if (e.key === 'Escape' && searchInput) {
+        // Clear search with Escape key
+        setSearchInput('');
+      } else if (e.key === 'm') {
+        // Toggle media filter (movies)
+        setMediaFilter(prev => prev === 'movie' ? 'all' : 'movie');
+      } else if (e.key === 't') {
+        // Toggle media filter (TV)
+        setMediaFilter(prev => prev === 'tv' ? 'all' : 'tv');
+      } else if (e.key === 'p') {
+        // Toggle discovery mode to popular
+        setDiscoveryMode(prev => prev === 'popular' ? 'text' : 'popular');
+      } else if (e.key === 'r') {
+        // Toggle discovery mode to top_rated
+        setDiscoveryMode(prev => prev === 'top_rated' ? 'text' : 'top_rated');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [page, totalPages, searchInput]);
+
   // Fetch genres on component mount
   useEffect(() => {
     async function fetchGenres() {
@@ -388,7 +436,7 @@ export default function SearchPage() {
   useEffect(() => {
     // Clear search query when switching from text mode to a discovery mode
     if (discoveryMode !== 'text' && searchQuery !== '') {
-      setSearchQuery('');
+      setSearchInput('');
       // The useEffect below will handle triggering handleSearch with the new discoveryMode
       return; 
     }
@@ -457,15 +505,15 @@ export default function SearchPage() {
               <Input
                 type="text"
                 placeholder="Search for movies or TV shows..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)} 
+                value={searchInput}
+                onChange={handleSearchChange} 
                 className="w-full bg-gray-800 border-gray-700 text-white rounded-full py-2 pl-4 pr-10 min-h-[44px]"
               />
-              {searchQuery && (
+              {searchInput && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => setSearchInput('')}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
                   aria-label="Clear search"
                 >
@@ -573,16 +621,16 @@ export default function SearchPage() {
                 Enter a movie or TV show title in the search box to begin exploring
               </p>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <Button onClick={() => { setSearchQuery("Marvel"); handleSearch("Marvel"); }}>
+                <Button onClick={() => { setSearchInput("Marvel"); handleSearch("Marvel"); }}>
                   Try "Marvel"
                 </Button>
-                <Button onClick={() => { setSearchQuery("Star Wars"); handleSearch("Star Wars"); }}>
+                <Button onClick={() => { setSearchInput("Star Wars"); handleSearch("Star Wars"); }}>
                   Try "Star Wars"
                 </Button>
-                <Button onClick={() => { setSearchQuery("Breaking Bad"); handleSearch("Breaking Bad"); }}>
+                <Button onClick={() => { setSearchInput("Breaking Bad"); handleSearch("Breaking Bad"); }}>
                   Try "Breaking Bad"
                 </Button>
-                <Button onClick={() => { setSearchQuery("Stranger Things"); handleSearch("Stranger Things"); }}>
+                <Button onClick={() => { setSearchInput("Stranger Things"); handleSearch("Stranger Things"); }}>
                   Try "Stranger Things"
                 </Button>
               </div>
@@ -598,9 +646,9 @@ export default function SearchPage() {
               Try changing your search term or filters to find more content.
             </p>
             <div className="flex gap-3 justify-center">
-              {searchQuery && (
+              {searchInput && (
                 <Button 
-                  onClick={() => setSearchQuery('')} 
+                  onClick={() => setSearchInput('')} 
                   className="bg-indigo-700 hover:bg-indigo-600"
                 >
                   Clear search
@@ -667,6 +715,9 @@ export default function SearchPage() {
           onSaveSuccess={handleSaveNewItemSuccess}
         />
       )}
+
+      {/* Keyboard shortcuts help component */}
+      <KeyboardShortcutsHelp />
     </div>
   );
 }

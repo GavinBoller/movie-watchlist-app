@@ -1,6 +1,8 @@
+'use client';
+
 import { useState, useEffect, useCallback } from 'react';
 import { useSession, signIn, signOut } from "next-auth/react";
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Search, List, Film, Monitor, LogIn, LogOut, UserCircle, Loader2, Settings as SettingsIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from './ui/button';
@@ -15,48 +17,130 @@ import {
 import PlatformManagementModal from './PlatformManagementModal';
 
 export default function Header() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
   const loading = status === "loading";
-  const isAuthenticated = !!session;
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPlatformModalOpen, setIsPlatformModalOpen] = useState(false);
-  const [avatarError, setAvatarError] = useState(false);
   const pathname = usePathname();
-  
-  // Reset avatar error when session changes
+  const router = useRouter();
+
+  // Track authentication state changes
+  const [authState, setAuthState] = useState({
+    isLoading: true,
+    isAuthenticated: false,
+    userImage: null,
+    userName: null,
+  });
+
+  // Log session state changes
   useEffect(() => {
-    setAvatarError(false);
-  }, [session?.user?.image]);
+    console.log('Header - Session state:', { 
+      status,
+      loading,
+      isAuthenticated: !!session,
+      sessionId: session?.id || null,
+      currentPath: pathname,
+      user: session?.user ? {
+        name: session.user.name,
+        email: session.user.email,
+        image: session.user.image ? 'Available' : 'None',
+        id: session.user.id || null
+      } : null
+    });
+    
+    // Update the auth state when session changes
+    setAuthState({
+      isLoading: status === 'loading',
+      isAuthenticated: !!session,
+      userImage: session?.user?.image || null,
+      userName: session?.user?.name || session?.user?.email || null,
+    });
+    
+    // Reset signing in state if we're authenticated
+    if (session && isSigningIn) {
+      setIsSigningIn(false);
+    }
+  }, [session, status, loading, pathname, isSigningIn]);
+
+  // Force refresh session when component mounts
+  useEffect(() => {
+    const refreshSession = async () => {
+      try {
+        await updateSession();
+        console.log('Session refreshed on mount');
+      } catch (error) {
+        console.error('Failed to refresh session:', error);
+      }
+    };
+    
+    refreshSession();
+  }, [updateSession]);
 
   const navItems = [
     { name: 'Search', href: '/search', icon: Search },
     { name: 'My Watchlist', href: '/watchlist', icon: List },
   ];
 
-  const handleSignIn = async () => {
+  // List of paths that require authentication
+  const protectedPaths = ['/watchlist', '/settings'];
+
+  const handleSignIn = useCallback(async () => {
+    console.log('Initiating sign-in flow from Header...');
     setIsSigningIn(true);
     
     try {
-      // Use current path as callback URL, or default to search
-      const callbackUrl = pathname === '/' ? '/search' : pathname;
+      // Use the current path as the callback URL if it's not a public path
+      const callbackUrl = pathname === '/' || pathname === '/auth/signin' 
+        ? '/search' 
+        : pathname;
       
-      // Use NextAuth signIn directly
-      await signIn('google', { callbackUrl, redirect: true });
+      console.log(`Sign-in with callbackUrl: ${callbackUrl}`);
+      
+      // Set redirect to false to handle the redirect manually
+      const result = await signIn('google', { 
+        callbackUrl,
+        redirect: false,
+      });
+      
+      if (result?.error) {
+        console.error('Sign-in failed:', result.error);
+        setIsSigningIn(false);
+      } else if (result?.url) {
+        console.log('Sign-in successful, redirecting to:', result.url);
+        // Force a session update before redirecting
+        await updateSession();
+        // Redirect to the intended page
+        window.location.href = result.url;
+      }
     } catch (error) {
-      console.error('Sign in error:', error);
+      console.error('Sign-in error:', error);
       setIsSigningIn(false);
     }
-  };
+  }, [pathname, updateSession]);
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
+    console.log('Signing out from Header...');
+    
     try {
-      // Use the homepage as the callback URL
-      await signOut({ callbackUrl: '/' });
+      // For protected pages, redirect to home after sign-out
+      // For other pages, stay on the same page after sign-out
+      const callbackUrl = protectedPaths.includes(pathname) ? '/' : pathname;
+      console.log(`Sign-out with callbackUrl: ${callbackUrl}`);
+      
+      const result = await signOut({ 
+        redirect: false,
+      });
+      
+      if (result?.url) {
+        // Force session update before redirect
+        await updateSession();
+        window.location.href = callbackUrl;
+      }
     } catch (error) {
-      console.error('Sign out error:', error);
+      console.error('Sign-out error:', error);
     }
-  };
+  }, [pathname, protectedPaths, updateSession]);
 
   return (
     <header className="bg-[#1a1a1a] text-white sticky top-0 z-50 border-b border-gray-700">
@@ -108,7 +192,7 @@ export default function Header() {
         </nav>
 
         {/* Desktop Controls */}
-        <div className="hidden md:flex items-center gap-2">
+        <div className="hidden md:flex items-center gap-4">
           {loading ? (
             // Loading state
             <Button
@@ -120,7 +204,7 @@ export default function Header() {
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="hidden sm:inline">Loading...</span>
             </Button>
-          ) : isAuthenticated ? (
+          ) : session ? (
             // Authenticated state
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -129,21 +213,20 @@ export default function Header() {
                   size="sm"
                   className="flex items-center gap-2 text-white bg-[#1a1a1a] border-gray-700 hover:text-[#E50914] hover:border-[#E50914] hover:bg-[#2a2a2a]"
                 >
-                  {session?.user?.image && !avatarError ? (
+                  {session.user.image ? (
                     <img 
                       src={`/api/avatar?url=${encodeURIComponent(session.user.image)}`} 
                       alt={session.user.name || 'User'} 
                       className="w-5 h-5 rounded-full" 
-                      onError={() => setAvatarError(true)}
                     />
                   ) : (
                     <UserCircle className="h-4 w-4" />
                   )}
-                  <span className="hidden sm:inline">{session?.user?.name}</span>
+                  <span className="hidden sm:inline">{session.user.name || session.user.email}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56 bg-gray-800 text-white border-gray-700" align="end">
-                <DropdownMenuLabel>{session?.user?.name || 'Profile'}</DropdownMenuLabel>
+                <DropdownMenuLabel>{session.user.name || 'Profile'}</DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-gray-600" />
                 <DropdownMenuItem 
                   onSelect={() => setIsPlatformModalOpen(true)} 
@@ -174,15 +257,15 @@ export default function Header() {
               variant="outline"
               size="sm"
               onClick={handleSignIn}
-              disabled={isSigningIn}
+              disabled={isSigningIn || status === 'loading'}
               className="flex items-center gap-1 text-white bg-[#1a1a1a] border-gray-700 hover:text-[#E50914] hover:border-[#E50914] hover:bg-[#2a2a2a]"
             >
-              {isSigningIn ? (
+              {isSigningIn || status === 'loading' ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <LogIn className="h-4 w-4" />
               )}
-              <span className="hidden sm:inline">{isSigningIn ? 'Signing In...' : 'Sign In'}</span>
+              <span className="hidden sm:inline">{isSigningIn ? 'Signing In...' : status === 'loading' ? 'Loading...' : 'Sign In'}</span>
             </Button>
           )}
         </div>
@@ -200,7 +283,7 @@ export default function Header() {
         {isMenuOpen && (
           <nav className="absolute top-full left-0 right-0 bg-[#1a1a1a] md:hidden border-t border-gray-700">
             <div className="flex flex-col p-4 space-y-2">
-              {isAuthenticated && (
+              {session && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -216,7 +299,7 @@ export default function Header() {
                 </Button>
               )}
               
-              {isAuthenticated && (
+              {session && (
                 <Button asChild variant="outline" size="sm" className="w-full flex items-center gap-1 text-white bg-[#1a1a1a] border-gray-700 hover:text-[#E50914] hover:border-[#E50914] hover:bg-[#2a2a2a] justify-start">
                   <Link href="/settings" onClick={() => setIsMenuOpen(false)}>
                     <SettingsIcon className="h-4 w-4" /><span>Settings</span>
@@ -234,7 +317,7 @@ export default function Header() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span>Loading...</span>
                 </Button>
-              ) : isAuthenticated ? (
+              ) : session ? (
                 <Button
                   variant="outline"
                   size="sm"
@@ -245,7 +328,7 @@ export default function Header() {
                   className="flex items-center gap-1 text-white bg-[#1a1a1a] border-gray-700 hover:text-[#E50914] hover:border-[#E50914] hover:bg-[#2a2a2a] justify-start"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span>Sign Out ({session?.user?.name ? session.user.name.split(' ')[0] : 'User'})</span>
+                  <span>Sign Out ({session.user.name ? session.user.name.split(' ')[0] : session.user.email.split('@')[0]})</span>
                 </Button>
               ) : (
                 <Button
@@ -255,15 +338,15 @@ export default function Header() {
                     handleSignIn();
                     setIsMenuOpen(false);
                   }}
-                  disabled={isSigningIn}
+                  disabled={isSigningIn || status === 'loading'}
                   className="flex items-center gap-1 text-white bg-[#1a1a1a] border-gray-700 hover:text-[#E50914] hover:border-[#E50914] hover:bg-[#2a2a2a] justify-start"
                 >
-                  {isSigningIn ? (
+                  {isSigningIn || status === 'loading' ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <LogIn className="h-4 w-4" />
                   )}
-                  <span>{isSigningIn ? 'Signing In...' : 'Sign In'}</span>
+                  <span>{isSigningIn ? 'Signing In...' : status === 'loading' ? 'Loading...' : 'Sign In'}</span>
                 </Button>
               )}
             </div>
@@ -271,7 +354,7 @@ export default function Header() {
         )}
 
         {/* Platform Management Modal */}
-        {isAuthenticated && (
+        {session && (
           <PlatformManagementModal
             isOpen={isPlatformModalOpen}
             onClose={() => setIsPlatformModalOpen(false)}

@@ -1,3 +1,4 @@
+import { getToken } from 'next-auth/jwt';
 import { NextResponse } from 'next/server';
 
 // API Rate limiting logic - using a simple in-memory store
@@ -19,12 +20,12 @@ export const config = {
   matcher: [
     // Apply to all API routes
     '/api/:path*',
-    // Apply to all non-API routes for security headers
-    '/((?!_next/static|_next/image|favicon.ico).*)'
+    // Apply to all non-API routes for security headers and auth
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.png$).*)'
   ]
 };
 
-export function middleware(request) {
+export async function middleware(req) {
   const response = NextResponse.next();
   
   // Add security headers to all responses
@@ -34,16 +35,74 @@ export function middleware(request) {
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   
+  // Content Security Policy - Restrict external resource loading to trusted sources
+  response.headers.set('Content-Security-Policy', 
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " + // Allow inline scripts for now but can be tightened
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " + // Allow inline styles and Google Fonts CSS
+    "img-src 'self' https://image.tmdb.org data:; " + // Allow TMDB images and data URIs
+    "font-src 'self' https://fonts.gstatic.com data:; " + // Allow Google Fonts and embedded fonts
+    "connect-src 'self' https://api.themoviedb.org; " + // Allow connection to TMDB API
+    "frame-ancestors 'none'; " + // Prevent framing (similar to X-Frame-Options)
+    "base-uri 'self'; " + // Restrict base URIs
+    "form-action 'self'; " // Restrict form submissions
+  );
+  
+  // Handle authentication and redirects
+  const path = req.nextUrl.pathname;
+  
+  // Define which paths require authentication (all app functionality)
+  const protectedPaths = ['/search', '/watchlist', '/settings'];
+  
+  // Check if the requested path is a protected route
+  const isProtectedPath = protectedPaths.some(protectedPath => 
+    path === protectedPath || path.startsWith(`${protectedPath}/`)
+  );
+  
+  // Paths that are publicly accessible (don't redirect authenticated users away from these)
+  const isPublicPath = path === '/auth/signin' || path === '/';
+
+  // Get the token from the request
+  const token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+
+  // Debug token information
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[Middleware] Path: ${path}, Token exists: ${!!token}`);
+    if (token) {
+      console.log('[Middleware] Token data:', {
+        name: token.name,
+        email: token.email,
+        image: token.picture,
+        expires: token.exp ? new Date(token.exp * 1000).toISOString() : 'unknown'
+      });
+    }
+  }
+
+  // Redirect logic for authentication
+  if (isProtectedPath && !token) {
+    // Redirect to home page (welcome/login) if trying to access protected routes without authentication
+    return NextResponse.redirect(new URL('/', req.url));
+  }
+
+  if (isPublicPath && token && path !== '/search') {
+    // Redirect to search page if already signed in and trying to access public pages
+    // But only if they're not already trying to go to search
+    return NextResponse.redirect(new URL('/search', req.url));
+  }
+  
   // Only apply rate limiting to API routes
-  const url = request.nextUrl.pathname;
+  const url = req.nextUrl.pathname;
   if (url.startsWith('/api')) {
     // Skip rate limiting for auth endpoints
     if (url.startsWith('/api/auth/')) {
       return response;
     }
     
-    const clientId = getClientIdentifier(request);
-    const method = request.method;
+    const clientId = getClientIdentifier(req);
+    const method = req.method;
     const key = `${clientId}:${method}:${url}`;
     
     // Get current rate limit data or create a new entry
@@ -98,6 +157,3 @@ export function middleware(request) {
   
   return response;
 }
-
-// Note: Middleware in Edge Runtime cannot use setInterval.
-// Cleanup will be handled by natural garbage collection.

@@ -132,6 +132,16 @@ function Toast({ toast, onDismiss }) {
     >
       {toast.title && <h3 className="font-semibold">{toast.title}</h3>}
       {toast.description && <p>{toast.description}</p>}
+      
+      {toast.action && (
+        <button
+          onClick={toast.action.onClick}
+          className="mt-3 inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          {toast.action.label}
+        </button>
+      )}
+      
       <button
         onClick={() => setIsVisible(false)}
         className="absolute right-2 top-2 rounded-full p-1 text-gray-300 transition-colors hover:bg-white/20 hover:text-white sm:opacity-0 sm:group-hover:opacity-100"
