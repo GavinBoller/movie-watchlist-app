@@ -13,7 +13,7 @@ export default function CountrySelector(): React.ReactElement {
 
   const [countries, setCountries] = useState<Country[]>([]);
   const [isLoadingCountries, setIsLoadingCountries] = useState<boolean>(true);
-  const [selectedCountry, setSelectedCountry] = useState<string>(session?.user?.country || 'US');
+  const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // Fetch list of countries from TMDB API
@@ -41,12 +41,15 @@ export default function CountrySelector(): React.ReactElement {
     fetchCountries();
   }, [addToast]);
 
-  // Update selected country if session changes (e.g., on initial load)
+  // Update selected country when session loads or changes
   useEffect(() => {
     if (session?.user?.country) {
       setSelectedCountry(session.user.country);
+    } else if (session?.user) {
+      // If session is loaded but country is null, default to AU
+      setSelectedCountry('AU');
     }
-  }, [session?.user?.country]);
+  }, [session?.user?.country, session?.user]);
 
   const handleSaveCountry = async (): Promise<void> => {
     setIsSaving(true);

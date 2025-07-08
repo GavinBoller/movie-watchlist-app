@@ -63,31 +63,40 @@ export const authOptions = {
               connectionString: process.env.DATABASE_URL,
             });
             
-            // Look up the user ID from the accounts table
+            // Look up the user ID and country from the accounts and users tables
             const result = await pool.query(
-              'SELECT "userId" FROM accounts WHERE provider = $1 AND "providerAccountId" = $2',
+              `SELECT u.id, u.country, u.role 
+               FROM accounts a 
+               JOIN users u ON a."userId" = u.id 
+               WHERE a.provider = $1 AND a."providerAccountId" = $2`,
               ['google', token.sub]
             );
             
             if (result.rows.length > 0) {
-              session.user.id = result.rows[0].userId;
+              const userData = result.rows[0];
+              session.user.id = userData.id;
+              session.user.country = userData.country || 'AU'; // Default to AU if null
+              session.user.role = userData.role || 'user';
             } else {
-              // Fallback to the token.sub if no database entry found
+              // Fallback to the token data if no database entry found
               session.user.id = token.sub;
+              session.user.country = token.country || 'AU'; // Default to AU
+              session.user.role = token.role || 'user';
             }
             
             await pool.end();
           } catch (error) {
             console.error('Error looking up user ID:', error);
-            // Fallback to token.sub on error
+            // Fallback to token data on error
             session.user.id = token.sub;
+            session.user.country = token.country || 'AU'; // Default to AU
+            session.user.role = token.role || 'user';
           }
         } else {
           session.user.id = token.id || token.sub;
+          session.user.role = token.role || 'user';
+          session.user.country = token.country || 'AU'; // Default to AU
         }
-        
-        session.user.role = token.role || 'user';
-        session.user.country = token.country || null;
       }
       return session;
     },

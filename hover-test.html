@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hover Detection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .hover-device { background-color: #e8f5e8; }
+        .touch-device { background-color: #ffeaa7; }
+    </style>
+</head>
+<body>
+    <h1>Hover Detection Test</h1>
+    <div id="results"></div>
+    
+    <script>
+        function runTest() {
+            const results = document.getElementById('results');
+            
+            // Test hover capability
+            const hasHover = window.matchMedia('(hover: hover)').matches;
+            const hasPointer = window.matchMedia('(pointer: fine)').matches;
+            const isTouchDevice = !hasHover || !hasPointer;
+            
+            results.innerHTML = `
+                <div class="test-result">
+                    <strong>Screen Width:</strong> ${window.innerWidth}px
+                </div>
+                <div class="test-result">
+                    <strong>Has Hover:</strong> ${hasHover}
+                </div>
+                <div class="test-result">
+                    <strong>Has Fine Pointer:</strong> ${hasPointer}
+                </div>
+                <div class="test-result ${isTouchDevice ? 'touch-device' : 'hover-device'}">
+                    <strong>Device Type:</strong> ${isTouchDevice ? 'Touch Device' : 'Hover Device'}
+                </div>
+                <div class="test-result">
+                    <strong>User Agent:</strong> ${navigator.userAgent}
+                </div>
+            `;
+        }
+        
+        // Run test on load
+        runTest();
+        
+        // Run test on resize
+        window.addEventListener('resize', runTest);
+        
+        // Listen for media query changes
+        window.matchMedia('(hover: hover)').addEventListener('change', runTest);
+        window.matchMedia('(pointer: fine)').addEventListener('change', runTest);
+    </script>
+</body>
+</html>

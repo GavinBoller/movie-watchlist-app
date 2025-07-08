@@ -1,4 +1,5 @@
 // @ts-nocheck
+/* eslint-disable jsx-a11y/aria-props */
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -41,7 +42,8 @@ function ClientCheckbox({ id, checked, disabled = false, onCheckedChange, classN
     <div
       id={id}
       role="checkbox"
-      aria-checked={checked}
+      // eslint-disable-next-line jsx-a11y/aria-props
+      aria-checked={`${checked}`}
       tabIndex={isDisabled ? -1 : 0}
       className={`
         h-4 w-4 rounded-sm border cursor-pointer inline-flex items-center justify-center
@@ -88,7 +90,7 @@ interface MovieCardProps {
 const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowDetails }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const { watchlist } = useWatchlist();
   
@@ -110,10 +112,25 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
 
   useEffect(() => {
     setIsMounted(true);
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    // Check if device supports hover interactions (not touch-only)
+    const checkTouchDevice = () => {
+      // Check if device supports hover and has a pointer device
+      const hasHover = window.matchMedia('(hover: hover)').matches;
+      const hasPointer = window.matchMedia('(pointer: fine)').matches;
+      // Touch device = no hover capability OR no fine pointer (like mouse)
+      setIsTouchDevice(!hasHover || !hasPointer);
+    };
+    checkTouchDevice();
+    // Listen for media query changes
+    const hoverQuery = window.matchMedia('(hover: hover)');
+    const pointerQuery = window.matchMedia('(pointer: fine)');
+    const handleMediaChange = () => checkTouchDevice();
+    hoverQuery.addEventListener('change', handleMediaChange);
+    pointerQuery.addEventListener('change', handleMediaChange);
+    return () => {
+      hoverQuery.removeEventListener('change', handleMediaChange);
+      pointerQuery.removeEventListener('change', handleMediaChange);
+    };
   }, []);
 
   const handleTap = () => {
@@ -123,7 +140,7 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
       return;
     }
     
-    if (isMobile) {
+    if (isTouchDevice) {
       if (!showInfo) {
         setShowInfo(true);
       } else {
@@ -164,8 +181,8 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
   return (
     <div
       className="movie-card relative rounded-lg overflow-hidden group cursor-pointer touch-manipulation"
-      onMouseEnter={() => isMounted && !isMobile && setIsHovered(true)}
-      onMouseLeave={() => isMounted && !isMobile && setIsHovered(false)}
+      onMouseEnter={() => isMounted && !isTouchDevice && setIsHovered(true)}
+      onMouseLeave={() => isMounted && !isTouchDevice && setIsHovered(false)}
       onClick={handleTap}
       data-testid={`movie-${movie.id}`}
     >
@@ -197,12 +214,12 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
         </div>
       )}
       
-      {/* Show the + or Edit button only when not hovered (desktop) or not showing info (mobile) */}
-      {(!isMounted || (!isHovered || isMobile)) && !showInfo && (
-        <div className="absolute bottom-2 right-2 z-10">
+      {/* Show the + or Edit button - always visible on touch devices when not showing info, and on hover devices when not hovering */}
+      {(!isMounted || isTouchDevice ? !showInfo : !isHovered) && (
+        <div className="absolute bottom-2 right-2 z-30">
           <button
             type="button"
-            className={`${isInWatchlist ? 'bg-indigo-700' : 'bg-[#E50914]'} text-white rounded-full p-2 shadow-lg touch-manipulation`}
+            className={`${isInWatchlist ? 'bg-indigo-700' : 'bg-[#E50914]'} text-white rounded-full p-2 shadow-lg touch-manipulation hover:scale-110 transition-transform`}
             onClick={handleAddClick}
             aria-label={isInWatchlist ? "Edit in watchlist" : "Add to watchlist"}
           >
@@ -217,7 +234,7 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
       <div // This is the movie-info div that appears on hover/tap
         className={`movie-info absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-300 ${
           !isMounted ? 'opacity-0' : 
-          isMobile ? (showInfo ? 'opacity-100' : 'opacity-0') : isHovered ? 'opacity-100' : 'opacity-0'
+          isTouchDevice ? (showInfo ? 'opacity-100' : 'opacity-0') : isHovered ? 'opacity-100' : 'opacity-0'
         }`}
       >
         <h3 className="font-bold text-sm sm:text-base md:text-lg">{title}</h3>
@@ -234,7 +251,7 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
           <span className="text-[#F5C518] font-bold text-xs sm:text-sm">{voteAverage}</span>
           <Star className="h-3 sm:h-4 w-4 text-[#F5C518] fill-current ml-1" />
         </div>
-        {isMounted && isMobile ? (
+        {isMounted && isTouchDevice ? (
           <div className="flex flex-col mt-3 space-y-2">
             <div className="flex flex-wrap gap-2">
               <Button
@@ -442,10 +459,25 @@ export default function SearchPage() {
       // All filtering and sorting is now handled by the backend API.
       setSearchResults(filteredResults);
       setTotalPages(Math.ceil((apiData.total || 0) / SEARCH_LIMIT));
-      // Update counts from API response
-      setTotalAllCount(apiData.counts?.all || 0);
-      setMovieCount(apiData.counts?.movie || 0);
-      setTvCount(apiData.counts?.tv || 0);
+      
+      // Update counts based on filtered results when excluding watchlist items
+      if (excludeWatchlist) {
+        // When excluding watchlist items, we calculate counts based on what's actually shown
+        // This gives users accurate feedback about the current page results
+        const allCount = filteredResults.length;
+        const movieCount = filteredResults.filter(item => item.media_type === 'movie').length;
+        const tvCount = filteredResults.filter(item => item.media_type === 'tv').length;
+        
+        // Show the counts for the filtered results
+        setTotalAllCount(allCount);
+        setMovieCount(movieCount);
+        setTvCount(tvCount);
+      } else {
+        // Use original counts from API response when not excluding watchlist
+        setTotalAllCount(apiData.counts?.all || 0);
+        setMovieCount(apiData.counts?.movie || 0);
+        setTvCount(apiData.counts?.tv || 0);
+      }
     } catch (error) {
       console.error('Error searching:', error);
       addToast({
@@ -645,15 +677,22 @@ export default function SearchPage() {
         {/* Filters Section */}
         <div className="mb-4 flex justify-center gap-2">
           <Button onClick={() => setMediaFilter('all')} className={`flex items-center gap-1 ${mediaFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}>
-            <List className="h-4 w-4" /> All ({totalAllCount})
+            <List className="h-4 w-4" /> All ({totalAllCount}{excludeWatchlist ? '*' : ''})
           </Button>
           <Button onClick={() => setMediaFilter('movie')} className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}>
-            <Film className="h-4 w-4" /> Movies ({movieCount})
+            <Film className="h-4 w-4" /> Movies ({movieCount}{excludeWatchlist ? '*' : ''})
           </Button>
           <Button onClick={() => setMediaFilter('tv')} className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'}`}>
-            <Tv className="h-4 w-4" /> TV Shows ({tvCount})
+            <Tv className="h-4 w-4" /> TV Shows ({tvCount}{excludeWatchlist ? '*' : ''})
           </Button>
         </div>
+        {excludeWatchlist && (
+          <div className="mb-4 flex justify-center">
+            <p className="text-sm text-gray-400">
+              * Counts shown are for filtered results (excluding watchlist items)
+            </p>
+          </div>
+        )}
         <div className="mb-4 flex flex-wrap justify-center gap-2">
           {/* Genre Filter */}
           <Select onValueChange={setSelectedGenreId} value={selectedGenreId}>
@@ -706,7 +745,6 @@ export default function SearchPage() {
               checked={excludeWatchlist}
               disabled={isWatchlistLoading}
               onCheckedChange={(newValue) => {
-                console.log('onCheckedChange called with:', newValue);
                 setExcludeWatchlist(newValue);
               }}
             />
@@ -714,7 +752,6 @@ export default function SearchPage() {
               htmlFor="exclude-watchlist"
               className="text-sm font-medium leading-none cursor-pointer text-white hover:text-gray-300 select-none"
               onClick={() => {
-                console.log('Label clicked! Current excludeWatchlist:', excludeWatchlist, 'Loading:', isWatchlistLoading);
                 if (!isWatchlistLoading) {
                   setExcludeWatchlist(!excludeWatchlist);
                 }

@@ -7,23 +7,22 @@ import { userUpdateCountrySchema } from '../../../lib/schemas/user';
 async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   const { country } = req.body;
   const userId = req.session.user.id;
-  const adapter = authOptions.adapter;
-
-  // Check if the adapter and required methods are available
-  if (!adapter || !adapter.updateUser) {
-    throw new Error('NextAuth adapter or the updateUser method is not configured correctly.');
-  }
 
   try {
-    // Use the adapter to update the user in the database
-    await adapter.updateUser({
-      id: userId,
-      country: country, // The field to update
+    const { Pool } = require('@neondatabase/serverless');
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
     });
 
-    // The session needs to be updated to reflect this change immediately.
-    // Your CountrySelector component already handles this on the client-side with `updateSession`.
-    // So, we just need to confirm success here.
+    // Update the user's country in the database
+    await pool.query(
+      'UPDATE users SET country = $1, "updatedAt" = CURRENT_TIMESTAMP WHERE id = $2',
+      [country, userId]
+    );
+
+    await pool.end();
+
+    console.log(`Successfully updated country to ${country} for user ${userId}`);
 
     return res.status(200).json({ success: true, country: country });
 
