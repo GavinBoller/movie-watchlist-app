@@ -31,6 +31,11 @@ export const authOptions = {
      * @return {object}            JSON Web Token that will be saved
      */
     async jwt({ token, user, trigger, session }) {
+      // Early return if no token (shouldn't happen, but safety check)
+      if (!token) {
+        return {};
+      }
+      
       // The `user` object is only passed on initial sign-in.
       // We persist the user's id, role, and country to the token.
       if (user) {
@@ -53,51 +58,60 @@ export const authOptions = {
     // The session callback is called whenever a session is checked.
     // It receives the JWT token and is used to populate the session object.
     async session({ session, token }) {
-      if (token && session?.user) {
-        // For JWT strategy, we need to look up the actual user ID from the database
-        // based on the Google provider account ID
-        if (token.sub) {
-          try {
-            const { Pool } = require('@neondatabase/serverless');
-            const pool = new Pool({
-              connectionString: process.env.DATABASE_URL,
-            });
-            
-            // Look up the user ID and country from the accounts and users tables
-            const result = await pool.query(
-              `SELECT u.id, u.country, u.role 
-               FROM accounts a 
-               JOIN users u ON a."userId" = u.id 
-               WHERE a.provider = $1 AND a."providerAccountId" = $2`,
-              ['google', token.sub]
-            );
-            
-            if (result.rows.length > 0) {
-              const userData = result.rows[0];
-              session.user.id = userData.id;
-              session.user.country = userData.country || 'AU'; // Default to AU if null
-              session.user.role = userData.role || 'user';
-            } else {
-              // Fallback to the token data if no database entry found
-              session.user.id = token.sub;
-              session.user.country = token.country || 'AU'; // Default to AU
-              session.user.role = token.role || 'user';
-            }
-            
-            await pool.end();
-          } catch (error) {
-            console.error('Error looking up user ID:', error);
-            // Fallback to token data on error
+      // Early return if no session or token (e.g., during sign out)
+      if (!session || !token) {
+        return session;
+      }
+      
+      // Ensure session.user exists before proceeding
+      if (!session.user) {
+        return session;
+      }
+      
+      // For JWT strategy, we need to look up the actual user ID from the database
+      // based on the Google provider account ID
+      if (token.sub) {
+        try {
+          const { Pool } = require('@neondatabase/serverless');
+          const pool = new Pool({
+            connectionString: process.env.DATABASE_URL,
+          });
+          
+          // Look up the user ID and country from the accounts and users tables
+          const result = await pool.query(
+            `SELECT u.id, u.country, u.role 
+             FROM accounts a 
+             JOIN users u ON a."userId" = u.id 
+             WHERE a.provider = $1 AND a."providerAccountId" = $2`,
+            ['google', token.sub]
+          );
+          
+          if (result.rows.length > 0) {
+            const userData = result.rows[0];
+            session.user.id = userData.id;
+            session.user.country = userData.country || 'AU'; // Default to AU if null
+            session.user.role = userData.role || 'user';
+          } else {
+            // Fallback to the token data if no database entry found
             session.user.id = token.sub;
             session.user.country = token.country || 'AU'; // Default to AU
             session.user.role = token.role || 'user';
           }
-        } else {
-          session.user.id = token.id || token.sub;
-          session.user.role = token.role || 'user';
+          
+          await pool.end();
+        } catch (error) {
+          console.error('Error looking up user ID:', error);
+          // Fallback to token data on error
+          session.user.id = token.sub;
           session.user.country = token.country || 'AU'; // Default to AU
+          session.user.role = token.role || 'user';
         }
+      } else {
+        session.user.id = token.id || token.sub;
+        session.user.role = token.role || 'user';
+        session.user.country = token.country || 'AU'; // Default to AU
       }
+      
       return session;
     },
     
