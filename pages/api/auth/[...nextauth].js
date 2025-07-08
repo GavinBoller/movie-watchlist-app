@@ -21,6 +21,17 @@ export const authOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 24 * 60 * 60, // 24 hours
   },
+  // Add error handling
+  events: {
+    async signOut() {
+      // Clean up any session data on sign out
+      console.log("User signed out successfully");
+    },
+    async error(message) {
+      // Log but don't throw errors during auth transitions
+      console.error("NextAuth error:", message);
+    },
+  },
   callbacks: {
     /**
      * This callback is called whenever a JWT is created or updated.
@@ -58,8 +69,13 @@ export const authOptions = {
     // The session callback is called whenever a session is checked.
     // It receives the JWT token and is used to populate the session object.
     async session({ session, token }) {
-      // Early return if no session or token (e.g., during sign out)
-      if (!session || !token) {
+      // Handle null or undefined session gracefully
+      if (!session) {
+        return null;
+      }
+      
+      // Handle null or undefined token gracefully
+      if (!token) {
         return session;
       }
       

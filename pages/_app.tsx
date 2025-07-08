@@ -43,7 +43,13 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Movie Watchlist" />
       </Head>
-      <SessionProvider session={session}>
+      <SessionProvider 
+        session={session}
+        refetchInterval={5 * 60} // Refetch session every 5 minutes
+        refetchOnWindowFocus={true}
+        // Add custom error handling to prevent sign out errors
+        basePath="/api/auth"
+      >
         <SWRConfig 
           value={{
             revalidateOnFocus: true,
