@@ -19,13 +19,15 @@ export default function Document(): React.ReactElement {
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=2" />
 
         {/* Specific icon for "Add to Home Screen" on Apple devices. */}
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
 
         {/* Fallback for older browsers. `sizes="any"` helps modern browsers pick the best one. */}
         <link rel="icon" href="/favicon.ico?v=2" sizes="any" />
 
         {/* Web App Manifest for PWA features (references android-chrome icons). */}
         <link rel="manifest" href="/manifest.json?v=2" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#1A1A1A" />
       </Head>
       <body>

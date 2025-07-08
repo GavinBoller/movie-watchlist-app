@@ -16,7 +16,8 @@ interface DetailsModalProps {
   isInWatchlist?: boolean;
 }
 
-const DetailsModal: React.FC<DetailsModalProps> = ({ item, onClose, onAddToWatchlist, isInWatchlist }) => {
+// Make sure we're exporting a proper React component function
+const DetailsModal = function DetailsModal({ item, onClose, onAddToWatchlist, isInWatchlist }: DetailsModalProps): React.ReactElement | null {
   // Fetch all details, including country-specific watch providers, from our new API endpoint
   const { data: details, error } = useSWR<TMDBMovie & { watch_providers?: ProvidersData, external_ids?: { imdb_id?: string } }>(
     item ? `/api/details?id=${item.id}&media_type=${item.media_type}` : null,
@@ -166,6 +167,7 @@ const DetailsModal: React.FC<DetailsModalProps> = ({ item, onClose, onAddToWatch
       </div>
     </div>
   );
-};
+}
 
+// Export the component explicitly
 export default DetailsModal;

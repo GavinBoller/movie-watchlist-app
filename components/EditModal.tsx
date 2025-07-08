@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import { X, Save, XCircle, Loader2 } from 'lucide-react';
-import { useToast } from './ToastContext';
+import { useToast } from '../hooks/useToast';
 import { WatchlistItem, Platform } from '../types';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -142,6 +142,8 @@ export default function EditModal({ item, onSave, onClose }: EditModalProps): Re
               onChange={(e) => setWatchedDate(e.target.value)}
               className="w-full p-2 rounded bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={status !== 'watched'}
+              title="Watched Date"
+              placeholder="Select watched date"
             />
           </div>
 

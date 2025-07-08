@@ -59,32 +59,23 @@ export const authOptions = {
     
     // Handle redirect after sign in/out
     async redirect({ url, baseUrl }) {
-      console.log('NextAuth redirect called with:', { url, baseUrl });
+      // For sign-out, always go to home page
+      if (url.includes('signout') || url.includes('signOut')) {
+        return `${baseUrl}/`;
+      }
       
       // If the URL starts with the base URL, it's an internal redirect
       if (url.startsWith(baseUrl)) {
-        console.log('Redirecting to internal URL:', url);
         return url;
       }
       
       // If URL is just a path, combine with base URL
       if (url.startsWith('/')) {
-        const redirectUrl = `${baseUrl}${url}`;
-        console.log('Redirecting to path:', redirectUrl);
-        return redirectUrl;
+        return `${baseUrl}${url}`;
       }
       
-      // For sign-out, always go to home page
-      if (url.includes('signout') || url.includes('signOut')) {
-        const homeUrl = `${baseUrl}/`;
-        console.log('Sign-out detected, redirecting to home:', homeUrl);
-        return homeUrl;
-      }
-      
-      // For any other case (sign-in), default to search page
-      const defaultUrl = `${baseUrl}/search`;
-      console.log('Redirecting to default URL:', defaultUrl);
-      return defaultUrl;
+      // Default to search page for successful sign-in
+      return `${baseUrl}/search`;
     },
   },
 

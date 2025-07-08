@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Keyboard, X } from 'lucide-react';
@@ -8,8 +7,26 @@ interface Shortcut {
   description: string;
 }
 
-export default function KeyboardShortcutsHelp(): React.ReactElement {
+export default function KeyboardShortcutsHelp(): React.ReactElement | null {
   const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [isDesktop, setIsDesktop] = useState<boolean>(false);
+  
+  // Check if device is desktop on mount
+  useEffect(() => {
+    // Desktop detection function
+    const checkIsDesktop = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+    
+    // Initial check
+    checkIsDesktop();
+    
+    // Listen for resize events
+    window.addEventListener('resize', checkIsDesktop);
+    
+    // Cleanup
+    return () => window.removeEventListener('resize', checkIsDesktop);
+  }, []);
   
   // Close the shortcuts panel with Escape key
   useEffect(() => {
@@ -57,6 +74,9 @@ export default function KeyboardShortcutsHelp(): React.ReactElement {
     ...commonShortcuts,
     ...(isSearchPage ? searchShortcuts : watchlistShortcuts)
   ];
+  
+  // Don't render anything on non-desktop devices
+  if (!isDesktop) return null;
   
   return (
     <>

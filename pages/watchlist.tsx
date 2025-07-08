@@ -1,5 +1,5 @@
 // @ts-nocheck
-// watchlist.js
+// watchlist.tsx
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -14,7 +14,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Film, Tv, Edit, Trash2, List, ExternalLink, Clock, Star, X, AlertCircle, RefreshCcw } from 'lucide-react';
-import { useToast } from '../components/ToastContext';
+import { useToast } from '../hooks/useToast';
 import clientFetcher from '../utils/clientFetcher';
 import { useDebouncedSearch } from '../utils/useDebounce';
 import { WatchlistResponse } from '../types';

@@ -2,20 +2,46 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import Header from '../components/Header';
 import DynamicDetailsModal from '../components/DynamicDetailsModal';
 import DynamicAddToWatchlistModal from '../components/DynamicAddToWatchlistModal';
-import KeyboardShortcutsHelp from '../components/KeyboardShortcutsHelp';
 import { Button } from '../components/ui/button';
-import { Checkbox } from '../components/ui/checkbox';
 import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
+import { Checkbox } from '../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { PlusCircle, Info, ExternalLink, Star, Clock, Film, Tv, List, X, Edit, AlertCircle } from 'lucide-react'; 
-import { useToast, useWatchlist, WatchlistProvider } from '../components/ToastContext';
+import { useToast, useWatchlist } from '../hooks/useToast';
 import { useSWRConfig } from 'swr';
 import { useDebouncedSearch } from '../utils/useDebounce';
 import { TMDBMovie, WatchlistItem } from '../types';
+
+// Create a direct client-only checkbox component to avoid dynamic import issues
+function ClientCheckbox({ id, checked, disabled, onCheckedChange, className = '' }) {
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  
+  if (!mounted) {
+    return <div className={`h-4 w-4 rounded-sm border border-gray-700 bg-transparent ${className}`}></div>;
+  }
+  
+  // Ensure disabled is always a boolean
+  const isDisabled = disabled === true;
+  
+  return (
+    <Checkbox
+      id={id}
+      checked={checked}
+      disabled={isDisabled}
+      onCheckedChange={onCheckedChange}
+      className={className}
+    />
+  );
+}
 
 interface MovieCardProps {
   movie: TMDBMovie;
@@ -27,6 +53,7 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
   const [isHovered, setIsHovered] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const { watchlist } = useWatchlist();
   
   // Memoize watchlist check for performance
@@ -46,6 +73,7 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
   }, [isInWatchlist, watchlist, movie.id]);
 
   useEffect(() => {
+    setIsMounted(true);
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -53,6 +81,12 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
   }, []);
 
   const handleTap = () => {
+    if (!isMounted) {
+      // Fallback to desktop behavior during SSR/initial render
+      onShowDetails(movie);
+      return;
+    }
+    
     if (isMobile) {
       if (!showInfo) {
         setShowInfo(true);
@@ -94,8 +128,8 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
   return (
     <div
       className="movie-card relative rounded-lg overflow-hidden group cursor-pointer touch-manipulation"
-      onMouseEnter={() => !isMobile && setIsHovered(true)}
-      onMouseLeave={() => !isMobile && setIsHovered(false)}
+      onMouseEnter={() => isMounted && !isMobile && setIsHovered(true)}
+      onMouseLeave={() => isMounted && !isMobile && setIsHovered(false)}
       onClick={handleTap}
       data-testid={`movie-${movie.id}`}
     >
@@ -128,7 +162,7 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
       )}
       
       {/* Show the + or Edit button only when not hovered (desktop) or not showing info (mobile) */}
-      {(!isHovered || isMobile) && !showInfo && (
+      {(!isMounted || (!isHovered || isMobile)) && !showInfo && (
         <div className="absolute bottom-2 right-2 z-10">
           <button
             type="button"
@@ -146,6 +180,7 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
       )}
       <div // This is the movie-info div that appears on hover/tap
         className={`movie-info absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-300 ${
+          !isMounted ? 'opacity-0' : 
           isMobile ? (showInfo ? 'opacity-100' : 'opacity-0') : isHovered ? 'opacity-100' : 'opacity-0'
         }`}
       >
@@ -163,7 +198,7 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
           <span className="text-[#F5C518] font-bold text-xs sm:text-sm">{voteAverage}</span>
           <Star className="h-3 sm:h-4 w-4 text-[#F5C518] fill-current ml-1" />
         </div>
-        {isMobile ? (
+        {isMounted && isMobile ? (
           <div className="flex flex-col mt-3 space-y-2">
             <div className="flex flex-wrap gap-2">
               <Button
@@ -263,6 +298,38 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
   );
 });
 
+// Only import and render KeyboardShortcutsHelp on desktop devices
+const KeyboardShortcutsHelp = dynamic(() => import('../components/KeyboardShortcutsHelp'), {
+  ssr: false,
+  loading: () => null
+});
+
+// Component to conditionally render KeyboardShortcutsHelp only on desktop
+function DesktopOnlyKeyboardShortcuts() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  
+  useEffect(() => {
+    // Check if device is desktop (not mobile/tablet)
+    const checkIsDesktop = () => {
+      setIsDesktop(window.innerWidth >= 1024);  // Standard desktop breakpoint
+    };
+    
+    // Initial check
+    checkIsDesktop();
+    
+    // Listen for resize events
+    window.addEventListener('resize', checkIsDesktop);
+    
+    // Cleanup
+    return () => window.removeEventListener('resize', checkIsDesktop);
+  }, []);
+  
+  // Only render on desktop devices
+  if (!isDesktop) return null;
+  
+  return <KeyboardShortcutsHelp />;
+}
+
 export default function SearchPage() {
   const { value: searchInput, debouncedValue: searchQuery, onChange: handleSearchChange, setValue: setSearchInput } = useDebouncedSearch('', 500);
   const [searchResults, setSearchResults] = useState([]);
@@ -276,12 +343,18 @@ export default function SearchPage() {
   const [discoveryMode, setDiscoveryMode] = useState('text'); // 'text', 'top_rated', 'popular', 'latest'
   const [excludeWatchlist, setExcludeWatchlist] = useState(false);
   const [sortOrder, setSortOrder] = useState('popularity.desc'); // Default TMDB sort
+  const [isMounted, setIsMounted] = useState(false);
   const { addToast } = useToast();
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const SEARCH_LIMIT = 40;
   const { mutate } = useSWRConfig();
   const { watchlist, isLoading: isWatchlistLoading, mutate: mutateWatchlist, error: watchlistError } = useWatchlist();
+
+  // Effect to set mounted state
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Determine if the item selected for the modal is in the watchlist
   const selectedItemIsInWatchlist = useMemo(() => {
@@ -591,10 +664,10 @@ export default function SearchPage() {
         </div>
         <div className="mb-6 flex justify-center">
           <div className="flex items-center space-x-2">
-            <Checkbox
+            <ClientCheckbox
               id="exclude-watchlist"
               checked={excludeWatchlist}
-              disabled={isWatchlistLoading} // Disable if watchlist data is still loading
+              disabled={isWatchlistLoading ? true : false}
               onCheckedChange={setExcludeWatchlist}
               className="border-gray-700 data-[state=checked]:bg-[#E50914] data-[state=checked]:text-white"
             />
@@ -724,8 +797,8 @@ export default function SearchPage() {
         />
       )}
 
-      {/* Keyboard shortcuts help component */}
-      <KeyboardShortcutsHelp />
+      {/* Only render keyboard shortcuts help on desktop */}
+      <DesktopOnlyKeyboardShortcuts />
     </div>
   );
 }

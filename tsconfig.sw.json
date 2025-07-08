@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2018",
+    "lib": ["ES2018", "WebWorker"],
+    "module": "None",
+    "moduleResolution": "node",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": false,
+    "outDir": "./public",
+    "rootDir": "./src",
+    "esModuleInterop": false,
+    "allowSyntheticDefaultImports": false,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/sw.ts"],
+  "exclude": ["node_modules", "public", "pages", "components", "lib", "utils"]
+}

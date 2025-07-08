@@ -6,7 +6,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Switch } from './ui/switch';
 import { Edit, Trash2, X, CheckCircle } from 'lucide-react';
-import { useToast } from './ToastContext';
+import { useToast } from '../hooks/useToast';
 import { Platform } from '../types';
 
 interface PlatformForm {

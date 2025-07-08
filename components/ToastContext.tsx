@@ -1,11 +1,11 @@
 // @ts-nocheck
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import useSWR from 'swr';
-import { ToastMessage, WatchlistItem, WatchlistResponse } from '../types';
+import { ToastMessage, WatchlistItem, WatchlistResponse } from '../types/index';
 
 interface ToastContextType {
   addToast: (toast: Omit<ToastMessage, 'id'>) => void;
@@ -88,8 +88,8 @@ export function WatchlistProvider({ children }: WatchlistProviderProps): React.R
   const { data, error, mutate } = useSWR(shouldFetch ? '/api/watchlist?limit=9999' : null, fetcher, {
     dedupingInterval: 120000, // 2 minutes
     revalidateOnFocus: false, // Don't revalidate on window focus for better performance
-    revalidateIfStale: true, // Revalidate if data is stale
-    revalidateOnMount: true, // Always revalidate on component mount
+    revalidateIfStale: false, // Don't revalidate if data is stale - prevent loops
+    revalidateOnMount: false, // Don't always revalidate on component mount - prevent loops
     keepPreviousData: true, // Keep previous data to prevent UI flickering
     // onError can be simplified or made more user-friendly if needed
     onError: (err) => console.warn('Watchlist SWR Error (likely due to no session or API issue):', err.status, err.info),
@@ -102,8 +102,11 @@ export function WatchlistProvider({ children }: WatchlistProviderProps): React.R
       }))
     : [];
 
+  // Keep loading state simple - let component-level checks handle SSR/client differences
+  const isLoading = shouldFetch && !data && !error;
+
   return (
-    <WatchlistContext.Provider value={{ watchlist, isLoading: !data && !error, error, mutate }}>
+    <WatchlistContext.Provider value={{ watchlist, isLoading, error, mutate }}>
       {children}
     </WatchlistContext.Provider>
   );
@@ -142,14 +145,14 @@ function Toaster({ toasts, dismissToast }: ToasterProps): React.ReactElement {
 function Toast({ toast, onDismiss }: ToastProps): React.ReactElement {
   const [isVisible, setIsVisible] = useState<boolean>(true);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setTimeout(() => {
       setIsVisible(false);
     }, 5000);
     return () => clearTimeout(timer);
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isVisible) {
       const timer = setTimeout(() => {
         onDismiss();

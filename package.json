@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "npx prisma generate && next build",
+    "dev": "npm run build:sw && next dev",
+    "build": "npm run build:sw && npx prisma generate && next build",
+    "build:sw": "npx tsc --project tsconfig.sw.json",
     "start": "next start",
     "lint": "next lint"
   },

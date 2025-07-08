@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { useState, useEffect, MouseEvent } from 'react';
-import { useToast } from './ToastContext';
+import { useToast } from '../hooks/useToast';
 import { Star } from 'lucide-react';
 import { TMDBMovie } from '../types';
 

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { RadioGroup, RadioGroupItem } from './ui/radio-group';
 import { Label } from './ui/label';
 import { CalendarIcon, Clapperboard, Tv2, X, PlayCircle, CheckCircle, Clock, Star } from 'lucide-react';
-import { useToast } from '../components/ToastContext';
+import { useToast } from '../hooks/useToast';
 import WhereToWatch from './WhereToWatch'; // Import the new component
 import useSWR from 'swr';
 import { TMDBMovie, WatchlistItem, Platform, ProvidersData } from '../types';
@@ -23,7 +23,7 @@ interface AddToWatchlistModalProps {
   mode?: 'add' | 'edit';
 }
 
-export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode = 'add' }: AddToWatchlistModalProps): React.ReactElement | null {
+const AddToWatchlistModal = function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode = 'add' }: AddToWatchlistModalProps): React.ReactElement | null {
   if (!item) {
     console.warn('AddToWatchlistModal: item is undefined');
     return null;
@@ -206,8 +206,18 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
 
   const posterFieldName = isEditing ? 'poster' : 'poster_path';
   const posterValue = item[posterFieldName];
+  
+  // Helper function to decode HTML entities if present (like &#x2F; to /)
+  const decodeHtmlEntities = (str) => {
+    if (!str) return '';
+    // Create a temporary element to use the browser's built-in HTML decoding
+    const txt = document.createElement('textarea');
+    txt.innerHTML = str;
+    return txt.value;
+  };
+  
   const posterUrl = posterValue
-    ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${posterValue}`
+    ? `https://image.tmdb.org/t/p/w${isMobile ? '185' : '154'}${decodeHtmlEntities(posterValue)}`
     : '/placeholder-image.svg';
 
   const actionText = isEditing ? 'Update' : 'Add to';
@@ -434,3 +444,6 @@ export default function AddToWatchlistModal({ item, onSaveSuccess, onClose, mode
     </div>
   );
 }
+
+// Export the component explicitly
+export default AddToWatchlistModal;
