@@ -105,6 +105,18 @@ export function WatchlistProvider({ children }: WatchlistProviderProps): React.R
   // Keep loading state simple - let component-level checks handle SSR/client differences
   const isLoading = shouldFetch && !data && !error;
 
+  // Debug logging
+  useEffect(() => {
+    console.log('WatchlistProvider Debug:', {
+      session: !!session,
+      shouldFetch,
+      data: !!data,
+      error: !!error,
+      isLoading,
+      watchlistLength: watchlist.length
+    });
+  }, [session, shouldFetch, data, error, isLoading, watchlist.length]);
+
   return (
     <WatchlistContext.Provider value={{ watchlist, isLoading, error, mutate }}>
       {children}

@@ -75,24 +75,30 @@ export function ToastProvider({ children }: ToastProviderProps): React.ReactElem
 }
 
 export function WatchlistProvider({ children }: WatchlistProviderProps): React.ReactElement {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   const { data, error, mutate } = useSWR<WatchlistResponse, FetchError>(
-    session ? '/api/watchlist' : null,
+    session ? '/api/watchlist?limit=9999' : null,
     fetcher,
     {
-      // Reduce unnecessary revalidation to prevent Fast Refresh issues
-      revalidateOnMount: false,
-      revalidateIfStale: false,
-      revalidateOnFocus: false,
-      revalidateOnReconnect: true,
-      refreshInterval: 0,
-      dedupingInterval: 5000,
+      // Allow initial fetch but reduce unnecessary revalidation
+      revalidateOnMount: true,   // Allow initial fetch
+      revalidateIfStale: false,  // Don't revalidate stale data
+      revalidateOnFocus: false,  // Don't revalidate on focus
+      revalidateOnReconnect: true, // Revalidate when connection restored
+      refreshInterval: 0,        // No automatic refresh
+      dedupingInterval: 120000,  // 2 minutes deduping
     }
   );
 
   const watchlist = data?.items || [];
-  const isLoading = !error && !data && !!session;
+  
+  // More accurate loading state:
+  // - If NextAuth is still loading, we're loading
+  // - If unauthenticated, not loading
+  // - If authenticated but SWR hasn't finished yet, loading
+  // - If authenticated and we have data or error, not loading
+  const isLoading = status === 'loading' || (status === 'authenticated' && !data && !error);
 
   return (
     <WatchlistContext.Provider value={{

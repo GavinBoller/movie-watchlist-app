@@ -17,8 +17,8 @@ import { useSWRConfig } from 'swr';
 import { useDebouncedSearch } from '../utils/useDebounce';
 import { TMDBMovie, WatchlistItem } from '../types';
 
-// Create a direct client-only checkbox component to avoid dynamic import issues
-function ClientCheckbox({ id, checked, disabled, onCheckedChange, className = '' }) {
+// Create a simple, reliable checkbox component
+function ClientCheckbox({ id, checked, disabled = false, onCheckedChange, className = '' }) {
   const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
@@ -29,17 +29,53 @@ function ClientCheckbox({ id, checked, disabled, onCheckedChange, className = ''
     return <div className={`h-4 w-4 rounded-sm border border-gray-700 bg-transparent ${className}`}></div>;
   }
   
-  // Ensure disabled is always a boolean
-  const isDisabled = disabled === true;
+  const isDisabled = Boolean(disabled);
+  
+  const handleClick = () => {
+    if (!isDisabled && onCheckedChange) {
+      onCheckedChange(!checked);
+    }
+  };
   
   return (
-    <Checkbox
+    <div
       id={id}
-      checked={checked}
-      disabled={isDisabled}
-      onCheckedChange={onCheckedChange}
-      className={className}
-    />
+      role="checkbox"
+      aria-checked={checked}
+      tabIndex={isDisabled ? -1 : 0}
+      className={`
+        h-4 w-4 rounded-sm border cursor-pointer inline-flex items-center justify-center
+        ${checked 
+          ? 'bg-[#E50914] border-[#E50914] text-white' 
+          : 'border-gray-400 bg-transparent hover:border-gray-300'
+        }
+        ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-opacity-90'}
+        ${className}
+      `}
+      onClick={handleClick}
+      onKeyDown={(e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && !isDisabled) {
+          e.preventDefault();
+          handleClick();
+        }
+      }}
+    >
+      {checked && (
+        <svg
+          className="h-3 w-3 text-current"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={3}
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
+      )}
+    </div>
   );
 }
 
@@ -342,6 +378,7 @@ export default function SearchPage() {
   const [minRating, setMinRating] = useState('0'); // Stores minimum rating (e.g., '6', '7')
   const [discoveryMode, setDiscoveryMode] = useState('text'); // 'text', 'top_rated', 'popular', 'latest'
   const [excludeWatchlist, setExcludeWatchlist] = useState(false);
+  
   const [sortOrder, setSortOrder] = useState('popularity.desc'); // Default TMDB sort
   const [isMounted, setIsMounted] = useState(false);
   const { addToast } = useToast();
@@ -667,13 +704,21 @@ export default function SearchPage() {
             <ClientCheckbox
               id="exclude-watchlist"
               checked={excludeWatchlist}
-              disabled={isWatchlistLoading ? true : false}
-              onCheckedChange={setExcludeWatchlist}
-              className="border-gray-700 data-[state=checked]:bg-[#E50914] data-[state=checked]:text-white"
+              disabled={isWatchlistLoading}
+              onCheckedChange={(newValue) => {
+                console.log('onCheckedChange called with:', newValue);
+                setExcludeWatchlist(newValue);
+              }}
             />
             <label
               htmlFor="exclude-watchlist"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              className="text-sm font-medium leading-none cursor-pointer text-white hover:text-gray-300 select-none"
+              onClick={() => {
+                console.log('Label clicked! Current excludeWatchlist:', excludeWatchlist, 'Loading:', isWatchlistLoading);
+                if (!isWatchlistLoading) {
+                  setExcludeWatchlist(!excludeWatchlist);
+                }
+              }}
             >
               Exclude items already in my watchlist
             </label>

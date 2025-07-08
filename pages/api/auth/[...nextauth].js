@@ -34,6 +34,8 @@ export const authOptions = {
       // The `user` object is only passed on initial sign-in.
       // We persist the user's id, role, and country to the token.
       if (user) {
+        // For Google OAuth, use the user.id (which is the Google user ID)
+        // If user.id is not set, fall back to the email as a last resort
         token.id = user.id || user.email;
         token.role = user.role || 'user';
         token.country = user.country || null;
@@ -52,7 +54,38 @@ export const authOptions = {
     // It receives the JWT token and is used to populate the session object.
     async session({ session, token }) {
       if (token && session?.user) {
-        session.user.id = token.id || token.sub;
+        // For JWT strategy, we need to look up the actual user ID from the database
+        // based on the Google provider account ID
+        if (token.sub) {
+          try {
+            const { Pool } = require('@neondatabase/serverless');
+            const pool = new Pool({
+              connectionString: process.env.DATABASE_URL,
+            });
+            
+            // Look up the user ID from the accounts table
+            const result = await pool.query(
+              'SELECT "userId" FROM accounts WHERE provider = $1 AND "providerAccountId" = $2',
+              ['google', token.sub]
+            );
+            
+            if (result.rows.length > 0) {
+              session.user.id = result.rows[0].userId;
+            } else {
+              // Fallback to the token.sub if no database entry found
+              session.user.id = token.sub;
+            }
+            
+            await pool.end();
+          } catch (error) {
+            console.error('Error looking up user ID:', error);
+            // Fallback to token.sub on error
+            session.user.id = token.sub;
+          }
+        } else {
+          session.user.id = token.id || token.sub;
+        }
+        
         session.user.role = token.role || 'user';
         session.user.country = token.country || null;
       }
