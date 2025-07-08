@@ -98,8 +98,8 @@ sw.addEventListener('fetch', (event) => {
         return;
     }
     // Handle different types of requests
-    if (url.pathname.startsWith('/api/')) {
-        // API routes: Network first, fallback to cache
+    if (url.pathname.startsWith('/api/') && !url.pathname.startsWith('/api/auth/')) {
+        // API routes (excluding auth): Network first, fallback to cache
         event.respondWith(handleApiRequest(request));
     }
     else if (url.hostname === sw.location.hostname && isStaticAsset(url.pathname)) {
