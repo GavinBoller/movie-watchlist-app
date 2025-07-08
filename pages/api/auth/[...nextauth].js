@@ -1,11 +1,13 @@
 // [...nextauth].js
 import NextAuth from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
-import { PrismaAdapter } from "@next-auth/prisma-adapter"
-import prisma from '../../../lib/prisma'; // Adjust path if needed
+// Remove PrismaAdapter import since we're using JWT strategy
+// import { PrismaAdapter } from "@next-auth/prisma-adapter"
+// import prisma from '../../../lib/prisma'; // Adjust path if needed
 
 export const authOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Remove adapter when using JWT strategy
+  // adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
         clientId: process.env.GOOGLE_CLIENT_ID,
@@ -32,9 +34,9 @@ export const authOptions = {
       // The `user` object is only passed on initial sign-in.
       // We persist the user's id, role, and country to the token.
       if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.country = user.country;
+        token.id = user.id || user.email;
+        token.role = user.role || 'user';
+        token.country = user.country || null;
       }
 
       // This is called when the session is updated with update() on the client.
@@ -49,10 +51,10 @@ export const authOptions = {
     // The session callback is called whenever a session is checked.
     // It receives the JWT token and is used to populate the session object.
     async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id;
-        session.user.role = token.role;
-        session.user.country = token.country;
+      if (token && session?.user) {
+        session.user.id = token.id || token.sub;
+        session.user.role = token.role || 'user';
+        session.user.country = token.country || null;
       }
       return session;
     },
@@ -105,13 +107,6 @@ export const authOptions = {
   
   // CSRF protection
   useSecureCookies: process.env.NODE_ENV !== "development",
-  
-  // JWT configuration
-  jwt: {
-    secret: process.env.NEXTAUTH_SECRET,
-    encryption: true,
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  },
 }
 
 export default NextAuth(authOptions)
