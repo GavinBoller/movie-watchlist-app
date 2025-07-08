@@ -445,17 +445,17 @@ export default function WatchlistPage() {
                 <List className="h-4 w-4" /> All ({data?.filterCounts?.media?.all || 0})
                 {isValidating && !isLoading && <span className="ml-1 h-2 w-2 rounded-full bg-white animate-pulse"></span>}
               </Button>
-              <Button onClick={() => setMediaFilter('movie')} className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'} ${isValidating && !isLoading ? 'opacity-80' : ''}`}>
+              <Button onClick={() => setMediaFilter('movie')} className={`flex items-center gap-1 ${mediaFilter === 'movie' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-700 hover:bg-gray-600'} ${isValidating && !isLoading ? 'opacity-80' : ''}`}>
                 <Film className="h-4 w-4" /> Movies ({data?.filterCounts?.media?.movie || 0})
                 {isValidating && !isLoading && <span className="ml-1 h-2 w-2 rounded-full bg-white animate-pulse"></span>}
               </Button>
-              <Button onClick={() => setMediaFilter('tv')} className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-[#E50914] hover:bg-[#f6121d]' : 'bg-gray-700 hover:bg-gray-600'} ${isValidating && !isLoading ? 'opacity-80' : ''}`}>
+              <Button onClick={() => setMediaFilter('tv')} className={`flex items-center gap-1 ${mediaFilter === 'tv' ? 'bg-teal-600 hover:bg-teal-700' : 'bg-gray-700 hover:bg-gray-600'} ${isValidating && !isLoading ? 'opacity-80' : ''}`}>
                 <Tv className="h-4 w-4" /> TV ({data?.filterCounts?.media?.tv || 0})
                 {isValidating && !isLoading && <span className="ml-1 h-2 w-2 rounded-full bg-white animate-pulse"></span>}
               </Button>
             </div>
             <div className="mb-6 flex justify-center gap-2 flex-wrap">
-              <Button onClick={() => setStatusFilter('all')} className={`text-xs sm:text-sm h-10 min-h-[44px] min-w-[90px] px-3 ${statusFilter === 'all' ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-800 hover:bg-gray-700'}`}>
+              <Button onClick={() => setStatusFilter('all')} className={`text-xs sm:text-sm h-10 min-h-[44px] min-w-[90px] px-3 ${statusFilter === 'all' ? 'bg-[#E50914] hover:bg-[#f6121d] text-white' : 'bg-gray-800 hover:bg-gray-700'}`}>
                 All Status ({data?.filterCounts?.status?.all || 0})
               </Button>
               <Button onClick={() => setStatusFilter('to_watch')} className={`text-xs sm:text-sm h-10 min-h-[44px] min-w-[90px] px-3 ${statusFilter === 'to_watch' ? 'bg-blue-800 hover:bg-blue-700 text-white' : 'bg-gray-800 hover:bg-gray-700'}`}>

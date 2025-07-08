@@ -41,7 +41,7 @@ export default function MovieCard({ result, onAddToWatchlist, onInfoClick, isInW
   const [isHovered, setIsHovered] = useState<boolean>(false);
   const { addToast } = useToast();
 
-  const badgeClass = media_type === 'tv' ? 'bg-blue-600' : 'bg-[#E50914]';
+  const badgeClass = media_type === 'tv' ? 'bg-teal-600' : 'bg-purple-600';
   const typeBadge = media_type === 'tv' ? 'TV' : 'Movie';
   
   const displayGenres = genres?.join(', ') || (genre_ids?.map(id => {
