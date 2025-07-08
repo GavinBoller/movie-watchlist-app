@@ -78,7 +78,7 @@ const WatchlistItemCard = React.memo(({ item, onEdit, onDelete }) => {
       {/* Always visible status indicator in top left */}
       <div className={`absolute top-2 left-2 z-20 text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap capitalize shadow-md ${
         item.status === 'watched' ? 'bg-green-800' :
-        item.status === 'watching' ? 'bg-amber-700' : 'bg-blue-800'
+        item.status === 'watching' ? 'bg-yellow-800' : 'bg-blue-800'
       }`}>
         {(item.status || '').replace('_', ' ')}
       </div>
@@ -455,16 +455,16 @@ export default function WatchlistPage() {
               </Button>
             </div>
             <div className="mb-6 flex justify-center gap-2 flex-wrap">
-              <Button onClick={() => setStatusFilter('all')} className={`text-xs h-8 min-h-[40px] min-w-[90px] ${statusFilter === 'all' ? 'bg-gray-600' : 'bg-gray-800 hover:bg-gray-700'}`}>
+              <Button onClick={() => setStatusFilter('all')} className={`text-xs sm:text-sm h-10 min-h-[44px] min-w-[90px] px-3 ${statusFilter === 'all' ? 'bg-gray-600 hover:bg-gray-500' : 'bg-gray-800 hover:bg-gray-700'}`}>
                 All Status ({data?.filterCounts?.status?.all || 0})
               </Button>
-              <Button onClick={() => setStatusFilter('to_watch')} className={`text-xs h-8 min-h-[40px] min-w-[90px] ${statusFilter === 'to_watch' ? 'bg-blue-800' : 'bg-gray-800 hover:bg-gray-700'}`}>
+              <Button onClick={() => setStatusFilter('to_watch')} className={`text-xs sm:text-sm h-10 min-h-[44px] min-w-[90px] px-3 ${statusFilter === 'to_watch' ? 'bg-blue-800 hover:bg-blue-700 text-white' : 'bg-gray-800 hover:bg-gray-700'}`}>
                 To Watch ({data?.filterCounts?.status?.to_watch || 0})
               </Button>
-              <Button onClick={() => setStatusFilter('watching')} className={`text-xs h-8 min-h-[40px] min-w-[90px] ${statusFilter === 'watching' ? 'bg-yellow-800' : 'bg-gray-800 hover:bg-gray-700'}`}>
+              <Button onClick={() => setStatusFilter('watching')} className={`text-xs sm:text-sm h-10 min-h-[44px] min-w-[90px] px-3 ${statusFilter === 'watching' ? 'bg-yellow-800 hover:bg-yellow-700 text-white' : 'bg-gray-800 hover:bg-gray-700'}`}>
                 Watching ({data?.filterCounts?.status?.watching || 0})
               </Button>
-              <Button onClick={() => setStatusFilter('watched')} className={`text-xs h-8 min-h-[40px] min-w-[90px] ${statusFilter === 'watched' ? 'bg-green-800' : 'bg-gray-800 hover:bg-gray-700'}`}>
+              <Button onClick={() => setStatusFilter('watched')} className={`text-xs sm:text-sm h-10 min-h-[44px] min-w-[90px] px-3 ${statusFilter === 'watched' ? 'bg-green-800 hover:bg-green-700 text-white' : 'bg-gray-800 hover:bg-gray-700'}`}>
                 Watched ({data?.filterCounts?.status?.watched || 0})
               </Button>
             </div>
