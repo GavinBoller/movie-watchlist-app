@@ -39,3 +39,20 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Prevent duplicate JS files when TypeScript equivalents exist
+pages/*.js
+pages/auth/*.js
+components/**/*.js
+hooks/*.js
+utils/*.js
+lib/*.js
+middleware.js
+
+# But allow specific JS files that should remain
+!pages/api/**/*.js
+!*.config.js
+!*.config.mjs
+!**/scripts/*.js
+!import-*.js
+!public/*.js
