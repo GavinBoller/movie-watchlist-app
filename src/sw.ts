@@ -148,7 +148,10 @@ sw.addEventListener('fetch', (event: FetchEvent) => {
   }
   
   // Handle different types of requests
-  if (url.pathname.startsWith('/api/') && !url.pathname.startsWith('/api/auth/')) {
+  if (url.pathname.startsWith('/api/auth/')) {
+    // Skip authentication routes entirely - let them pass through normally
+    return;
+  } else if (url.pathname.startsWith('/api/')) {
     // API routes (excluding auth): Network first, fallback to cache
     event.respondWith(handleApiRequest(request));
   } else if (url.hostname === sw.location.hostname && isStaticAsset(url.pathname)) {
