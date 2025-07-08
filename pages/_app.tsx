@@ -11,6 +11,22 @@ import { registerServiceWorker, handleOfflineActions } from '../lib/serviceWorke
 
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps): React.ReactElement {
   useEffect(() => {
+    // Suppress NextAuth client errors that are safe to ignore
+    const originalError = console.error;
+    console.error = (...args) => {
+      const errorMessage = args.join(' ');
+      
+      // Suppress specific NextAuth client errors that occur during sign out
+      if (errorMessage.includes('[next-auth][error][CLIENT_FETCH_ERROR]') && 
+          errorMessage.includes('Cannot convert undefined or null to object')) {
+        console.log('NextAuth: Suppressed sign out transition error');
+        return;
+      }
+      
+      // Call original console.error for all other errors
+      originalError.apply(console, args);
+    };
+    
     // Register Service Worker only in production and if supported
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
       registerServiceWorker()

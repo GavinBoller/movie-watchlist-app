@@ -32,6 +32,25 @@ export const authOptions = {
       console.error("NextAuth error:", message);
     },
   },
+  // Custom logger to suppress client errors
+  logger: {
+    error: (code, metadata) => {
+      // Suppress the specific client fetch error during sign out
+      if (code === 'CLIENT_FETCH_ERROR' && metadata?.message?.includes('Cannot convert undefined or null to object')) {
+        console.log('NextAuth: Suppressed client fetch error during sign out transition');
+        return;
+      }
+      console.error(`NextAuth Error [${code}]:`, metadata);
+    },
+    warn: (code) => {
+      console.warn(`NextAuth Warning [${code}]`);
+    },
+    debug: (code, metadata) => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`NextAuth Debug [${code}]:`, metadata);
+      }
+    },
+  },
   callbacks: {
     /**
      * This callback is called whenever a JWT is created or updated.
