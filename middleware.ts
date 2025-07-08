@@ -28,7 +28,7 @@ export async function middleware(req: NextRequest) {
     "img-src 'self' https://image.tmdb.org https://*.googleusercontent.com https://www.google.com https://accounts.google.com data:", // TMDB images + Google profile images + Google OAuth + data URIs
     "font-src 'self' https://fonts.gstatic.com data:", // Google Fonts + embedded fonts
     `connect-src 'self' https://api.themoviedb.org https://image.tmdb.org https://fonts.googleapis.com https://fonts.gstatic.com https://vitals.vercel-insights.com https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com${isDevelopment ? " ws: wss:" : ""}`, // TMDB API + TMDB images + Google Fonts + Vercel + Google OAuth + WebSocket for dev
-    "frame-src 'self' https://accounts.google.com https://content.googleapis.com", // Google OAuth frames
+    "frame-src 'self' https://vercel.live https://accounts.google.com https://content.googleapis.com", // Vercel Live + Google OAuth frames
     "frame-ancestors 'none'", // Prevent framing (same as X-Frame-Options: DENY)
     "base-uri 'self'", // Restrict <base> element URLs
     "form-action 'self'", // Restrict form submissions
