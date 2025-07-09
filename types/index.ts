@@ -126,6 +126,7 @@ export interface ToastMessage {
   title: string;
   description?: string;
   variant?: 'default' | 'destructive';
+  duration?: number;
   action?: {
     label: string;
     onClick: () => void;

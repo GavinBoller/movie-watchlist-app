@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic';
 import Header from '../components/Header';
 import DynamicDetailsModal from '../components/DynamicDetailsModal';
 import DynamicAddToWatchlistModal from '../components/DynamicAddToWatchlistModal';
+import VoiceSearch from '../components/VoiceSearch';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
@@ -650,7 +651,7 @@ export default function SearchPage() {
 
         {/* Search Input Field (only visible/active in text search mode) */}
         {discoveryMode === 'text' && (
-          <div className="mb-4 flex justify-center">
+          <div className="mb-4 flex flex-col items-center gap-4">
             <div className="relative w-full sm:max-w-md md:max-w-lg">
               <Input
                 type="text"
@@ -671,6 +672,14 @@ export default function SearchPage() {
                 </Button>
               )}
             </div>
+            <VoiceSearch 
+              onResult={(transcript) => {
+                setSearchInput(transcript);
+                handleSearch(transcript);
+              }}
+              placeholder="Click to start voice search"
+              className="w-full sm:w-auto"
+            />
           </div>
         )}
 

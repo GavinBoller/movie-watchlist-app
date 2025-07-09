@@ -9,6 +9,7 @@ import Header from '../components/Header';
 import DynamicAddToWatchlistModal from '../components/DynamicAddToWatchlistModal';
 import DynamicConfirmationModal from '../components/DynamicConfirmationModal';
 import KeyboardShortcutsHelp from '../components/KeyboardShortcutsHelp';
+import VoiceSearch from '../components/VoiceSearch';
 import { Skeleton } from '../components/ui/skeleton';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -404,26 +405,35 @@ export default function WatchlistPage() {
         {status === 'authenticated' && (
           <>
             <div className="flex flex-col md:flex-row gap-4 mb-6">
-              {/* Wrapper div to contain the Input and the X button */}
-              <div className="relative w-full md:flex-1">
-                <Input
-                  type="text"
-                  placeholder="Search your watchlist..."
-                  value={searchInput}
-                  onChange={handleSearchChange}
-                  className="w-full bg-gray-800 border-gray-700 text-white py-2 pl-4 pr-10 min-h-[44px]" // Added pr-10 for button space
+              {/* Search Input and Voice Search */}
+              <div className="flex flex-col md:flex-row gap-2 w-full md:flex-1">
+                <div className="relative flex-1">
+                  <Input
+                    type="text"
+                    placeholder="Search your watchlist..."
+                    value={searchInput}
+                    onChange={handleSearchChange}
+                    className="w-full bg-gray-800 border-gray-700 text-white py-2 pl-4 pr-10 min-h-[44px]"
+                  />
+                  {searchInput && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSearchInput('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                      aria-label="Clear search"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <VoiceSearch 
+                  onResult={(transcript) => {
+                    setSearchInput(transcript);
+                  }}
+                  placeholder="Click to start voice search"
+                  className="w-full md:w-auto"
                 />
-                {searchInput && ( // Only show the clear button if there's text in the search field
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSearchInput('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-                    aria-label="Clear search" // Added for accessibility
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
               </div>
               <Select onValueChange={setSortOrder} defaultValue={sortOrder}>
                 <SelectTrigger className="w-full md:w-[200px] bg-gray-800 border-gray-700 min-h-[44px]">
