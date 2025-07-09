@@ -42,11 +42,14 @@ const DetailsModal = function DetailsModal({ item, onClose, onAddToWatchlist, is
   useEffect(() => {
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
+        // Stop event propagation to prevent the global handler from processing it
+        event.stopPropagation();
+        event.preventDefault();
         onClose();
       }
     };
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleEscape, true); // Use capture phase
+    return () => document.removeEventListener('keydown', handleEscape, true);
   }, [onClose]); // Re-run effect if onClose changes
 
   const posterUrl = details?.poster_path

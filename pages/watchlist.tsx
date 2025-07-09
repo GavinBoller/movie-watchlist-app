@@ -2,7 +2,7 @@
 // watchlist.tsx
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useLayoutEffect } from 'react';
 import useSWR from 'swr';
 import { useSession, signIn } from 'next-auth/react';
 import Header from '../components/Header';
@@ -35,22 +35,24 @@ interface WatchlistItemCardProps {
   item: WatchlistItem;
   onEdit: (item: WatchlistItem) => void;
   onDelete: (item: WatchlistItem) => void;
+  priority?: boolean; // Add priority prop for image loading
 }
 
-const WatchlistItemCard = React.memo<WatchlistItemCardProps>(({ item, onEdit, onDelete }) => {
+const WatchlistItemCard = React.memo<WatchlistItemCardProps>(({ item, onEdit, onDelete, priority = false }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Detect if the device supports hover - use an immediate effect for faster initialization
-  useEffect(() => {
+  // Detect if the device supports hover - use useLayoutEffect for faster initialization
+  useLayoutEffect(() => {
     setIsMounted(true);
     // Check if device supports hover interactions (not touch-only)
     const hasHover = window.matchMedia('(hover: hover)').matches;
     const hasPointer = window.matchMedia('(pointer: fine)').matches;
     // Touch device = no hover capability OR no fine pointer (like mouse)
-    setIsTouchDevice(!hasHover || !hasPointer);
+    const isTouch = !hasHover || !hasPointer;
+    setIsTouchDevice(isTouch);
     
     // Listen for media query changes
     const hoverQuery = window.matchMedia('(hover: hover)');
@@ -67,7 +69,7 @@ const WatchlistItemCard = React.memo<WatchlistItemCardProps>(({ item, onEdit, on
       hoverQuery.removeEventListener('change', handleMediaChange);
       pointerQuery.removeEventListener('change', handleMediaChange);
     };
-  }, []);
+  }, [priority]);
 
   // Decode HTML entities in poster path (fix for items with encoded paths)
   const decodePoster = useCallback((poster) => {
@@ -120,7 +122,7 @@ const WatchlistItemCard = React.memo<WatchlistItemCardProps>(({ item, onEdit, on
         src={posterUrl} 
         alt={item.title} 
         className="w-full aspect-[2/3] object-cover" 
-        loading="lazy" 
+        loading={priority ? "eager" : "lazy"}
         width="300"
         height="450"
         onError={(e) => {
@@ -143,7 +145,7 @@ const WatchlistItemCard = React.memo<WatchlistItemCardProps>(({ item, onEdit, on
       
       {/* Use optimized transition with shorter duration */}
       <div
-        className={`absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-200 ${
+        className={`absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-150 ${
           !isMounted ? 'opacity-0' : 
           isTouchDevice ? (showInfo ? 'opacity-100' : 'opacity-0') : 
           isHovered ? 'opacity-100' : 'opacity-0'
@@ -350,10 +352,9 @@ export default function WatchlistPage() {
         // Focus search with forward slash
         e.preventDefault();
         document.querySelector('input[type="text"]')?.focus();
-      } else if (e.key === 'Escape' && searchInput) {
-        // Clear search with Escape key
-        setSearchInput('');
-      } else if (e.key === 'm') {
+      }
+      // Removed Escape key handler here to avoid conflicts
+      else if (e.key === 'm') {
         // Toggle media filter (movies)
         setMediaFilter(prev => prev === 'movie' ? 'all' : 'movie');
       } else if (e.key === 't') {
@@ -500,6 +501,14 @@ export default function WatchlistPage() {
                   placeholder="Search your watchlist..."
                   value={searchInput}
                   onChange={handleSearchChange}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      // Only blur the input, don't clear it
+                      e.preventDefault();
+                      e.stopPropagation();
+                      e.currentTarget.blur();
+                    }
+                  }}
                   className="w-full bg-gray-800 border-gray-700 text-white py-2 pl-4 pr-20 min-h-[44px]"
                 />
                 {searchInput && (
@@ -664,12 +673,13 @@ export default function WatchlistPage() {
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 watchlist-grid">
-                {data.items.map((item) => (
+                {data.items.map((item, index) => (
                   <WatchlistItemCard
                     key={item.id}
                     item={item}
                     onEdit={() => setEditingItem(item)}
                     onDelete={() => handleDeleteClick(item)}
+                    priority={index < 10} /* Prioritize loading the first 10 images */
                   />
                 ))}
               </div>

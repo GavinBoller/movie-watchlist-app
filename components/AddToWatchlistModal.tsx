@@ -85,11 +85,14 @@ const AddToWatchlistModal = function AddToWatchlistModal({ item, onSaveSuccess, 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
+        // Stop event propagation to prevent the global handler from processing it
+        event.stopPropagation();
+        event.preventDefault();
         onClose();
       }
     };
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleEscape, true); // Use capture phase
+    return () => document.removeEventListener('keydown', handleEscape, true);
   }, [onClose]);
 
   useEffect(() => {

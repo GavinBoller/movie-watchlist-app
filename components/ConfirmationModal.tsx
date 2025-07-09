@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Button } from './ui/button';
 import { AlertTriangle, Trash2, Loader2 } from 'lucide-react';
 
@@ -20,6 +20,22 @@ export default function ConfirmationModal({
   message,
   isLoading = false,
 }: ConfirmationModalProps): React.ReactElement | null {
+  // Effect to handle Escape key press
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleEscape = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape' && !isLoading) {
+        // Stop event propagation to prevent the global handler from processing it
+        event.stopPropagation();
+        event.preventDefault();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleEscape, true); // Use capture phase
+    return () => document.removeEventListener('keydown', handleEscape, true);
+  }, [isOpen, onClose, isLoading]);
+
   if (!isOpen) {
     return null;
   }

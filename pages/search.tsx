@@ -2,7 +2,7 @@
 /* eslint-disable jsx-a11y/aria-props */
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
 import dynamic from 'next/dynamic';
 import Header from '../components/Header';
 import DynamicDetailsModal from '../components/DynamicDetailsModal';
@@ -86,9 +86,10 @@ interface MovieCardProps {
   movie: TMDBMovie;
   onAddToWatchlist: (movie: TMDBMovie | WatchlistItem) => void;
   onShowDetails: (movie: TMDBMovie) => void;
+  priority?: boolean; // Add priority prop for image loading
 }
 
-const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowDetails }) => {
+const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowDetails, priority = false }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
@@ -111,13 +112,15 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
     );
   }, [isInWatchlist, watchlist, movie.id]);
 
-  useEffect(() => {
+  // Use useLayoutEffect instead of useEffect for faster initialization
+  useLayoutEffect(() => {
     setIsMounted(true);
     // Check if device supports hover interactions (not touch-only)
     const hasHover = window.matchMedia('(hover: hover)').matches;
     const hasPointer = window.matchMedia('(pointer: fine)').matches;
     // Touch device = no hover capability OR no fine pointer (like mouse)
-    setIsTouchDevice(!hasHover || !hasPointer);
+    const isTouch = !hasHover || !hasPointer;
+    setIsTouchDevice(isTouch);
     
     // Listen for media query changes
     const hoverQuery = window.matchMedia('(hover: hover)');
@@ -134,7 +137,7 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
       hoverQuery.removeEventListener('change', handleMediaChange);
       pointerQuery.removeEventListener('change', handleMediaChange);
     };
-  }, []);
+  }, [priority]);
 
   const handleTap = () => {
     if (!isMounted) {
@@ -193,7 +196,7 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
         src={posterUrl}
         alt={title}
         className="w-full aspect-[2/3] object-cover"
-        loading="lazy"
+        loading={priority ? "eager" : "lazy"}
         width="300"
         height="450"
         onError={(e) => {
@@ -235,7 +238,7 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
         </div>
       )}
       <div // This is the movie-info div that appears on hover/tap
-        className={`movie-info absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-200 ${
+        className={`movie-info absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-150 ${
           !isMounted ? 'opacity-0' : 
           isTouchDevice ? (showInfo ? 'opacity-100' : 'opacity-0') : isHovered ? 'opacity-100' : 'opacity-0'
         }`}
@@ -534,8 +537,15 @@ export default function SearchPage() {
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Safety check: don't process keyboard shortcuts if a modal is open
+      if (selectedItem || watchlistItem) {
+        return;
+      }
+      
       // Don't trigger shortcuts if user is typing in an input field
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+      }
       
       // Navigation shortcuts
       if (e.key === 'ArrowRight' && page < totalPages) {
@@ -548,10 +558,9 @@ export default function SearchPage() {
         // Focus search with forward slash
         e.preventDefault();
         document.querySelector('input[type="text"]')?.focus();
-      } else if (e.key === 'Escape' && searchInput) {
-        // Clear search with Escape key
-        setSearchInput('');
-      } else if (e.key === 'm') {
+      }
+      // Removed Escape key handler here to avoid conflicts
+      else if (e.key === 'm') {
         // Toggle media filter (movies)
         setMediaFilter(prev => prev === 'movie' ? 'all' : 'movie');
       } else if (e.key === 't') {
@@ -568,7 +577,7 @@ export default function SearchPage() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [page, totalPages, searchInput]);
+  }, [page, totalPages, searchInput, selectedItem, watchlistItem, setSearchInput]);
 
   // Fetch genres on component mount
   useEffect(() => {
@@ -660,6 +669,14 @@ export default function SearchPage() {
                 placeholder="Search for movies or TV shows..."
                 value={searchInput}
                 onChange={handleSearchChange} 
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    // Only blur the input, don't clear it
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.currentTarget.blur();
+                  }
+                }}
                 className="w-full bg-gray-800 border-gray-700 text-white rounded-full py-2 pl-4 pr-20 min-h-[44px]"
               />
               {searchInput && (
@@ -848,12 +865,13 @@ export default function SearchPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 search-results-grid">
-            {searchResults.map((item) => (
+            {searchResults.map((item, index) => (
               <MovieCard
                 key={item.id}
                 movie={item}
                 onAddToWatchlist={() => handleAddToWatchlist(item)}
                 onShowDetails={handleShowDetails}
+                priority={index < 10} /* Prioritize loading the first 10 images */
               />
             ))}
           </div>
