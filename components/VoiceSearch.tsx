@@ -46,15 +46,15 @@ export default function VoiceSearch({
   const [lastRecognitionStatus, setLastRecognitionStatus] = useState<string>('none');
   const { addToast } = useToast();
   
-  // Debug logger function with timestamps and category - disabled for production
+  // Debug logger function with timestamps and category - limited for production
   const debug = (message: string, category = 'general') => {
-    // Only log errors in production to help with diagnostics
-    if (category === 'error') {
-      console.log(`[VoiceSearch] ${message}`);
+    // Log errors and iOS-specific messages for debugging
+    if (category === 'error' || category === 'ios' || category === 'event') {
+      console.log(`[VoiceSearch ${category}] ${message}`);
     }
     
-    // All debug logging and toast notifications are disabled
-    // If you need to re-enable debugging, remove this return statement
+    // All other debug logging and toast notifications are disabled
+    // If you need to re-enable full debugging, remove this return statement
     return;
     
     const timestamp = new Date().toISOString();
@@ -134,7 +134,7 @@ export default function VoiceSearch({
     setIosDetected(isIOS);
     
     debug(`Device detected as ${isMobile ? 'mobile' : 'desktop'}`, 'device');
-    debug(`iOS device detected: ${isIOS}`, 'device');
+    debug(`iOS device detected: ${isIOS}`, 'ios');
     debug(`User agent: ${navigator.userAgent}`, 'device');
     debug(`Screen size: ${window.innerWidth}x${window.innerHeight}`, 'device');
     debug(`Touch points: ${navigator.maxTouchPoints}`, 'device');
@@ -171,10 +171,10 @@ export default function VoiceSearch({
           // iOS specific configuration
           if (isIOS) {
             debug('Configuring recognition for iOS', 'ios');
-            // On iOS, these settings seem to work better
-            recognition.continuous = true; // Try continuous mode for iOS
+            // On iOS Safari, these settings work better
+            recognition.continuous = false; // Use non-continuous for iOS reliability
             recognition.interimResults = true;
-            recognition.maxAlternatives = 3;
+            recognition.maxAlternatives = 1; // Reduce alternatives for iOS stability
           } else {
             // For other browsers
             recognition.continuous = false;
@@ -334,7 +334,7 @@ export default function VoiceSearch({
                       forceStopRecognition();
                     }
                   }
-                }, 1500); // 1.5 second delay for iOS
+                }, 1500); // Increased delay for iOS - 1.5 seconds to allow more speech
               }
             } catch (err) {
               debug(`Error processing speech results: ${err}`, 'error');
@@ -574,6 +574,14 @@ export default function VoiceSearch({
       return;
     }
     
+    // Show immediate feedback when user taps microphone
+    addToast({
+      title: 'Preparing microphone...',
+      description: 'Setting up voice search',
+      variant: 'default',
+      duration: 2000
+    });
+    
     // Track window.iosResultTimer for iOS
     if (window.iosResultTimer) {
       clearTimeout(window.iosResultTimer);
@@ -633,57 +641,20 @@ export default function VoiceSearch({
       debug('Starting speech recognition...', 'event');
       
       if (isIOS) {
-        debug('iOS: Special handling for speech recognition', 'ios');
+        debug('iOS: Starting speech recognition with special handling', 'ios');
         
-        // iOS needs extra care
+        // iOS Safari needs simpler approach - don't over-complicate
         try {
-          // Always make sure we're stopped first (helps with iOS Safari)
-          try {
-            if (recognitionRef.current) {
-              debug('iOS: Stopping any existing recognition first', 'ios');
-              forceStopRecognition();
-              
-              // Add a small delay to allow the previous instance to clean up
-              await new Promise(resolve => setTimeout(resolve, 300));
-            }
-          } catch (e) {
-            // Ignore errors here - it might not be started
-            debug('iOS: Ignoring potential error when stopping before start', 'ios');
-          }
-          
-          // Wait a moment before starting on iOS (helps avoid race conditions)
-          setTimeout(() => {
-            try {
-              debug('iOS: Starting recognition after delay', 'ios');
-              recognitionRef.current?.start();
-            } catch (iosStartError) {
-              debug(`iOS start error after delay: ${iosStartError}`, 'error');
-              
-              // One more attempt with different timing if needed
-              setTimeout(() => {
-                try {
-                  debug('iOS: Last attempt to start recognition', 'ios');
-                  recognitionRef.current?.start();
-                } catch (finalError) {
-                  debug(`iOS final start error: ${finalError}`, 'error');
-                  addToast({
-                    title: 'Speech Recognition Failed',
-                    description: 'Could not start speech recognition on your device.',
-                    variant: 'destructive',
-                    action: {
-                      label: 'Show Debug',
-                      onClick: () => {
-                        setDebugMode(true);
-                        setShowDebugPanel(true);
-                      }
-                    }
-                  });
-                }
-              }, 300);
-            }
-          }, 100);
-        } catch (iosError) {
-          debug(`iOS recognition error: ${iosError}`, 'error');
+          // Simple start for iOS
+          recognitionRef.current?.start();
+          debug('iOS: Recognition start called successfully', 'ios');
+        } catch (iosStartError) {
+          debug(`iOS start error: ${iosStartError}`, 'error');
+          addToast({
+            title: 'Speech Recognition Failed',
+            description: 'Could not start speech recognition. Please try again.',
+            variant: 'destructive'
+          });
         }
       } else {
         // Non-iOS devices
