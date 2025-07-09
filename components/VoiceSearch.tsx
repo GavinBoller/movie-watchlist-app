@@ -37,7 +37,8 @@ export default function VoiceSearch({
   const recognitionRef = useRef<any>(null);
   const [listeningStartTime, setListeningStartTime] = useState(0);
   const ignoreErrorsTimerRef = useRef<any>(null);
-  const [debugMode, setDebugMode] = useState(initialDebugMode);
+  // Debug mode disabled for production
+  const [debugMode, setDebugMode] = useState(false); // Force debug mode off regardless of initialDebugMode
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [iosDetected, setIosDetected] = useState(false);
@@ -45,8 +46,17 @@ export default function VoiceSearch({
   const [lastRecognitionStatus, setLastRecognitionStatus] = useState<string>('none');
   const { addToast } = useToast();
   
-  // Debug logger function with timestamps and category
+  // Debug logger function with timestamps and category - disabled for production
   const debug = (message: string, category = 'general') => {
+    // Only log errors in production to help with diagnostics
+    if (category === 'error') {
+      console.log(`[VoiceSearch] ${message}`);
+    }
+    
+    // All debug logging and toast notifications are disabled
+    // If you need to re-enable debugging, remove this return statement
+    return;
+    
     const timestamp = new Date().toISOString();
     const formattedMsg = `[${category.toUpperCase()}] ${message}`;
     
@@ -734,7 +744,8 @@ export default function VoiceSearch({
           ) : (
             <Mic className="h-4 w-4" />
           )}
-        </Button>          {/* Debug toggle button - always visible for easy access */}
+        </Button>
+        {/* Debug toggle button - commented out for production 
         <Button
           type="button"
           variant="ghost"
@@ -751,6 +762,7 @@ export default function VoiceSearch({
         >
           <Bug className="h-3 w-3" />
         </Button>
+        */}
         
         {isListening && transcript && (
           <div className="absolute top-full left-0 mt-1 flex items-center gap-1 text-sm text-gray-400 max-w-[200px] truncate bg-gray-800 px-2 py-1 rounded shadow-lg z-10">
@@ -760,15 +772,16 @@ export default function VoiceSearch({
         )}
       </div>
       
-      {/* Debug panel */}
+      {/* Debug panel - commented out for production 
       <VoiceSearchDebugger 
         logs={debugLogs}
         isVisible={debugMode && showDebugPanel}
         onClose={() => setShowDebugPanel(false)}
         onClear={clearLogs}
       />
+      */}
 
-      {/* Floating debug button when panel is hidden but debug mode is on */}
+      {/* Floating debug button - commented out for production 
       {debugMode && !showDebugPanel && (
         <Button
           type="button"
@@ -780,6 +793,7 @@ export default function VoiceSearch({
           <Bug className="h-5 w-5" />
         </Button>
       )}
+      */}
     </>
   );
 }

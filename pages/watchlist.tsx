@@ -432,7 +432,8 @@ export default function WatchlistPage() {
                     }}
                     placeholder="Click to start voice search"
                     className="flex-shrink-0"
-                    initialDebugMode={typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)}
+                    // Debug mode disabled for production
+                    // initialDebugMode={typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)}
                   />
                 </div>
               </div>
