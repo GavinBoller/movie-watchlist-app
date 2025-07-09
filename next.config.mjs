@@ -15,10 +15,6 @@ const nextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'microphone=(self), camera=(self)'
-          },
-          {
-            key: 'Feature-Policy',
-            value: 'microphone \'self\''
           }
         ]
       }

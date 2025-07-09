@@ -83,16 +83,33 @@ export default function VoiceSearch({
           case 'not-allowed':
             // Speech recognition permission denied - provide helpful instructions
             console.log('Speech recognition permission denied');
-            addToast({
-              title: 'Microphone Permission Required',
-              description: 'Please allow microphone access. In Edge: Click the 🎤 icon in the address bar → Allow, or go to edge://settings/content/microphone and add localhost:3000 to allowed sites.',
-              variant: 'destructive',
-              action: {
-                label: 'Try Again',
-                onClick: () => startListening()
-              },
-              duration: 10000 // Show longer for more complex instructions
-            });
+            
+            // Check if we're showing localhost error to avoid wrong message on production
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            
+            if (isLocalhost) {
+              addToast({
+                title: 'Microphone Permission Required',
+                description: 'Development setup needed. In Edge: Go to edge://settings/content/microphone and add localhost:3000 to allowed sites, or try edge://flags/ to add localhost to insecure origins.',
+                variant: 'destructive',
+                action: {
+                  label: 'Try Again',
+                  onClick: () => startListening()
+                },
+                duration: 15000
+              });
+            } else {
+              // Production site
+              addToast({
+                title: 'Microphone Permission Required',
+                description: 'Please allow microphone access when your browser asks, or check browser settings to enable microphone for this site.',
+                variant: 'destructive',
+                action: {
+                  label: 'Try Again',
+                  onClick: () => startListening()
+                }
+              });
+            }
             return; // Don't show the default error toast
           case 'no-speech':
             errorMessage = 'No speech detected. Please try speaking again.';
@@ -169,49 +186,48 @@ export default function VoiceSearch({
     }
 
     try {
-      // First, try to request microphone permission explicitly
-      console.log('Requesting microphone permission...');
-      
-      try {
+      // For production/HTTPS sites, try getUserMedia first to get proper permission
+      if (isHTTPS) {
+        console.log('Requesting microphone permission...');
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop());
         console.log('Microphone permission granted via getUserMedia');
-      } catch (permissionError) {
-        console.log('getUserMedia failed, trying direct speech recognition approach:', permissionError);
-        
-        // If getUserMedia fails due to permissions policy, try direct speech recognition
-        // which might have its own permission handling
-        if (permissionError.name === 'NotAllowedError') {
-          console.log('Falling back to direct speech recognition start...');
-          // Fall through to try speech recognition directly
-        } else {
-          throw permissionError; // Re-throw other errors
-        }
       }
       
-      // Start speech recognition (either after getUserMedia success or as fallback)
+      // Start speech recognition
       console.log('Starting speech recognition...');
       recognitionRef.current?.start();
       
       // Don't show listening toast here - it will be shown in onstart if successful
       
     } catch (error) {
-      console.log('All permission attempts failed:', error);
+      console.log('Permission or recognition failed:', error);
       
-      // Show permission denied toast with instructions
-      addToast({
-        title: 'Microphone Access Required',
-        description: 'Development mode requires manual permission setup. In Edge: Type edge://settings/content/microphone in address bar, then add localhost:3000 to "Allow" list.',
-        variant: 'destructive',
-        action: {
-          label: 'Try Again',
-          onClick: async () => {
-            startListening();
+      // Show error based on context
+      if (isLocalhost) {
+        addToast({
+          title: 'Development Setup Required',
+          description: 'Microphone access blocked in development. In Edge: Go to edge://settings/content/microphone and add localhost:3000 to allowed sites.',
+          variant: 'destructive',
+          action: {
+            label: 'Try Again',
+            onClick: () => startListening()
+          },
+          duration: 15000
+        });
+      } else {
+        addToast({
+          title: 'Microphone Permission Required',
+          description: 'Please allow microphone access when prompted by your browser.',
+          variant: 'destructive',
+          action: {
+            label: 'Try Again',
+            onClick: () => startListening()
           }
-        },
-        duration: 15000 // Show longer for detailed instructions
-      });
+        });
+      }
     }
+  };
   };
 
   if (!isSupported) {
