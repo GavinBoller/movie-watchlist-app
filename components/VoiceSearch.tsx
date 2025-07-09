@@ -79,6 +79,38 @@ export default function VoiceSearch({
     }
   };
   
+  // Enhanced cleanup function for iOS microphone issues - comprehensive fix
+  const forceStopRecognition = useCallback(() => {
+    debug('Force stopping recognition for iOS microphone cleanup', 'cleanup');
+    
+    if (recognitionRef.current) {
+      try {
+        // Multiple stop attempts for iOS Safari
+        recognitionRef.current.stop();
+        recognitionRef.current.abort();
+        
+        // iOS-specific cleanup with delay
+        if (iosDetected) {
+          setTimeout(() => {
+            try {
+              if (recognitionRef.current) {
+                recognitionRef.current.stop();
+                // Nullify the reference to force garbage collection
+                recognitionRef.current = null;
+              }
+            } catch (e) {
+              debug(`Final iOS recognition cleanup error: ${e}`, 'ios');
+            }
+          }, 150);
+        }
+      } catch (e) {
+        debug(`Error in forceStopRecognition: ${e}`, 'error');
+      }
+    }
+    
+    setIsListening(false);
+  }, [iosDetected, debug]);
+  
   useEffect(() => {
     setIsMounted(true);
     debug('Component mounted', 'lifecycle');
@@ -274,24 +306,8 @@ export default function VoiceSearch({
               if (finalTranscript) {
                 debug(`Using final transcript: ${finalTranscript}`, 'result');
                 onResult(finalTranscript.trim());
-                setIsListening(false);
-                // Force stop recognition and cleanup microphone on iOS
-                try {
-                  recognitionRef.current?.stop();
-                  recognitionRef.current?.abort();
-                  // Additional cleanup for iOS Safari
-                  if (iosDetected && recognitionRef.current) {
-                    setTimeout(() => {
-                      try {
-                        recognitionRef.current?.stop();
-                      } catch (e) {
-                        debug(`Final iOS cleanup stop: ${e}`, 'ios');
-                      }
-                    }, 100);
-                  }
-                } catch (e) {
-                  debug(`Error stopping recognition: ${e}`, 'error');
-                }
+                // Use enhanced cleanup for iOS microphone indicator
+                forceStopRecognition();
                 return;
               }
               
@@ -314,21 +330,8 @@ export default function VoiceSearch({
                     if (textToUse) {
                       debug(`iOS: Using text: ${textToUse}`, 'ios');
                       onResult(textToUse.trim());
-                      setIsListening(false);
-                      try {
-                        recognitionRef.current?.stop();
-                        recognitionRef.current?.abort();
-                        // Additional cleanup for iOS Safari microphone
-                        setTimeout(() => {
-                          try {
-                            recognitionRef.current?.stop();
-                          } catch (e) {
-                            debug(`iOS delayed cleanup: ${e}`, 'ios');
-                          }
-                        }, 200);
-                      } catch (e) {
-                        debug(`Error stopping recognition: ${e}`, 'error');
-                      }
+                      // Use enhanced cleanup for iOS
+                      forceStopRecognition();
                     }
                   }
                 }, 1500); // 1.5 second delay for iOS
@@ -341,23 +344,8 @@ export default function VoiceSearch({
                 const fallbackText = interimTranscript || bestAlternative;
                 debug(`Using fallback text due to error: ${fallbackText}`, 'recovery');
                 onResult(fallbackText.trim());
-                setIsListening(false);
-                try {
-                  recognitionRef.current?.stop();
-                  recognitionRef.current?.abort();
-                  // Additional iOS cleanup
-                  if (iosDetected) {
-                    setTimeout(() => {
-                      try {
-                        recognitionRef.current?.stop();
-                      } catch (e) {
-                        debug(`iOS fallback cleanup: ${e}`, 'ios');
-                      }
-                    }, 100);
-                  }
-                } catch (e) {
-                  debug(`Error stopping recognition after error: ${e}`, 'error');
-                }
+                // Use enhanced cleanup for fallback scenario
+                forceStopRecognition();
               }
             }
           };
@@ -551,9 +539,9 @@ export default function VoiceSearch({
       window.removeEventListener('resize', handleResize);
       if (recognitionRef.current) {
         try {
-          // Use stop instead of abort on cleanup to prevent errors
+          // Use enhanced cleanup on unmount
           if (isListening) {
-            recognitionRef.current.stop();
+            forceStopRecognition();
           }
         } catch (e) {
           debug(`Error stopping recognition on unmount: ${e}`, 'error');
@@ -581,12 +569,8 @@ export default function VoiceSearch({
     if (disabled) return;
 
     if (isListening) {
-      try {
-        recognitionRef.current?.stop();
-      } catch (e) {
-        debug(`Error stopping recognition: ${e}`, 'error');
-      }
-      setIsListening(false);
+      // Use enhanced cleanup when manually stopping
+      forceStopRecognition();
       return;
     }
     
@@ -657,10 +641,10 @@ export default function VoiceSearch({
           try {
             if (recognitionRef.current) {
               debug('iOS: Stopping any existing recognition first', 'ios');
-              recognitionRef.current.stop();
+              forceStopRecognition();
               
               // Add a small delay to allow the previous instance to clean up
-              await new Promise(resolve => setTimeout(resolve, 200));
+              await new Promise(resolve => setTimeout(resolve, 300));
             }
           } catch (e) {
             // Ignore errors here - it might not be started
