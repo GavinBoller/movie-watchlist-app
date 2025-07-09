@@ -24,6 +24,7 @@ export default function VoiceSearch({
   const [transcript, setTranscript] = useState('');
   const recognitionRef = useRef<any>(null);
   const [listeningStartTime, setListeningStartTime] = useState(0);
+  const ignoreErrorsTimerRef = useRef<any>(null);
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -69,6 +70,13 @@ export default function VoiceSearch({
           setIsListening(true);
           setListeningStartTime(Date.now());
           setTranscript('');
+          
+          // Set a flag to ignore errors for the first 2 seconds
+          // This helps with iPhones that often report errors immediately after starting
+          if (ignoreErrorsTimerRef.current) {
+            clearTimeout(ignoreErrorsTimerRef.current);
+          }
+          
           // Show listening toast only when speech recognition actually starts
           addToast({
             title: 'Listening...',
@@ -76,6 +84,12 @@ export default function VoiceSearch({
             variant: 'default',
             duration: 3000
           });
+          
+          // Mobile browsers, especially Safari on iOS, often fire error events immediately
+          // We'll ignore all error events for 2 seconds after starting
+          ignoreErrorsTimerRef.current = setTimeout(() => {
+            ignoreErrorsTimerRef.current = null;
+          }, 2000);
         };
         
         recognition.onresult = (event: any) => {
@@ -102,6 +116,13 @@ export default function VoiceSearch({
         recognition.onerror = (event: any) => {
           console.error('Speech recognition error:', event.error);
           
+          // Completely ignore all errors during the initial grace period
+          // This is especially important for iPhones which often report errors right after starting
+          if (ignoreErrorsTimerRef.current !== null) {
+            console.log('Ignoring speech recognition error during grace period:', event.error);
+            return;
+          }
+          
           // Special handling for mobile browsers - some trigger no-speech immediately
           if (event.error === 'no-speech') {
             console.log('No speech detected yet, continuing to listen');
@@ -109,7 +130,7 @@ export default function VoiceSearch({
             // Only set isListening to false if we've been listening for more than 1 second
             if (isListening) {
               const listeningDuration = Date.now() - listeningStartTime;
-              if (listeningDuration > 1000) {
+              if (listeningDuration > 2000) {
                 setIsListening(false);
                 addToast({
                   title: 'No Speech Detected',
@@ -188,6 +209,9 @@ export default function VoiceSearch({
       window.removeEventListener('resize', handleResize);
       if (recognitionRef.current) {
         recognitionRef.current.abort();
+      }
+      if (ignoreErrorsTimerRef.current) {
+        clearTimeout(ignoreErrorsTimerRef.current);
       }
     };
   }, [onResult, addToast]);
