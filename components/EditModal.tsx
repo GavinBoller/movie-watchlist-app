@@ -71,6 +71,7 @@ export default function EditModal({ item, onSave, onClose }: EditModalProps): Re
         id: Date.now(),
         title: 'Success!',
         description: 'Watchlist item updated.',
+        variant: 'success'
       });
       onClose();
     } catch (error) {

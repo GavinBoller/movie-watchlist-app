@@ -95,7 +95,7 @@ export interface ToastMessage {
   id: string;
   title: string;
   description?: string;
-  variant?: 'default' | 'destructive';
+  variant?: 'default' | 'destructive' | 'success';
   duration?: number;
   action?: {
     label: string;

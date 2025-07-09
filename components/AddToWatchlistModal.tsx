@@ -188,6 +188,7 @@ const AddToWatchlistModal = function AddToWatchlistModal({ item, onSaveSuccess, 
         id: Date.now(),
         title: 'Success',
         description: `${apiPayload.title || (isEditing ? 'Item' : 'Item')} ${isEditing ? 'updated' : 'added to watchlist'}`,
+        variant: 'success'
       });
 
       onClose();

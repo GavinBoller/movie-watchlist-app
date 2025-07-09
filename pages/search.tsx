@@ -114,18 +114,20 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
   useEffect(() => {
     setIsMounted(true);
     // Check if device supports hover interactions (not touch-only)
-    const checkTouchDevice = () => {
-      // Check if device supports hover and has a pointer device
-      const hasHover = window.matchMedia('(hover: hover)').matches;
-      const hasPointer = window.matchMedia('(pointer: fine)').matches;
-      // Touch device = no hover capability OR no fine pointer (like mouse)
-      setIsTouchDevice(!hasHover || !hasPointer);
-    };
-    checkTouchDevice();
+    const hasHover = window.matchMedia('(hover: hover)').matches;
+    const hasPointer = window.matchMedia('(pointer: fine)').matches;
+    // Touch device = no hover capability OR no fine pointer (like mouse)
+    setIsTouchDevice(!hasHover || !hasPointer);
+    
     // Listen for media query changes
     const hoverQuery = window.matchMedia('(hover: hover)');
     const pointerQuery = window.matchMedia('(pointer: fine)');
-    const handleMediaChange = () => checkTouchDevice();
+    const handleMediaChange = () => {
+      const hasHover = window.matchMedia('(hover: hover)').matches;
+      const hasPointer = window.matchMedia('(pointer: fine)').matches;
+      setIsTouchDevice(!hasHover || !hasPointer);
+    };
+    
     hoverQuery.addEventListener('change', handleMediaChange);
     pointerQuery.addEventListener('change', handleMediaChange);
     return () => {
@@ -233,7 +235,7 @@ const MovieCard = React.memo<MovieCardProps>(({ movie, onAddToWatchlist, onShowD
         </div>
       )}
       <div // This is the movie-info div that appears on hover/tap
-        className={`movie-info absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-300 ${
+        className={`movie-info absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-200 ${
           !isMounted ? 'opacity-0' : 
           isTouchDevice ? (showInfo ? 'opacity-100' : 'opacity-0') : isHovered ? 'opacity-100' : 'opacity-0'
         }`}
@@ -845,7 +847,7 @@ export default function SearchPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 search-results-grid">
             {searchResults.map((item) => (
               <MovieCard
                 key={item.id}

@@ -31,11 +31,45 @@ const fetcher = async (url: string): Promise<WatchlistResponse> => {
   }
 };
 
-const WatchlistItemCard = React.memo(({ item, onEdit, onDelete }) => {
+interface WatchlistItemCardProps {
+  item: WatchlistItem;
+  onEdit: (item: WatchlistItem) => void;
+  onDelete: (item: WatchlistItem) => void;
+}
+
+const WatchlistItemCard = React.memo<WatchlistItemCardProps>(({ item, onEdit, onDelete }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Detect if the device supports hover - use an immediate effect for faster initialization
+  useEffect(() => {
+    setIsMounted(true);
+    // Check if device supports hover interactions (not touch-only)
+    const hasHover = window.matchMedia('(hover: hover)').matches;
+    const hasPointer = window.matchMedia('(pointer: fine)').matches;
+    // Touch device = no hover capability OR no fine pointer (like mouse)
+    setIsTouchDevice(!hasHover || !hasPointer);
+    
+    // Listen for media query changes
+    const hoverQuery = window.matchMedia('(hover: hover)');
+    const pointerQuery = window.matchMedia('(pointer: fine)');
+    const handleMediaChange = () => {
+      const hasHover = window.matchMedia('(hover: hover)').matches;
+      const hasPointer = window.matchMedia('(pointer: fine)').matches;
+      setIsTouchDevice(!hasHover || !hasPointer);
+    };
+    
+    hoverQuery.addEventListener('change', handleMediaChange);
+    pointerQuery.addEventListener('change', handleMediaChange);
+    return () => {
+      hoverQuery.removeEventListener('change', handleMediaChange);
+      pointerQuery.removeEventListener('change', handleMediaChange);
+    };
+  }, []);
 
   // Decode HTML entities in poster path (fix for items with encoded paths)
-  const decodePoster = (poster) => {
+  const decodePoster = useCallback((poster) => {
     if (!poster) return null;
     // Decode common HTML entities
     return poster
@@ -45,24 +79,27 @@ const WatchlistItemCard = React.memo(({ item, onEdit, onDelete }) => {
       .replace(/&gt;/g, '>')
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'");
-  };
+  }, []);
 
-  const decodedPoster = decodePoster(item.poster);
-  const posterUrl = decodedPoster
-    ? `https://image.tmdb.org/t/p/w300${decodedPoster}`
-    : '/placeholder-image.svg';
+  // Memoize the poster URL calculation
+  const posterUrl = useMemo(() => {
+    const decodedPoster = decodePoster(item.poster);
+    return decodedPoster
+      ? `https://image.tmdb.org/t/p/w300${decodedPoster}`
+      : '/placeholder-image.svg';
+  }, [item.poster, decodePoster]);
 
   return (
     <div
-      className="relative rounded-lg overflow-hidden group cursor-pointer"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      className="relative rounded-lg overflow-hidden cursor-pointer"
+      onMouseEnter={() => isMounted && !isTouchDevice && setIsHovered(true)}
+      onMouseLeave={() => isMounted && !isTouchDevice && setIsHovered(false)}
       onClick={() => onEdit(item)} // Clicking the card opens the edit modal
     >
       <img 
         src={posterUrl} 
         alt={item.title} 
-        className="w-full aspect-[2/3] object-cover transition-transform duration-300 group-hover:scale-105" 
+        className="w-full aspect-[2/3] object-cover" 
         loading="lazy" 
         width="300"
         height="450"
@@ -84,8 +121,11 @@ const WatchlistItemCard = React.memo(({ item, onEdit, onDelete }) => {
         {(item.status || '').replace('_', ' ')}
       </div>
       
+      {/* Use optimized transition with shorter duration */}
       <div
-        className={`absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-300 ${
+        className={`absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-200 ${
+          !isMounted ? 'opacity-0' : 
+          isTouchDevice ? 'opacity-100' : 
           isHovered ? 'opacity-100' : 'opacity-0'
         }`}
       >
@@ -202,6 +242,9 @@ export default function WatchlistPage() {
     revalidateOnFocus: false,
     dedupingInterval: 10000, // 10 seconds (watchlist changes frequently by user)
     keepPreviousData: true, // Maintain previous data while loading new data
+    revalidateIfStale: false, // Don't revalidate stale data automatically to prevent UI flicker
+    focusThrottleInterval: 5000, // Throttle focus events to prevent excessive revalidation
+    loadingTimeout: 3000, // Consider request as slow after 3 seconds
     onError: (err) => {
       console.error("SWR Error:", err);
       // Provide more specific error messages based on the error type
@@ -312,7 +355,8 @@ export default function WatchlistPage() {
       addToast({ 
         id: Date.now(), 
         title: 'Success', 
-        description: `"${itemToDelete.title}" removed from watchlist.` 
+        description: `"${itemToDelete.title}" removed from watchlist.`,
+        variant: 'success'
       });
       
       // Optimistically update the UI
@@ -575,7 +619,7 @@ export default function WatchlistPage() {
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 watchlist-grid">
                 {data.items.map((item) => (
                   <WatchlistItemCard
                     key={item.id}

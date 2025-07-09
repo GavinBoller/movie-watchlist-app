@@ -133,7 +133,16 @@ function Toaster({ toasts, dismissToast }: ToasterProps): React.ReactElement | n
 function Toast({ toast, onDismiss }: ToastProps): React.ReactElement {
   console.log('Toast component in ToastProvider rendering:', toast);
 
-  const bgColor = toast.variant === 'destructive' ? 'bg-red-500' : 'bg-gray-500';
+  // Use Netflix-style red for success toasts (#E50914)
+  let bgColor;
+  if (toast.variant === 'destructive') {
+    bgColor = 'bg-red-500';
+  } else if (toast.variant === 'success') {
+    bgColor = 'bg-[#E50914]'; // Netflix-style red for success toasts
+  } else {
+    bgColor = 'bg-gray-500'; // Default color
+  }
+  
   const textColor = 'text-white';
 
   return (

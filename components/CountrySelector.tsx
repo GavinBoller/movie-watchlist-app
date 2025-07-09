@@ -73,6 +73,7 @@ export default function CountrySelector(): React.ReactElement {
         description: `Your preferred country has been updated to ${
           countries.find((c) => c.iso_3166_1 === selectedCountry)?.english_name || selectedCountry
         }.`,
+        variant: 'success'
       });
     } catch (error) {
       console.error('Error saving country:', error);

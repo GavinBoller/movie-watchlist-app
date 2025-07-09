@@ -94,6 +94,7 @@ export default function PlatformManagementModal({ isOpen, onClose }: PlatformMan
         id: Date.now(),
         title: 'Success',
         description: 'Platform added successfully',
+        variant: 'success'
       });
     } catch (err: any) {
       setError(err.message);
@@ -134,6 +135,7 @@ export default function PlatformManagementModal({ isOpen, onClose }: PlatformMan
         id: Date.now(),
         title: 'Success',
         description: 'Platform updated successfully',
+        variant: 'success'
       });
     } catch (err: any) {
       setError(err.message);
@@ -159,6 +161,7 @@ export default function PlatformManagementModal({ isOpen, onClose }: PlatformMan
         id: Date.now(),
         title: 'Success',
         description: 'Platform deleted successfully',
+        variant: 'success'
       });
     } catch (err: any) {
       setError('Failed to delete platform');
