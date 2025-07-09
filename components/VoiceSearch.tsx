@@ -23,6 +23,7 @@ export default function VoiceSearch({
   const [isMounted, setIsMounted] = useState(false);
   const [transcript, setTranscript] = useState('');
   const recognitionRef = useRef<any>(null);
+  const [listeningStartTime, setListeningStartTime] = useState(0);
   const { addToast } = useToast();
 
   useEffect(() => {
@@ -66,6 +67,7 @@ export default function VoiceSearch({
         
         recognition.onstart = () => {
           setIsListening(true);
+          setListeningStartTime(Date.now());
           setTranscript('');
           // Show listening toast only when speech recognition actually starts
           addToast({
@@ -99,6 +101,28 @@ export default function VoiceSearch({
         
         recognition.onerror = (event: any) => {
           console.error('Speech recognition error:', event.error);
+          
+          // Special handling for mobile browsers - some trigger no-speech immediately
+          if (event.error === 'no-speech') {
+            console.log('No speech detected yet, continuing to listen');
+            // Don't show error for no-speech on initial startup - it's too common on mobile
+            // Only set isListening to false if we've been listening for more than 1 second
+            if (isListening) {
+              const listeningDuration = Date.now() - listeningStartTime;
+              if (listeningDuration > 1000) {
+                setIsListening(false);
+                addToast({
+                  title: 'No Speech Detected',
+                  description: 'Please try speaking again or tap the microphone to cancel.',
+                  variant: 'default',
+                  duration: 3000
+                });
+              }
+            }
+            return;
+          }
+          
+          // For other errors, proceed with error handling
           setIsListening(false);
           
           let errorMessage = 'Voice search failed. Please try again.';
@@ -138,9 +162,6 @@ export default function VoiceSearch({
                 });
               }
               return; // Don't show the default error toast
-            case 'no-speech':
-              errorMessage = 'No speech detected. Please try speaking again.';
-              break;
             case 'audio-capture':
               errorMessage = 'No microphone found. Please check your audio settings.';
               break;
