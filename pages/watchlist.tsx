@@ -39,6 +39,7 @@ interface WatchlistItemCardProps {
 
 const WatchlistItemCard = React.memo<WatchlistItemCardProps>(({ item, onEdit, onDelete }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -89,12 +90,31 @@ const WatchlistItemCard = React.memo<WatchlistItemCardProps>(({ item, onEdit, on
       : '/placeholder-image.svg';
   }, [item.poster, decodePoster]);
 
+  // Handle tap/click based on device type
+  const handleTap = () => {
+    if (!isMounted) {
+      // Fallback to edit action during SSR/initial render
+      onEdit(item);
+      return;
+    }
+    
+    if (isTouchDevice) {
+      if (!showInfo) {
+        setShowInfo(true);
+      } else {
+        onEdit(item); // Open edit modal on second tap
+      }
+    } else {
+      onEdit(item); // Open edit modal on click for desktop
+    }
+  };
+
   return (
     <div
-      className="relative rounded-lg overflow-hidden cursor-pointer"
+      className="relative rounded-lg overflow-hidden cursor-pointer touch-manipulation"
       onMouseEnter={() => isMounted && !isTouchDevice && setIsHovered(true)}
       onMouseLeave={() => isMounted && !isTouchDevice && setIsHovered(false)}
-      onClick={() => onEdit(item)} // Clicking the card opens the edit modal
+      onClick={handleTap} // Use the new handler
     >
       <img 
         src={posterUrl} 
@@ -125,7 +145,7 @@ const WatchlistItemCard = React.memo<WatchlistItemCardProps>(({ item, onEdit, on
       <div
         className={`absolute inset-0 bg-black bg-opacity-80 flex flex-col justify-end p-4 transition-opacity duration-200 ${
           !isMounted ? 'opacity-0' : 
-          isTouchDevice ? 'opacity-100' : 
+          isTouchDevice ? (showInfo ? 'opacity-100' : 'opacity-0') : 
           isHovered ? 'opacity-100' : 'opacity-0'
         }`}
       >
@@ -153,39 +173,63 @@ const WatchlistItemCard = React.memo<WatchlistItemCardProps>(({ item, onEdit, on
           </div>
         )}
         
-        <div className="flex flex-wrap mt-2 gap-2">
-          {item.imdb_id && (
+        {/* Show touch-specific action buttons */}
+        {isMounted && isTouchDevice && showInfo ? (
+          <div className="flex flex-col mt-3 space-y-2">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={(e) => { e.stopPropagation(); onEdit(item); }}
+                className="bg-[#E50914] text-white text-sm rounded-lg py-2 flex items-center justify-center"
+                size="sm"
+              >
+                <Edit className="h-4 w-4 mr-1" />
+                Edit
+              </Button>
+              <Button
+                onClick={(e) => { e.stopPropagation(); onDelete(item); }}
+                className="bg-red-600 text-white text-sm rounded-lg py-2 flex items-center justify-center"
+                size="sm"
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Delete
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap mt-2 gap-2">
+            {item.imdb_id && (
+              <Button 
+                asChild
+                size="sm" 
+                className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 min-w-[80px] min-h-[40px]" 
+                aria-label="View on IMDb"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <a href={`https://www.imdb.com/title/${item.imdb_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} aria-label="View on IMDb">
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  IMDb
+                </a>
+              </Button>
+            )}
             <Button 
-              asChild
               size="sm" 
-              className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 min-w-[80px] min-h-[40px]" 
-              aria-label="View on IMDb"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onEdit(item); }}
+              className="bg-indigo-700 hover:bg-indigo-600 text-white text-xs rounded-full py-1 px-3 min-w-[80px] min-h-[40px]" 
+              aria-label="Edit"
             >
-              <a href={`https://www.imdb.com/title/${item.imdb_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} aria-label="View on IMDb">
-                <ExternalLink className="h-3 w-3 mr-1" />
-                IMDb
-              </a>
+              <Edit className="h-3 w-3 mr-1" /> Edit
             </Button>
-          )}
-          <Button 
-            size="sm" 
-            onClick={(e) => { e.stopPropagation(); onEdit(item); }}
-            className="bg-indigo-700 hover:bg-indigo-600 text-white text-xs rounded-full py-1 px-3 min-w-[80px] min-h-[40px]" 
-            aria-label="Edit"
-          >
-            <Edit className="h-3 w-3 mr-1" /> Edit
-          </Button>
-          <Button 
-            size="sm" 
-            variant="destructive" 
-            onClick={(e) => { e.stopPropagation(); onDelete(item); }} 
-            className="bg-red-800 hover:bg-red-700 text-white text-xs rounded-full py-1 px-3 min-w-[80px] min-h-[40px]" 
-            aria-label="Delete"
-          >
-            <Trash2 className="h-3 w-3 mr-1" /> Delete
-          </Button>
-        </div>
+            <Button 
+              size="sm" 
+              variant="destructive" 
+              onClick={(e) => { e.stopPropagation(); onDelete(item); }} 
+              className="bg-red-800 hover:bg-red-700 text-white text-xs rounded-full py-1 px-3 min-w-[80px] min-h-[40px]" 
+              aria-label="Delete"
+            >
+              <Trash2 className="h-3 w-3 mr-1" /> Delete
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
