@@ -9,6 +9,9 @@ export default function PWAInstallBanner() {
   const [installPrompt, setInstallPrompt] = useState(null);
   
   useEffect(() => {
+    // Ensure we're in a browser environment
+    if (typeof window === 'undefined') return;
+    
     // Don't show banner if already in PWA mode
     if (isPWAMode()) return;
     

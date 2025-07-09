@@ -56,3 +56,4 @@ middleware.js
 !**/scripts/*.js
 !import-*.js
 !public/*.js
+!utils/pwa.js
