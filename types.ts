@@ -93,9 +93,18 @@ export interface ProvidersData {
 // Toast notification types
 export interface ToastMessage {
   id: string;
-  type: 'success' | 'error' | 'info';
   title: string;
-  message?: string;
+  description?: string;
+  variant?: 'default' | 'destructive';
+  duration?: number;
+  action?: {
+    label: string;
+    onClick: () => void;
+    secondary?: {
+      label: string;
+      onClick: () => void;
+    };
+  };
 }
 
 // Country type for country selector

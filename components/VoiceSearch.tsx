@@ -40,6 +40,13 @@ export default function VoiceSearch({
       recognition.onstart = () => {
         setIsListening(true);
         setTranscript('');
+        // Show listening toast only when speech recognition actually starts
+        addToast({
+          title: 'Listening...',
+          description: 'Speak now to search for movies or TV shows',
+          variant: 'default',
+          duration: 3000
+        });
       };
       
       recognition.onresult = (event: any) => {
@@ -74,8 +81,19 @@ export default function VoiceSearch({
             errorMessage = 'Network error. Please check your connection.';
             break;
           case 'not-allowed':
-            errorMessage = 'Microphone access denied. Please enable microphone permissions.';
-            break;
+            // Speech recognition permission denied - provide helpful instructions
+            console.log('Speech recognition permission denied');
+            addToast({
+              title: 'Microphone Permission Required',
+              description: 'Please allow microphone access. In Edge: Click the 🎤 icon in the address bar → Allow, or go to edge://settings/content/microphone and add localhost:3000 to allowed sites.',
+              variant: 'destructive',
+              action: {
+                label: 'Try Again',
+                onClick: () => startListening()
+              },
+              duration: 10000 // Show longer for more complex instructions
+            });
+            return; // Don't show the default error toast
           case 'no-speech':
             errorMessage = 'No speech detected. Please try speaking again.';
             break;
@@ -107,7 +125,7 @@ export default function VoiceSearch({
     };
   }, [onResult, addToast]);
 
-  const startListening = () => {
+  const startListening = async () => {
     if (!isSupported) {
       addToast({
         title: 'Voice Search Not Supported',
@@ -121,22 +139,78 @@ export default function VoiceSearch({
 
     if (isListening) {
       recognitionRef.current?.stop();
-    } else {
+      return;
+    }
+
+    // Check if we're on localhost (development)
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const isHTTPS = window.location.protocol === 'https:';
+
+    if (isLocalhost && !isHTTPS) {
+      // In development on HTTP localhost, show immediate guidance
+      addToast({
+        title: 'HTTPS Required for Microphone',
+        description: 'Voice search requires HTTPS. For development: 1) In Edge, type edge://flags/ 2) Search "Insecure origins" 3) Add localhost:3000 to the list 4) Restart browser',
+        variant: 'destructive',
+        action: {
+          label: 'Try Anyway',
+          onClick: async () => {
+            // Still try to start speech recognition directly
+            try {
+              recognitionRef.current?.start();
+            } catch (error) {
+              console.log('Direct speech recognition failed:', error);
+            }
+          }
+        },
+        duration: 20000 // Show longer for complex instructions
+      });
+      return;
+    }
+
+    try {
+      // First, try to request microphone permission explicitly
+      console.log('Requesting microphone permission...');
+      
       try {
-        recognitionRef.current?.start();
-        addToast({
-          title: 'Listening...',
-          description: 'Speak now to search for movies or TV shows',
-          variant: 'default'
-        });
-      } catch (error) {
-        console.error('Failed to start voice recognition:', error);
-        addToast({
-          title: 'Voice Search Error',
-          description: 'Failed to start voice recognition. Please try again.',
-          variant: 'destructive'
-        });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        console.log('Microphone permission granted via getUserMedia');
+      } catch (permissionError) {
+        console.log('getUserMedia failed, trying direct speech recognition approach:', permissionError);
+        
+        // If getUserMedia fails due to permissions policy, try direct speech recognition
+        // which might have its own permission handling
+        if (permissionError.name === 'NotAllowedError') {
+          console.log('Falling back to direct speech recognition start...');
+          // Fall through to try speech recognition directly
+        } else {
+          throw permissionError; // Re-throw other errors
+        }
       }
+      
+      // Start speech recognition (either after getUserMedia success or as fallback)
+      console.log('Starting speech recognition...');
+      recognitionRef.current?.start();
+      
+      // Don't show listening toast here - it will be shown in onstart if successful
+      
+    } catch (error) {
+      console.log('All permission attempts failed:', error);
+      
+      // Show permission denied toast with instructions
+      addToast({
+        title: 'Microphone Access Required',
+        description: 'Development mode requires manual permission setup. In Edge: Type edge://settings/content/microphone in address bar, then add localhost:3000 to "Allow" list.',
+        variant: 'destructive',
+        action: {
+          label: 'Try Again',
+          onClick: async () => {
+            startListening();
+          }
+        },
+        duration: 15000 // Show longer for detailed instructions
+      });
     }
   };
 
@@ -145,40 +219,34 @@ export default function VoiceSearch({
   }
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div className={`flex items-center ${className}`}>
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         size="sm"
         onClick={startListening}
         disabled={disabled}
         className={`
-          flex items-center gap-2 transition-all duration-200
+          flex items-center justify-center transition-all duration-200 h-8 w-8 p-1 rounded-full
           ${isListening 
-            ? 'bg-red-600 hover:bg-red-700 text-white border-red-600 animate-pulse' 
-            : 'bg-gray-800 hover:bg-gray-700 text-white border-gray-600'
+            ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' 
+            : 'text-gray-400 hover:text-white hover:bg-gray-700'
           }
           ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
         `}
-        title={isListening ? "Click to stop listening" : "Click to start voice search"}
+        title={isListening ? "Click to stop voice search" : "Click the microphone to search by voice"}
       >
         {isListening ? (
-          <>
-            <MicOff className="h-4 w-4" />
-            <span className="hidden sm:inline">Stop</span>
-          </>
+          <MicOff className="h-4 w-4" />
         ) : (
-          <>
-            <Mic className="h-4 w-4" />
-            <span className="hidden sm:inline">Voice</span>
-          </>
+          <Mic className="h-4 w-4" />
         )}
       </Button>
       
       {isListening && transcript && (
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <Volume2 className="h-3 w-3 animate-pulse" />
-          <span className="italic">"{transcript}"</span>
+        <div className="absolute top-full left-0 mt-1 flex items-center gap-1 text-sm text-gray-400 max-w-[200px] truncate bg-gray-800 px-2 py-1 rounded shadow-lg z-10">
+          <Volume2 className="h-3 w-3 animate-pulse flex-shrink-0" />
+          <span className="italic truncate">"{transcript}"</span>
         </div>
       )}
     </div>

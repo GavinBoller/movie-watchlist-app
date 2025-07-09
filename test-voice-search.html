@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Search Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .instructions { background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .step { margin: 8px 0; }
+        .alternative { background: #e3f2fd; padding: 10px; border-radius: 5px; margin-top: 10px; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .error { background: #ffebee; color: #c62828; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .success { background: #e8f5e8; color: #2e7d32; padding: 10px; border-radius: 5px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Voice Search Component Test</h1>
+    
+    <div class="section">
+        <h2>Browser Detection</h2>
+        <p id="browser-info">Detecting browser...</p>
+    </div>
+    
+    <div class="section">
+        <h2>Microphone Permission Instructions</h2>
+        <div id="permission-instructions">Loading instructions...</div>
+    </div>
+    
+    <div class="section">
+        <h2>Speech Recognition Support</h2>
+        <p id="speech-support">Checking support...</p>
+        <button onclick="testVoiceSearch()">Test Voice Search</button>
+        <div id="voice-result"></div>
+    </div>
+
+    <script>
+        // Copy the browser detection logic from our VoiceSearch component
+        function getBrowserInfo() {
+            const userAgent = navigator.userAgent;
+            
+            if (userAgent.includes('Chrome') && !userAgent.includes('Edg')) {
+                return { name: 'Chrome', isSupported: true };
+            } else if (userAgent.includes('Edg')) {
+                return { name: 'Edge', isSupported: true };
+            } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
+                return { name: 'Safari', isSupported: true };
+            } else if (userAgent.includes('Firefox')) {
+                return { name: 'Firefox', isSupported: false };
+            } else {
+                return { name: 'Unknown', isSupported: false };
+            }
+        }
+
+        // Copy the permission instructions logic
+        function getPermissionInstructions(browserName) {
+            switch (browserName) {
+                case 'Chrome':
+                case 'Edge':
+                    return {
+                        title: 'Enable Microphone Access',
+                        steps: [
+                            '1. Look for the 🎤 icon in your address bar',
+                            '2. Click the microphone icon',
+                            '3. Select "Allow" from the dropdown',
+                            '4. Refresh this page'
+                        ],
+                        alternative: 'Or click the 🔒 lock icon next to the URL → Site settings → Microphone → Allow'
+                    };
+                case 'Safari':
+                    return {
+                        title: 'Enable Microphone Access',
+                        steps: [
+                            '1. Go to Safari → Settings → Websites',
+                            '2. Click "Microphone" in the left sidebar',
+                            '3. Find localhost:3001 and select "Allow"',
+                            '4. Refresh this page'
+                        ],
+                        alternative: 'You may also see a permission prompt at the top of the page'
+                    };
+                default:
+                    return {
+                        title: 'Enable Microphone Access',
+                        steps: [
+                            '1. Look for permission prompts in your browser',
+                            '2. Allow microphone access when prompted',
+                            '3. Check browser settings if needed',
+                            '4. Refresh this page'
+                        ],
+                        alternative: 'Try using Chrome, Edge, or Safari for best voice search support'
+                    };
+            }
+        }
+
+        // Initialize the page
+        window.onload = function() {
+            const browserInfo = getBrowserInfo();
+            document.getElementById('browser-info').innerHTML = `
+                <strong>Browser:</strong> ${browserInfo.name}<br>
+                <strong>Voice Search Supported:</strong> ${browserInfo.isSupported ? 'Yes' : 'No'}
+            `;
+
+            const instructions = getPermissionInstructions(browserInfo.name);
+            document.getElementById('permission-instructions').innerHTML = `
+                <div class="instructions">
+                    <h3>${instructions.title} - ${browserInfo.name}</h3>
+                    <ol>
+                        ${instructions.steps.map(step => `<li class="step">${step}</li>`).join('')}
+                    </ol>
+                    <div class="alternative">
+                        <strong>Alternative method:</strong><br>
+                        ${instructions.alternative}
+                    </div>
+                </div>
+            `;
+
+            // Check Speech Recognition support
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                document.getElementById('speech-support').innerHTML = '<div class="success">✅ Speech Recognition API is supported in this browser</div>';
+            } else {
+                document.getElementById('speech-support').innerHTML = '<div class="error">❌ Speech Recognition API is not supported in this browser</div>';
+            }
+        };
+
+        function testVoiceSearch() {
+            const resultDiv = document.getElementById('voice-result');
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                resultDiv.innerHTML = '<div class="error">Speech Recognition not supported</div>';
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+
+            resultDiv.innerHTML = '<div class="success">🎤 Listening... Speak now!</div>';
+
+            recognition.onresult = function(event) {
+                let transcript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript;
+                }
+                resultDiv.innerHTML = `<div class="success">📝 You said: "${transcript}"</div>`;
+            };
+
+            recognition.onerror = function(event) {
+                const browserInfo = getBrowserInfo();
+                const instructions = getPermissionInstructions(browserInfo.name);
+                
+                let errorMessage = '';
+                switch (event.error) {
+                    case 'not-allowed':
+                        errorMessage = `
+                            <div class="error">
+                                <h4>🚫 Microphone Access Denied</h4>
+                                <p>${instructions.title}:</p>
+                                <ol>
+                                    ${instructions.steps.map(step => `<li>${step}</li>`).join('')}
+                                </ol>
+                                <div class="alternative">
+                                    <strong>Alternative:</strong> ${instructions.alternative}
+                                </div>
+                            </div>
+                        `;
+                        break;
+                    case 'no-speech':
+                        errorMessage = '<div class="error">🤫 No speech detected. Please try again.</div>';
+                        break;
+                    default:
+                        errorMessage = `<div class="error">❌ Error: ${event.error}</div>`;
+                }
+                resultDiv.innerHTML = errorMessage;
+            };
+
+            recognition.onend = function() {
+                // Recognition ended
+            };
+
+            recognition.start();
+        }
+    </script>
+</body>
+</html>

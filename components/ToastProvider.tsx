@@ -50,8 +50,10 @@ export function ToastProvider({ children }: ToastProviderProps): React.ReactElem
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const addToast = useCallback((toast: Omit<ToastMessage, 'id'>) => {
+    console.log('ToastProvider received:', toast);
     const id = ++toastIdCounter;
     const newToast = { ...toast, id };
+    console.log('Final toast object in ToastProvider:', newToast);
     setToasts(prev => [...prev, newToast]);
 
     // Auto-dismiss after delay
@@ -129,32 +131,50 @@ function Toaster({ toasts, dismissToast }: ToasterProps): React.ReactElement | n
 }
 
 function Toast({ toast, onDismiss }: ToastProps): React.ReactElement {
-  const bgColor = {
-    success: 'bg-green-500',
-    error: 'bg-red-500',
-    info: 'bg-blue-500',
-    warning: 'bg-yellow-500'
-  }[toast.type] || 'bg-gray-500';
+  console.log('Toast component in ToastProvider rendering:', toast);
 
-  const textColor = {
-    warning: 'text-gray-900'
-  }[toast.type] || 'text-white';
+  const bgColor = toast.variant === 'destructive' ? 'bg-red-500' : 'bg-gray-500';
+  const textColor = 'text-white';
 
   return (
-    <div className={`${bgColor} ${textColor} px-4 py-3 rounded-lg shadow-lg max-w-sm flex items-center justify-between animate-in slide-in-from-right-full`}>
-      <div className="flex-1">
-        {toast.title && (
-          <div className="font-semibold text-sm">{toast.title}</div>
-        )}
-        <div className="text-sm">{toast.message}</div>
+    <div className={`${bgColor} ${textColor} px-4 py-3 rounded-lg shadow-lg max-w-sm space-y-2 animate-in slide-in-from-right-full`}>
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          {toast.title && (
+            <div className="font-semibold text-sm">{toast.title}</div>
+          )}
+          {toast.description && (
+            <div className="text-sm mt-1">{toast.description}</div>
+          )}
+        </div>
+        <button
+          onClick={onDismiss}
+          className="ml-3 flex-shrink-0 hover:opacity-70 transition-opacity"
+          aria-label="Dismiss notification"
+        >
+          <X size={16} />
+        </button>
       </div>
-      <button
-        onClick={onDismiss}
-        className="ml-3 flex-shrink-0 hover:opacity-70 transition-opacity"
-        aria-label="Dismiss notification"
-      >
-        <X size={16} />
-      </button>
+      
+      {toast.action && (
+        <div className="mt-2 flex gap-2">
+          <button
+            onClick={toast.action.onClick}
+            className="inline-flex items-center justify-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          >
+            {toast.action.label}
+          </button>
+          
+          {toast.action.secondary && (
+            <button
+              onClick={toast.action.secondary.onClick}
+              className="inline-flex items-center justify-center px-3 py-1 border border-white text-sm font-medium rounded-md text-white bg-transparent hover:bg-white hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+            >
+              {toast.action.secondary.label}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

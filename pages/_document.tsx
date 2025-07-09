@@ -28,6 +28,9 @@ export default function Document(): React.ReactElement {
         <link rel="manifest" href="/manifest.json?v=2" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
+        
+        {/* Permissions Policy to allow microphone access */}
+        <meta httpEquiv="Permissions-Policy" content="microphone=*" />
         <meta name="theme-color" content="#1A1A1A" />
       </Head>
       <body>

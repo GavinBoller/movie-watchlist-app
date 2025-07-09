@@ -405,35 +405,35 @@ export default function WatchlistPage() {
         {status === 'authenticated' && (
           <>
             <div className="flex flex-col md:flex-row gap-4 mb-6">
-              {/* Search Input and Voice Search */}
-              <div className="flex flex-col md:flex-row gap-2 w-full md:flex-1">
-                <div className="relative flex-1">
-                  <Input
-                    type="text"
-                    placeholder="Search your watchlist..."
-                    value={searchInput}
-                    onChange={handleSearchChange}
-                    className="w-full bg-gray-800 border-gray-700 text-white py-2 pl-4 pr-10 min-h-[44px]"
-                  />
-                  {searchInput && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSearchInput('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
-                      aria-label="Clear search"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                <VoiceSearch 
-                  onResult={(transcript) => {
-                    setSearchInput(transcript);
-                  }}
-                  placeholder="Click to start voice search"
-                  className="w-full md:w-auto"
+              {/* Search Input with embedded Voice Search */}
+              <div className="relative w-full md:flex-1">
+                <Input
+                  type="text"
+                  placeholder="Search your watchlist..."
+                  value={searchInput}
+                  onChange={handleSearchChange}
+                  className="w-full bg-gray-800 border-gray-700 text-white py-2 pl-4 pr-20 min-h-[44px]"
                 />
+                {searchInput && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSearchInput('')}
+                    className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                  <VoiceSearch 
+                    onResult={(transcript) => {
+                      setSearchInput(transcript);
+                    }}
+                    placeholder="Click to start voice search"
+                    className="flex-shrink-0"
+                  />
+                </div>
               </div>
               <Select onValueChange={setSortOrder} defaultValue={sortOrder}>
                 <SelectTrigger className="w-full md:w-[200px] bg-gray-800 border-gray-700 min-h-[44px]">

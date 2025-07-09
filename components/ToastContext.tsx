@@ -62,8 +62,10 @@ export function ToastProvider({ children }: ToastProviderProps): React.ReactElem
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const addToast = useCallback((toast: Omit<ToastMessage, 'id'>) => {
+    console.log('ToastContext received:', toast);
     toastIdCounter += 1;
     const newToast: ToastMessage = { ...toast, id: `${Date.now()}-${toastIdCounter}` };
+    console.log('Final toast object:', newToast);
     setToasts((prev) => [...prev, newToast]);
   }, []);
 
@@ -156,6 +158,8 @@ function Toaster({ toasts, dismissToast }: ToasterProps): React.ReactElement {
 
 function Toast({ toast, onDismiss }: ToastProps): React.ReactElement {
   const [isVisible, setIsVisible] = useState<boolean>(true);
+
+  console.log('Toast component rendering:', toast);
 
   useEffect(() => {
     const timer = setTimeout(() => {

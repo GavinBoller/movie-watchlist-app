@@ -651,35 +651,37 @@ export default function SearchPage() {
 
         {/* Search Input Field (only visible/active in text search mode) */}
         {discoveryMode === 'text' && (
-          <div className="mb-4 flex flex-col items-center gap-4">
-            <div className="relative w-full sm:max-w-md md:max-w-lg">
+          <div className="mb-4 flex justify-center">
+            <div className="relative w-full sm:max-w-2xl">
               <Input
                 type="text"
                 placeholder="Search for movies or TV shows..."
                 value={searchInput}
                 onChange={handleSearchChange} 
-                className="w-full bg-gray-800 border-gray-700 text-white rounded-full py-2 pl-4 pr-10 min-h-[44px]"
+                className="w-full bg-gray-800 border-gray-700 text-white rounded-full py-2 pl-4 pr-20 min-h-[44px]"
               />
               {searchInput && (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setSearchInput('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                  className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
                   aria-label="Clear search"
                 >
                   <X className="h-4 w-4" />
                 </Button>
               )}
+              <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                <VoiceSearch 
+                  onResult={(transcript) => {
+                    setSearchInput(transcript);
+                    handleSearch(transcript);
+                  }}
+                  placeholder="Click to start voice search"
+                  className="flex-shrink-0"
+                />
+              </div>
             </div>
-            <VoiceSearch 
-              onResult={(transcript) => {
-                setSearchInput(transcript);
-                handleSearch(transcript);
-              }}
-              placeholder="Click to start voice search"
-              className="w-full sm:w-auto"
-            />
           </div>
         )}
 
