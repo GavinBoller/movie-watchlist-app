@@ -53,6 +53,10 @@ export default function VoiceSearch({
     
     // Only initialize speech recognition on mobile devices
     if (isMobile) {
+      // Check if this is an iOS device
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      console.log('iOS device detected:', isIOS);
+      
       // Check if browser supports Speech Recognition
       const SpeechRecognition = 
         (window as any).SpeechRecognition || 
@@ -62,17 +66,23 @@ export default function VoiceSearch({
         setIsSupported(true);
         
         const recognition = new SpeechRecognition();
-        recognition.continuous = false; // iOS Safari often ignores this anyway
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
         
-        // Adding explicit iOS Safari handling
+        // Specific configuration for iOS
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+        
         if (isIOS) {
-          console.log('iOS device detected, applying special handling');
-          // For iOS, we need to be more aggressive with our handling
-          recognition.maxAlternatives = 5; // Try to get more alternatives
+          console.log('Configuring for iOS');
+          // On iOS, these settings seem to work better
+          recognition.continuous = true; // Try continuous mode for iOS
+          recognition.interimResults = true;
+          recognition.maxAlternatives = 3;
+        } else {
+          // For other browsers
+          recognition.continuous = false;
+          recognition.interimResults = true; 
         }
+        
+        recognition.lang = 'en-US';
         
         recognition.onstart = () => {
           setIsListening(true);
@@ -102,52 +112,111 @@ export default function VoiceSearch({
         
         recognition.onresult = (event: any) => {
           console.log('Speech recognition result received:', event);
+          
+          // Always immediately note that we got some results
+          const resultTimestamp = Date.now();
+          console.log('Result received at:', resultTimestamp, 'ms since start:', resultTimestamp - listeningStartTime);
+          
           let finalTranscript = '';
           let interimTranscript = '';
+          let bestAlternative = '';
           
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const transcript = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-              console.log('Final transcript:', transcript);
-              finalTranscript += transcript;
-            } else {
-              console.log('Interim transcript:', transcript);
-              interimTranscript += transcript;
-            }
-          }
-          
-          // On iOS Safari, sometimes we never get isFinal=true
-          // So we'll use what we have after a short delay
-          if (interimTranscript && !finalTranscript) {
-            console.log('Got interim transcript, waiting briefly for final version');
-            setTimeout(() => {
-              // If we still don't have a final transcript, use the interim one
-              if (isListening && !finalTranscript) {
-                console.log('No final transcript received, using interim');
-                onResult(interimTranscript.trim());
-                // On iOS, we need to manually stop since onend might not fire
-                try {
-                  recognitionRef.current?.stop();
-                } catch (e) {
-                  console.log('Error stopping recognition:', e);
-                }
-                setIsListening(false);
-              }
-            }, 1500); // Wait 1.5s for final transcript before using interim
-          }
-          
-          setTranscript(finalTranscript || interimTranscript);
-          
-          if (finalTranscript) {
-            console.log('Using final transcript:', finalTranscript);
-            onResult(finalTranscript.trim());
-            setIsListening(false);
+          try {
+            // Enhanced logging to debug iOS issues
+            console.log('Results length:', event.results.length);
+            console.log('Result index:', event.resultIndex);
             
-            // On iOS, explicitly stop recognition
-            try {
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              console.log(`Result ${i}:`, event.results[i]);
+              console.log(`Result ${i} isFinal:`, event.results[i].isFinal);
+              
+              // Get main transcript
+              const transcript = event.results[i][0].transcript;
+              console.log(`Result ${i} transcript:`, transcript);
+              
+              // Check for alternatives on iOS
+              if (event.results[i].length > 1) {
+                console.log(`Result ${i} has alternatives:`, event.results[i].length);
+                // Find the alternative with highest confidence as backup
+                let bestConfidence = event.results[i][0].confidence;
+                bestAlternative = transcript;
+                
+                for (let j = 1; j < event.results[i].length; j++) {
+                  console.log(`Alternative ${j}:`, event.results[i][j].transcript, 'confidence:', event.results[i][j].confidence);
+                  if (event.results[i][j].confidence > bestConfidence) {
+                    bestConfidence = event.results[i][j].confidence;
+                    bestAlternative = event.results[i][j].transcript;
+                  }
+                }
+                
+                if (bestAlternative !== transcript) {
+                  console.log('Using better alternative:', bestAlternative);
+                }
+              }
+              
+              if (event.results[i].isFinal) {
+                finalTranscript += transcript;
+              } else {
+                interimTranscript += transcript;
+              }
+            }
+            
+            // Set the transcript for UI display
+            setTranscript(finalTranscript || interimTranscript || bestAlternative);
+            
+            // Use any final transcript immediately
+            if (finalTranscript) {
+              console.log('Using final transcript:', finalTranscript);
+              onResult(finalTranscript.trim());
+              setIsListening(false);
               recognitionRef.current?.stop();
-            } catch (e) {
-              console.log('Error stopping recognition after final result:', e);
+              return;
+            }
+            
+            // Special handling for iOS where we might not get a "final" result
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+            if (isIOS && interimTranscript) {
+              // On iOS, use interim results after a short delay, as we might never get final
+              console.log('iOS: Got interim result, setting up delayed processing');
+              
+              // Clear any previous timers to avoid multiple submissions
+              if (window.iosResultTimer) {
+                clearTimeout(window.iosResultTimer);
+              }
+              
+              // Use timeout to wait briefly for final result, then use interim
+              window.iosResultTimer = setTimeout(() => {
+                console.log('iOS: Using interim result after delay');
+                // Only process if we're still listening and haven't processed a final transcript
+                if (isListening) {
+                  const textToUse = interimTranscript || bestAlternative;
+                  if (textToUse) {
+                    console.log('iOS: Using text:', textToUse);
+                    onResult(textToUse.trim());
+                    setIsListening(false);
+                    try {
+                      recognitionRef.current?.stop();
+                    } catch (e) {
+                      console.error('Error stopping recognition:', e);
+                    }
+                  }
+                }
+              }, 1000); // 1 second delay for iOS
+            }
+          } catch (err) {
+            console.error('Error processing speech results:', err);
+            
+            // Fallback for any errors in result processing
+            if (interimTranscript || bestAlternative) {
+              const fallbackText = interimTranscript || bestAlternative;
+              console.log('Using fallback text due to error:', fallbackText);
+              onResult(fallbackText.trim());
+              setIsListening(false);
+              try {
+                recognitionRef.current?.stop();
+              } catch (e) {
+                console.error('Error stopping recognition after error:', e);
+              }
             }
           }
         };
@@ -287,10 +356,24 @@ export default function VoiceSearch({
     if (disabled) return;
 
     if (isListening) {
-      recognitionRef.current?.stop();
+      try {
+        recognitionRef.current?.stop();
+      } catch (e) {
+        console.log('Error stopping recognition:', e);
+      }
+      setIsListening(false);
       return;
     }
+    
+    // Track window.iosResultTimer for iOS
+    if (window.iosResultTimer) {
+      clearTimeout(window.iosResultTimer);
+      window.iosResultTimer = null;
+    }
 
+    // Check if this is an iOS device
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    
     // Check if we're on localhost (development)
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const isHTTPS = window.location.protocol === 'https:';
@@ -326,31 +409,53 @@ export default function VoiceSearch({
         console.log('Microphone permission granted via getUserMedia');
       }
       
-      // Start speech recognition
+      // Start speech recognition with iOS-specific handling
       console.log('Starting speech recognition...');
       
-      // iOS Safari workaround - on iOS, sometimes we need to restart recognition
-      // if it seems stuck or not receiving results
+      // iOS Safari workaround
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      
       if (isIOS) {
-        // iOS sometimes needs an extra stop/start cycle to work properly
-        try {
-          recognitionRef.current?.stop();
-        } catch (e) {
-          console.log('iOS pre-stop error (can be ignored):', e);
-        }
+        console.log('iOS: Special handling for speech recognition');
         
-        // Short delay before starting on iOS
-        setTimeout(() => {
+        // iOS needs extra care
+        try {
+          // Always make sure we're stopped first (helps with iOS Safari)
           try {
-            recognitionRef.current?.start();
-            console.log('iOS: Started recognition after stop/start cycle');
-          } catch (iosError) {
-            console.log('iOS start error:', iosError);
+            recognitionRef.current?.stop();
+          } catch (e) {
+            // Ignore errors here - it might not be started
           }
-        }, 100);
+          
+          // Wait a moment before starting on iOS (helps avoid race conditions)
+          setTimeout(() => {
+            try {
+              console.log('iOS: Starting recognition after delay');
+              recognitionRef.current?.start();
+            } catch (iosStartError) {
+              console.error('iOS start error after delay:', iosStartError);
+              
+              // One more attempt with different timing if needed
+              setTimeout(() => {
+                try {
+                  console.log('iOS: Last attempt to start recognition');
+                  recognitionRef.current?.start();
+                } catch (finalError) {
+                  console.error('iOS final start error:', finalError);
+                  addToast({
+                    title: 'Speech Recognition Failed',
+                    description: 'Could not start speech recognition on your device.',
+                    variant: 'destructive'
+                  });
+                }
+              }, 300);
+            }
+          }, 100);
+        } catch (iosError) {
+          console.error('iOS recognition error:', iosError);
+        }
       } else {
-        // Non-iOS devices can just start normally
+        // Non-iOS devices
         recognitionRef.current?.start();
       }
       
