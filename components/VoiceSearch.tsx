@@ -19,123 +19,152 @@ export default function VoiceSearch({
 }: VoiceSearchProps) {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const [transcript, setTranscript] = useState('');
   const recognitionRef = useRef<any>(null);
   const { addToast } = useToast();
 
   useEffect(() => {
-    // Check if browser supports Speech Recognition
-    const SpeechRecognition = 
-      (window as any).SpeechRecognition || 
-      (window as any).webkitSpeechRecognition;
+    setIsMounted(true);
     
-    if (SpeechRecognition) {
-      setIsSupported(true);
+    // Check if device is mobile/tablet
+    const checkMobileDevice = () => {
+      const userAgent = navigator.userAgent;
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      const isSmallScreen = window.innerWidth <= 1024; // Standard tablet breakpoint
       
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
+      // Consider it mobile if it's a mobile user agent OR a touch device with small screen
+      return isMobile || (isTouchDevice && isSmallScreen);
+    };
+    
+    const isMobile = checkMobileDevice();
+    setIsMobileDevice(isMobile);
+    
+    // Also listen for resize events to handle orientation changes
+    const handleResize = () => {
+      setIsMobileDevice(checkMobileDevice());
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
+    // Only initialize speech recognition on mobile devices
+    if (isMobile) {
+      // Check if browser supports Speech Recognition
+      const SpeechRecognition = 
+        (window as any).SpeechRecognition || 
+        (window as any).webkitSpeechRecognition;
       
-      recognition.onstart = () => {
-        setIsListening(true);
-        setTranscript('');
-        // Show listening toast only when speech recognition actually starts
-        addToast({
-          title: 'Listening...',
-          description: 'Speak now to search for movies or TV shows',
-          variant: 'default',
-          duration: 3000
-        });
-      };
-      
-      recognition.onresult = (event: any) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
+      if (SpeechRecognition) {
+        setIsSupported(true);
         
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
-          }
-        }
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
         
-        setTranscript(finalTranscript || interimTranscript);
+        recognition.onstart = () => {
+          setIsListening(true);
+          setTranscript('');
+          // Show listening toast only when speech recognition actually starts
+          addToast({
+            title: 'Listening...',
+            description: 'Speak now to search for movies or TV shows',
+            variant: 'default',
+            duration: 3000
+          });
+        };
         
-        if (finalTranscript) {
-          onResult(finalTranscript.trim());
-          setIsListening(false);
-        }
-      };
-      
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-        
-        let errorMessage = 'Voice search failed. Please try again.';
-        
-        switch (event.error) {
-          case 'network':
-            errorMessage = 'Network error. Please check your connection.';
-            break;
-          case 'not-allowed':
-            // Speech recognition permission denied - provide helpful instructions
-            console.log('Speech recognition permission denied');
-            
-            // Check if we're showing localhost error to avoid wrong message on production
-            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            
-            if (isLocalhost) {
-              addToast({
-                title: 'Microphone Permission Required',
-                description: 'Development setup needed. In Edge: Go to edge://settings/content/microphone and add localhost:3000 to allowed sites, or try edge://flags/ to add localhost to insecure origins.',
-                variant: 'destructive',
-                action: {
-                  label: 'Try Again',
-                  onClick: () => startListening()
-                },
-                duration: 15000
-              });
+        recognition.onresult = (event: any) => {
+          let finalTranscript = '';
+          let interimTranscript = '';
+          
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript;
             } else {
-              // Production site
-              addToast({
-                title: 'Microphone Permission Required',
-                description: 'Please allow microphone access when your browser asks, or check browser settings to enable microphone for this site.',
-                variant: 'destructive',
-                action: {
-                  label: 'Try Again',
-                  onClick: () => startListening()
-                }
-              });
+              interimTranscript += transcript;
             }
-            return; // Don't show the default error toast
-          case 'no-speech':
-            errorMessage = 'No speech detected. Please try speaking again.';
-            break;
-          case 'audio-capture':
-            errorMessage = 'No microphone found. Please check your audio settings.';
-            break;
-        }
+          }
+          
+          setTranscript(finalTranscript || interimTranscript);
+          
+          if (finalTranscript) {
+            onResult(finalTranscript.trim());
+            setIsListening(false);
+          }
+        };
         
-        addToast({
-          title: 'Voice Search Error',
-          description: errorMessage,
-          variant: 'destructive'
-        });
-      };
-      
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-      
-      recognitionRef.current = recognition;
-    } else {
-      console.warn('Speech Recognition not supported in this browser');
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsListening(false);
+          
+          let errorMessage = 'Voice search failed. Please try again.';
+          
+          switch (event.error) {
+            case 'network':
+              errorMessage = 'Network error. Please check your connection.';
+              break;
+            case 'not-allowed':
+              // Speech recognition permission denied - provide helpful instructions
+              console.log('Speech recognition permission denied');
+              
+              // Check if we're showing localhost error to avoid wrong message on production
+              const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+              
+              if (isLocalhost) {
+                addToast({
+                  title: 'Microphone Permission Required',
+                  description: 'Development setup needed. In Edge: Go to edge://settings/content/microphone and add localhost:3000 to allowed sites, or try edge://flags/ to add localhost to insecure origins.',
+                  variant: 'destructive',
+                  action: {
+                    label: 'Try Again',
+                    onClick: () => startListening()
+                  },
+                  duration: 15000
+                });
+              } else {
+                // Production site
+                addToast({
+                  title: 'Microphone Permission Required',
+                  description: 'Please allow microphone access when your browser asks, or check browser settings to enable microphone for this site.',
+                  variant: 'destructive',
+                  action: {
+                    label: 'Try Again',
+                    onClick: () => startListening()
+                  }
+                });
+              }
+              return; // Don't show the default error toast
+            case 'no-speech':
+              errorMessage = 'No speech detected. Please try speaking again.';
+              break;
+            case 'audio-capture':
+              errorMessage = 'No microphone found. Please check your audio settings.';
+              break;
+          }
+          
+          addToast({
+            title: 'Voice Search Error',
+            description: errorMessage,
+            variant: 'destructive'
+          });
+        };
+        
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+        
+        recognitionRef.current = recognition;
+      } else {
+        console.warn('Speech Recognition not supported in this browser');
+      }
     }
     
     return () => {
+      window.removeEventListener('resize', handleResize);
       if (recognitionRef.current) {
         recognitionRef.current.abort();
       }
@@ -228,10 +257,9 @@ export default function VoiceSearch({
       }
     }
   };
-  };
 
-  if (!isSupported) {
-    return null; // Don't render if not supported
+  if (!isSupported || !isMobileDevice || !isMounted) {
+    return null; // Don't render if not supported or not on a mobile device
   }
 
   return (
