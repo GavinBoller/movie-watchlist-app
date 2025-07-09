@@ -432,7 +432,7 @@ export default function WatchlistPage() {
                     }}
                     placeholder="Click to start voice search"
                     className="flex-shrink-0"
-                    initialDebugMode={/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream}
+                    initialDebugMode={typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)}
                   />
                 </div>
               </div>

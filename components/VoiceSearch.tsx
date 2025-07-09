@@ -317,12 +317,19 @@ export default function VoiceSearch({
           };
           
           recognition.onerror = (event: any) => {
+            // For aborted errors, we'll handle specially
+            if (event.error === 'aborted') {
+              debug(`Speech recognition aborted`, 'info');
+              setIsListening(false);
+              return; // Don't log or show toasts for aborted - it's a normal operation
+            }
+            
             debug(`Speech recognition error: ${event.error}`, 'error');
             
             // Completely ignore all errors during the initial grace period
             // This is especially important for iPhones which often report errors right after starting
             if (ignoreErrorsTimerRef.current !== null) {
-              debug(`Ignoring speech recognition error during grace period: ${event.error}`, 'error');
+              debug(`Ignoring speech recognition error during grace period: ${event.error}`, 'warning');
               return;
             }
             
@@ -390,7 +397,8 @@ export default function VoiceSearch({
                 errorMessage = 'No microphone found. Please check your audio settings.';
                 break;
               case 'aborted':
-                debug('Recognition aborted', 'error');
+                debug('Recognition aborted by user or system', 'info');
+                setIsListening(false);
                 return; // Don't show error for aborted recognition
               case 'no-speech':
                 errorMessage = 'No speech detected. Please try speaking again.';
@@ -497,9 +505,12 @@ export default function VoiceSearch({
       window.removeEventListener('resize', handleResize);
       if (recognitionRef.current) {
         try {
-          recognitionRef.current.abort();
+          // Use stop instead of abort on cleanup to prevent errors
+          if (isListening) {
+            recognitionRef.current.stop();
+          }
         } catch (e) {
-          debug(`Error aborting recognition on unmount: ${e}`, 'error');
+          debug(`Error stopping recognition on unmount: ${e}`, 'error');
         }
       }
       if (ignoreErrorsTimerRef.current) {
@@ -598,7 +609,13 @@ export default function VoiceSearch({
         try {
           // Always make sure we're stopped first (helps with iOS Safari)
           try {
-            recognitionRef.current?.stop();
+            if (recognitionRef.current) {
+              debug('iOS: Stopping any existing recognition first', 'ios');
+              recognitionRef.current.stop();
+              
+              // Add a small delay to allow the previous instance to clean up
+              await new Promise(resolve => setTimeout(resolve, 200));
+            }
           } catch (e) {
             // Ignore errors here - it might not be started
             debug('iOS: Ignoring potential error when stopping before start', 'ios');
@@ -717,9 +734,7 @@ export default function VoiceSearch({
           ) : (
             <Mic className="h-4 w-4" />
           )}
-        </Button>
-        
-        {/* Debug toggle button - always visible for easy access */}
+        </Button>          {/* Debug toggle button - always visible for easy access */}
         <Button
           type="button"
           variant="ghost"
@@ -752,6 +767,19 @@ export default function VoiceSearch({
         onClose={() => setShowDebugPanel(false)}
         onClear={clearLogs}
       />
+
+      {/* Floating debug button when panel is hidden but debug mode is on */}
+      {debugMode && !showDebugPanel && (
+        <Button
+          type="button"
+          variant="default"
+          size="sm"
+          onClick={() => setShowDebugPanel(true)}
+          className="fixed bottom-4 right-4 z-50 rounded-full h-10 w-10 p-0 bg-yellow-600 hover:bg-yellow-700 shadow-lg flex items-center justify-center"
+        >
+          <Bug className="h-5 w-5" />
+        </Button>
+      )}
     </>
   );
 }
