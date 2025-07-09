@@ -3,14 +3,14 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Mic, MicOff, Volume2, Bug, ClipboardCopy } from 'lucide-react';
 import { Button } from './ui/button';
 import { useToast } from '../hooks/useToast';
-import VoiceSearchDebugger from './VoiceSearchDebugger';
-
-// Add iOS timer declaration to avoid TypeScript errors
+import VoiceSearchDebugger from './VoiceSearchDebugger';  // Add iOS timer declaration to avoid TypeScript errors
 declare global {
   interface Window { 
     iosResultTimer: any;
     isSafari: boolean;
     webkitSpeechRecognition: any;
+    isStandalone: boolean; // PWA detection
+    matchMedia: (query: string) => { matches: boolean };
   }
 }
 
@@ -42,8 +42,10 @@ export default function VoiceSearch({
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const [iosDetected, setIosDetected] = useState(false);
+  const [isPWA, setIsPWA] = useState(false); // Track if running as home screen app
   const [recognitionAttempts, setRecognitionAttempts] = useState(0);
   const [lastRecognitionStatus, setLastRecognitionStatus] = useState<string>('none');
+  const micStreamRef = useRef<MediaStream | null>(null); // Store mic stream for PWA cleanup
   const { addToast } = useToast();
   
   // Debug logger function with timestamps and category - enhanced iOS logging for microphone debugging
@@ -103,6 +105,59 @@ export default function VoiceSearch({
             debug(`iOS: Error calling abort: ${e}`, 'ios');
           }
           
+          // For PWA mode, we need to be extra aggressive
+          if (isPWA) {
+            debug('iOS PWA: Extra aggressive microphone cleanup', 'ios');
+            
+            // Additional PWA-specific cleanup: directly stop any active mic tracks
+            if (micStreamRef.current) {
+              try {
+                const tracks = micStreamRef.current.getTracks();
+                debug(`iOS PWA: Stopping ${tracks.length} mic tracks directly`, 'ios');
+                
+                tracks.forEach(track => {
+                  try {
+                    track.stop();
+                    debug(`iOS PWA: Stopped track ${track.id}`, 'ios');
+                  } catch (e) {
+                    debug(`iOS PWA: Error stopping track: ${e}`, 'ios');
+                  }
+                });
+                
+                // Clear the reference
+                micStreamRef.current = null;
+              } catch (e) {
+                debug(`iOS PWA: Error stopping mic tracks: ${e}`, 'ios');
+              }
+            }
+            
+            // Create and immediately abort a new recognition instance
+            try {
+              const SpeechRecognition = 
+                (window as any).SpeechRecognition || 
+                (window as any).webkitSpeechRecognition;
+              
+              if (SpeechRecognition) {
+                const tempRecognition = new SpeechRecognition();
+                tempRecognition.abort();
+                debug('iOS PWA: Created and aborted temp recognition', 'ios');
+                
+                // Extra cleanup steps for PWA
+                setTimeout(() => {
+                  try {
+                    const finalRecognition = new SpeechRecognition();
+                    finalRecognition.abort();
+                    debug('iOS PWA: Created and aborted final temp recognition', 'ios');
+                  } catch (e) {
+                    debug(`iOS PWA: Error in final cleanup: ${e}`, 'ios');
+                  }
+                }, 300); // Longer timeout for PWA
+              }
+            } catch (e) {
+              debug(`iOS PWA: Error creating temp recognition: ${e}`, 'ios');
+            }
+          }
+          
           // Don't nullify the reference immediately - let iOS clean up naturally
           debug('iOS: Cleanup calls completed', 'ios');
         } else {
@@ -116,7 +171,7 @@ export default function VoiceSearch({
     }
     
     setIsListening(false);
-  }, [iosDetected, debug]);
+  }, [iosDetected, isPWA, debug]);
   
   useEffect(() => {
     setIsMounted(true);
@@ -140,8 +195,32 @@ export default function VoiceSearch({
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIosDetected(isIOS);
     
+    // Check if this is running as a PWA (added to home screen)
+    const isPWAMode = (() => {
+      // Method 1: navigator.standalone (iOS Safari specific)
+      if ((navigator as any).standalone === true) {
+        return true;
+      }
+      
+      // Method 2: display-mode media query (more standard)
+      if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+        return true;
+      }
+      
+      // Method 3: window.navigator.standalone (older iOS)
+      if (window.navigator && (window.navigator as any).standalone === true) {
+        return true;
+      }
+      
+      // Default - not PWA
+      return false;
+    })();
+    
+    setIsPWA(isPWAMode);
+    
     debug(`Device detected as ${isMobile ? 'mobile' : 'desktop'}`, 'device');
     debug(`iOS device detected: ${isIOS}`, 'ios');
+    debug(`Running as PWA (home screen app): ${isPWAMode}`, 'ios');
     debug(`User agent: ${navigator.userAgent}`, 'device');
     debug(`Screen size: ${window.innerWidth}x${window.innerHeight}`, 'device');
     debug(`Touch points: ${navigator.maxTouchPoints}`, 'device');
@@ -327,21 +406,56 @@ export default function VoiceSearch({
                     const oldRecognition = recognitionRef.current;
                     recognitionRef.current = null;
                     
-                    // Force iOS to release microphone by creating new instance briefly
-                    setTimeout(() => {
-                      try {
-                        const SpeechRecognition = 
-                          (window as any).SpeechRecognition || 
-                          (window as any).webkitSpeechRecognition;
-                        if (SpeechRecognition) {
-                          const tempRecognition = new SpeechRecognition();
-                          tempRecognition.abort(); // Immediately abort to force cleanup
-                          debug('iOS: Created and aborted temp recognition for cleanup', 'ios');
+                    // For PWA mode on iOS, we need extra cleanup
+                    if (isPWA) {
+                      debug('iOS PWA: Extra cleanup for final transcript', 'ios');
+                      
+                      // Directly release any active media tracks
+                      if (micStreamRef.current) {
+                        try {
+                          const tracks = micStreamRef.current.getTracks();
+                          tracks.forEach(track => track.stop());
+                          debug(`iOS PWA: Stopped ${tracks.length} media tracks`, 'ios');
+                          micStreamRef.current = null;
+                        } catch (e) {
+                          debug(`iOS PWA: Error stopping media tracks: ${e}`, 'ios');
                         }
-                      } catch (e) {
-                        debug(`iOS: Error creating temp recognition: ${e}`, 'ios');
                       }
-                    }, 50);
+                      
+                      // For PWA, create multiple temp instances to force iOS to release the mic
+                      for (let i = 0; i < 3; i++) {
+                        setTimeout(() => {
+                          try {
+                            const SpeechRecognition = 
+                              (window as any).SpeechRecognition || 
+                              (window as any).webkitSpeechRecognition;
+                            if (SpeechRecognition) {
+                              const tempRecognition = new SpeechRecognition();
+                              tempRecognition.abort();
+                              debug(`iOS PWA: Created and aborted temp recognition ${i+1}`, 'ios');
+                            }
+                          } catch (e) {
+                            debug(`iOS PWA: Error creating temp recognition ${i+1}: ${e}`, 'ios');
+                          }
+                        }, i * 100); // Stagger cleanup attempts
+                      }
+                    } else {
+                      // Standard iOS (not PWA) cleanup
+                      setTimeout(() => {
+                        try {
+                          const SpeechRecognition = 
+                            (window as any).SpeechRecognition || 
+                            (window as any).webkitSpeechRecognition;
+                          if (SpeechRecognition) {
+                            const tempRecognition = new SpeechRecognition();
+                            tempRecognition.abort(); // Immediately abort to force cleanup
+                            debug('iOS: Created and aborted temp recognition for cleanup', 'ios');
+                          }
+                        } catch (e) {
+                          debug(`iOS: Error creating temp recognition: ${e}`, 'ios');
+                        }
+                      }, 50);
+                    }
                     
                     debug('iOS: Immediate cleanup completed', 'ios');
                   } catch (e) {
@@ -387,21 +501,56 @@ export default function VoiceSearch({
                           const oldRecognition = recognitionRef.current;
                           recognitionRef.current = null;
                           
-                          // Force iOS to release microphone
-                          setTimeout(() => {
-                            try {
-                              const SpeechRecognition = 
-                                (window as any).SpeechRecognition || 
-                                (window as any).webkitSpeechRecognition;
-                              if (SpeechRecognition) {
-                                const tempRecognition = new SpeechRecognition();
-                                tempRecognition.abort();
-                                debug('iOS: Created and aborted temp recognition for interim cleanup', 'ios');
+                          // For PWA mode on iOS, we need extra cleanup
+                          if (isPWA) {
+                            debug('iOS PWA: Extra cleanup for interim transcript', 'ios');
+                            
+                            // Directly release any active media tracks
+                            if (micStreamRef.current) {
+                              try {
+                                const tracks = micStreamRef.current.getTracks();
+                                tracks.forEach(track => track.stop());
+                                debug(`iOS PWA: Stopped ${tracks.length} media tracks for interim`, 'ios');
+                                micStreamRef.current = null;
+                              } catch (e) {
+                                debug(`iOS PWA: Error stopping media tracks for interim: ${e}`, 'ios');
                               }
-                            } catch (e) {
-                              debug(`iOS: Error creating interim temp recognition: ${e}`, 'ios');
                             }
-                          }, 50);
+                            
+                            // For PWA, create multiple temp instances to force iOS to release the mic
+                            for (let i = 0; i < 3; i++) {
+                              setTimeout(() => {
+                                try {
+                                  const SpeechRecognition = 
+                                    (window as any).SpeechRecognition || 
+                                    (window as any).webkitSpeechRecognition;
+                                  if (SpeechRecognition) {
+                                    const tempRecognition = new SpeechRecognition();
+                                    tempRecognition.abort();
+                                    debug(`iOS PWA: Created and aborted temp recognition ${i+1} for interim`, 'ios');
+                                  }
+                                } catch (e) {
+                                  debug(`iOS PWA: Error creating temp recognition ${i+1} for interim: ${e}`, 'ios');
+                                }
+                              }, i * 100); // Stagger cleanup attempts
+                            }
+                          } else {
+                            // Standard iOS (not PWA) cleanup
+                            setTimeout(() => {
+                              try {
+                                const SpeechRecognition = 
+                                  (window as any).SpeechRecognition || 
+                                  (window as any).webkitSpeechRecognition;
+                                if (SpeechRecognition) {
+                                  const tempRecognition = new SpeechRecognition();
+                                  tempRecognition.abort();
+                                  debug('iOS: Created and aborted temp recognition for interim cleanup', 'ios');
+                                }
+                              } catch (e) {
+                                debug(`iOS: Error creating interim temp recognition: ${e}`, 'ios');
+                              }
+                            }, 50);
+                          }
                           
                           debug('iOS: Interim cleanup completed', 'ios');
                         } catch (e) {
@@ -555,6 +704,57 @@ export default function VoiceSearch({
                   debug(`iOS: Error in end event cleanup: ${e}`, 'ios');
                 }
               }
+              
+              // PWA-specific extra cleanup on end event
+              if (isPWA) {
+                debug('iOS PWA: Extra cleanup on recognition end event', 'ios');
+                
+                // Direct cleanup of any media tracks
+                if (micStreamRef.current) {
+                  try {
+                    const tracks = micStreamRef.current.getTracks();
+                    tracks.forEach(track => track.stop());
+                    debug(`iOS PWA: Stopped ${tracks.length} media tracks on end event`, 'ios');
+                    micStreamRef.current = null;
+                  } catch (e) {
+                    debug(`iOS PWA: Error stopping media tracks on end: ${e}`, 'ios');
+                  }
+                }
+                
+                // Create multiple cleanup instances with a delay between them
+                for (let i = 0; i < 3; i++) {
+                  setTimeout(() => {
+                    try {
+                      const SpeechRecognition = 
+                        (window as any).SpeechRecognition || 
+                        (window as any).webkitSpeechRecognition;
+                      if (SpeechRecognition) {
+                        const tempRecognition = new SpeechRecognition();
+                        tempRecognition.abort();
+                        debug(`iOS PWA: End event - created and aborted temp recognition ${i+1}`, 'ios');
+                      }
+                    } catch (e) {
+                      debug(`iOS PWA: End event - error creating temp recognition ${i+1}: ${e}`, 'ios');
+                    }
+                  }, i * 150); // Longer staggered delay for end event
+                }
+                
+                // Final forced cleanup attempt after all other attempts
+                setTimeout(() => {
+                  // Try to get and immediately release a new stream as a final cleanup step
+                  navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(stream => {
+                      debug('iOS PWA: Final cleanup - got new audio stream', 'ios');
+                      stream.getTracks().forEach(track => {
+                        track.stop();
+                        debug(`iOS PWA: Final cleanup - stopped track ${track.id}`, 'ios');
+                      });
+                    })
+                    .catch(e => {
+                      debug(`iOS PWA: Final cleanup - error getting audio stream: ${e}`, 'ios');
+                    });
+                }, 500);
+              }
             }
             
             // If we haven't processed any transcript but we were listening,
@@ -678,21 +878,56 @@ export default function VoiceSearch({
           const oldRecognition = recognitionRef.current;
           recognitionRef.current = null;
           
-          // Force iOS to release microphone
-          setTimeout(() => {
-            try {
-              const SpeechRecognition = 
-                (window as any).SpeechRecognition || 
-                (window as any).webkitSpeechRecognition;
-              if (SpeechRecognition) {
-                const tempRecognition = new SpeechRecognition();
-                tempRecognition.abort();
-                debug('iOS: Created and aborted temp recognition for manual stop', 'ios');
+          // PWA-specific extra cleanup
+          if (isPWA) {
+            debug('iOS PWA: Extra aggressive cleanup for manual stop', 'ios');
+            
+            // Directly stop any active media tracks
+            if (micStreamRef.current) {
+              try {
+                const tracks = micStreamRef.current.getTracks();
+                tracks.forEach(track => track.stop());
+                debug(`iOS PWA: Manually stopped ${tracks.length} media tracks`, 'ios');
+                micStreamRef.current = null;
+              } catch (e) {
+                debug(`iOS PWA: Error stopping media tracks on manual stop: ${e}`, 'ios');
               }
-            } catch (e) {
-              debug(`iOS: Error creating manual temp recognition: ${e}`, 'ios');
             }
-          }, 50);
+            
+            // Create multiple instances to force iOS to release the microphone
+            for (let i = 0; i < 3; i++) {
+              setTimeout(() => {
+                try {
+                  const SpeechRecognition = 
+                    (window as any).SpeechRecognition || 
+                    (window as any).webkitSpeechRecognition;
+                  if (SpeechRecognition) {
+                    const tempRecognition = new SpeechRecognition();
+                    tempRecognition.abort();
+                    debug(`iOS PWA: Manual stop - created and aborted temp recognition ${i+1}`, 'ios');
+                  }
+                } catch (e) {
+                  debug(`iOS PWA: Manual stop - error creating temp recognition ${i+1}: ${e}`, 'ios');
+                }
+              }, i * 100); // Stagger cleanup attempts
+            }
+          } else {
+            // Standard iOS (not PWA) cleanup
+            setTimeout(() => {
+              try {
+                const SpeechRecognition = 
+                  (window as any).SpeechRecognition || 
+                  (window as any).webkitSpeechRecognition;
+                if (SpeechRecognition) {
+                  const tempRecognition = new SpeechRecognition();
+                  tempRecognition.abort();
+                  debug('iOS: Created and aborted temp recognition for manual stop', 'ios');
+                }
+              } catch (e) {
+                debug(`iOS: Error creating manual temp recognition: ${e}`, 'ios');
+              }
+            }, 50);
+          }
           
           debug('iOS: Manual stop cleanup completed', 'ios');
         } catch (e) {
@@ -759,9 +994,28 @@ export default function VoiceSearch({
       if (isHTTPS) {
         debug('Requesting microphone permission...', 'permission');
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          stream.getTracks().forEach(track => track.stop());
-          debug('Microphone permission granted via getUserMedia', 'permission');
+          // Store the stream for PWA mode to help with cleanup
+          if (iosDetected && isPWA) {
+            debug('iOS PWA: Getting and storing microphone stream for better cleanup', 'ios');
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+              } 
+            });
+            
+            // Store the stream for later cleanup
+            micStreamRef.current = stream;
+            debug(`iOS PWA: Got microphone stream with ${stream.getTracks().length} tracks`, 'ios');
+            
+            // Don't stop the stream - we'll use it for recognition and stop it when done
+          } else {
+            // For non-PWA mode, get and immediately release the stream
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(track => track.stop());
+            debug('Microphone permission granted via getUserMedia', 'permission');
+          }
         } catch (permError) {
           debug(`getUserMedia permission error: ${permError}`, 'error');
           // Continue anyway, the speech recognition API will handle its own permissions

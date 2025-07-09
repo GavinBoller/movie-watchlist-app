@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Added the apple-touch-icon in _document.tsx instead
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import '../styles/globals.css';
 import { ToastProvider, WatchlistProvider } from '../components/ToastProvider';
 import Head from 'next/head';
@@ -8,8 +8,16 @@ import { SessionProvider } from "next-auth/react";
 import { SWRConfig } from 'swr';
 import type { AppProps } from 'next/app';
 import { registerServiceWorker, handleOfflineActions } from '../lib/serviceWorker';
+import { initPWA, isPWAMode } from '../utils/pwa';
+import dynamic from 'next/dynamic';
+
+const PWAInstallBanner = dynamic(() => import('../components/PWAInstallBanner'), {
+  ssr: false
+});
 
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps): React.ReactElement {
+  const [isPWA, setIsPWA] = useState(false);
+  
   useEffect(() => {
     // Suppress NextAuth client errors that are safe to ignore
     const originalError = console.error;
@@ -29,18 +37,16 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
     
     // Register Service Worker only in production and if supported
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-      registerServiceWorker()
-        .then((registration) => {
-          console.log('Service Worker registered successfully');
-          
-          // Handle offline actions when coming back online
-          window.addEventListener('online', () => {
-            handleOfflineActions();
-          });
-        })
-        .catch((error) => {
-          console.warn('Service Worker registration failed:', error);
-        });
+      // Initialize PWA features including service worker registration
+      initPWA();
+      
+      // Check if we're running in PWA mode
+      setIsPWA(isPWAMode());
+      
+      // Handle offline actions when coming back online
+      window.addEventListener('online', () => {
+        handleOfflineActions();
+      });
     }
   }, []);
 
@@ -80,6 +86,8 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
           <ToastProvider>
             <WatchlistProvider>
               <Component {...pageProps} />
+              {/* Show PWA Install Banner only if not already in PWA mode */}
+              {typeof window !== 'undefined' && !isPWA && <PWAInstallBanner />}
             </WatchlistProvider>
           </ToastProvider>
         </SWRConfig>
