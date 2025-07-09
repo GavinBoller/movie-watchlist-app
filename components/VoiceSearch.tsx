@@ -323,8 +323,25 @@ export default function VoiceSearch({
                     recognitionRef.current.stop();
                     recognitionRef.current.abort();
                     
-                    // Additional iOS-specific cleanup
-                    setIsListening(false);
+                    // Additional iOS fix: nullify the reference immediately
+                    const oldRecognition = recognitionRef.current;
+                    recognitionRef.current = null;
+                    
+                    // Force iOS to release microphone by creating new instance briefly
+                    setTimeout(() => {
+                      try {
+                        const SpeechRecognition = 
+                          (window as any).SpeechRecognition || 
+                          (window as any).webkitSpeechRecognition;
+                        if (SpeechRecognition) {
+                          const tempRecognition = new SpeechRecognition();
+                          tempRecognition.abort(); // Immediately abort to force cleanup
+                          debug('iOS: Created and aborted temp recognition for cleanup', 'ios');
+                        }
+                      } catch (e) {
+                        debug(`iOS: Error creating temp recognition: ${e}`, 'ios');
+                      }
+                    }, 50);
                     
                     debug('iOS: Immediate cleanup completed', 'ios');
                   } catch (e) {
@@ -332,8 +349,8 @@ export default function VoiceSearch({
                   }
                 }
                 
-                // Use enhanced cleanup for iOS microphone indicator
-                forceStopRecognition();
+                // Set listening to false and use cleanup - but don't double cleanup
+                setIsListening(false);
                 return;
               }
               
@@ -366,8 +383,25 @@ export default function VoiceSearch({
                           recognitionRef.current.stop();
                           recognitionRef.current.abort();
                           
-                          // Additional iOS-specific cleanup
-                          setIsListening(false);
+                          // Additional iOS fix: nullify the reference immediately
+                          const oldRecognition = recognitionRef.current;
+                          recognitionRef.current = null;
+                          
+                          // Force iOS to release microphone
+                          setTimeout(() => {
+                            try {
+                              const SpeechRecognition = 
+                                (window as any).SpeechRecognition || 
+                                (window as any).webkitSpeechRecognition;
+                              if (SpeechRecognition) {
+                                const tempRecognition = new SpeechRecognition();
+                                tempRecognition.abort();
+                                debug('iOS: Created and aborted temp recognition for interim cleanup', 'ios');
+                              }
+                            } catch (e) {
+                              debug(`iOS: Error creating interim temp recognition: ${e}`, 'ios');
+                            }
+                          }, 50);
                           
                           debug('iOS: Interim cleanup completed', 'ios');
                         } catch (e) {
@@ -375,8 +409,8 @@ export default function VoiceSearch({
                         }
                       }
                       
-                      // Use enhanced cleanup for iOS
-                      forceStopRecognition();
+                      // Set listening to false - don't double cleanup
+                      setIsListening(false);
                     }
                   }
                 }, 1500); // Increased delay for iOS - 1.5 seconds to allow more speech
@@ -640,8 +674,25 @@ export default function VoiceSearch({
           recognitionRef.current.stop();
           recognitionRef.current.abort();
           
-          // Additional iOS-specific cleanup
-          setIsListening(false);
+          // Additional iOS fix: nullify the reference immediately
+          const oldRecognition = recognitionRef.current;
+          recognitionRef.current = null;
+          
+          // Force iOS to release microphone
+          setTimeout(() => {
+            try {
+              const SpeechRecognition = 
+                (window as any).SpeechRecognition || 
+                (window as any).webkitSpeechRecognition;
+              if (SpeechRecognition) {
+                const tempRecognition = new SpeechRecognition();
+                tempRecognition.abort();
+                debug('iOS: Created and aborted temp recognition for manual stop', 'ios');
+              }
+            } catch (e) {
+              debug(`iOS: Error creating manual temp recognition: ${e}`, 'ios');
+            }
+          }, 50);
           
           debug('iOS: Manual stop cleanup completed', 'ios');
         } catch (e) {
@@ -649,8 +700,8 @@ export default function VoiceSearch({
         }
       }
       
-      // Use enhanced cleanup when manually stopping
-      forceStopRecognition();
+      // Set listening to false and return - don't call forceStopRecognition again
+      setIsListening(false);
       return;
     }
     
