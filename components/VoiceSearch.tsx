@@ -79,55 +79,32 @@ export default function VoiceSearch({
     }
   };
   
-  // Enhanced cleanup function for iOS microphone issues - comprehensive fix
+  // Enhanced cleanup function for iOS microphone issues - immediate synchronous cleanup
   const forceStopRecognition = useCallback(() => {
     debug('Force stopping recognition for iOS microphone cleanup', 'ios');
     
     if (recognitionRef.current) {
       try {
-        // iOS-specific enhanced cleanup sequence
         if (iosDetected) {
-          debug('iOS: Starting enhanced microphone cleanup sequence', 'ios');
+          debug('iOS: Immediate synchronous microphone cleanup', 'ios');
           
-          // First attempt - standard stop
-          recognitionRef.current.stop();
-          debug('iOS: Called stop() on recognition', 'ios');
+          // iOS needs immediate synchronous cleanup - no delays
+          try {
+            recognitionRef.current.stop();
+            debug('iOS: Called stop() immediately', 'ios');
+          } catch (e) {
+            debug(`iOS: Error calling stop: ${e}`, 'ios');
+          }
           
-          // Second attempt - abort for immediate cleanup
-          setTimeout(() => {
-            try {
-              if (recognitionRef.current) {
-                recognitionRef.current.abort();
-                debug('iOS: Called abort() on recognition', 'ios');
-              }
-            } catch (e) {
-              debug(`iOS: Error during abort: ${e}`, 'ios');
-            }
-          }, 50);
+          try {
+            recognitionRef.current.abort();
+            debug('iOS: Called abort() immediately', 'ios');
+          } catch (e) {
+            debug(`iOS: Error calling abort: ${e}`, 'ios');
+          }
           
-          // Third attempt - force another stop after delay
-          setTimeout(() => {
-            try {
-              if (recognitionRef.current) {
-                recognitionRef.current.stop();
-                debug('iOS: Called final stop() on recognition', 'ios');
-              }
-            } catch (e) {
-              debug(`iOS: Error during final stop: ${e}`, 'ios');
-            }
-          }, 200);
-          
-          // Final cleanup - nullify reference after all attempts
-          setTimeout(() => {
-            try {
-              if (recognitionRef.current) {
-                debug('iOS: Nullifying recognition reference', 'ios');
-                recognitionRef.current = null;
-              }
-            } catch (e) {
-              debug(`iOS: Error nullifying reference: ${e}`, 'ios');
-            }
-          }, 500);
+          // Don't nullify the reference immediately - let iOS clean up naturally
+          debug('iOS: Cleanup calls completed', 'ios');
         } else {
           // Non-iOS devices - standard cleanup
           recognitionRef.current.stop();
@@ -337,14 +314,21 @@ export default function VoiceSearch({
                 debug(`Using final transcript: ${finalTranscript}`, 'result');
                 onResult(finalTranscript.trim());
                 
-                // iOS-specific immediate microphone cleanup for final results
+                // iOS-specific aggressive microphone cleanup for final results
                 if (iosDetected && recognitionRef.current) {
-                  debug('iOS: Immediate cleanup for final transcript', 'ios');
+                  debug('iOS: Aggressive cleanup for final transcript', 'ios');
                   try {
+                    // iOS Safari workaround: set continuous to false and stop immediately
+                    recognitionRef.current.continuous = false;
                     recognitionRef.current.stop();
                     recognitionRef.current.abort();
+                    
+                    // Additional iOS-specific cleanup
+                    setIsListening(false);
+                    
+                    debug('iOS: Immediate cleanup completed', 'ios');
                   } catch (e) {
-                    debug(`iOS: Error in immediate cleanup: ${e}`, 'ios');
+                    debug(`iOS: Error in aggressive cleanup: ${e}`, 'ios');
                   }
                 }
                 
@@ -373,14 +357,21 @@ export default function VoiceSearch({
                       debug(`iOS: Using text: ${textToUse}`, 'ios');
                       onResult(textToUse.trim());
                       
-                      // iOS-specific immediate microphone cleanup for interim results
+                      // iOS-specific aggressive microphone cleanup for interim results
                       if (recognitionRef.current) {
-                        debug('iOS: Immediate cleanup for interim transcript', 'ios');
+                        debug('iOS: Aggressive cleanup for interim transcript', 'ios');
                         try {
+                          // iOS Safari workaround: set continuous to false and stop
+                          recognitionRef.current.continuous = false;
                           recognitionRef.current.stop();
                           recognitionRef.current.abort();
+                          
+                          // Additional iOS-specific cleanup
+                          setIsListening(false);
+                          
+                          debug('iOS: Interim cleanup completed', 'ios');
                         } catch (e) {
-                          debug(`iOS: Error in interim cleanup: ${e}`, 'ios');
+                          debug(`iOS: Error in interim aggressive cleanup: ${e}`, 'ios');
                         }
                       }
                       
@@ -517,19 +508,19 @@ export default function VoiceSearch({
             
             // iOS-specific microphone cleanup on end event
             if (iosDetected) {
-              debug('iOS: Recognition ended - ensuring microphone cleanup', 'ios');
-              setTimeout(() => {
-                setIsListening(false);
-                // Additional cleanup attempt for iOS
-                if (recognitionRef.current) {
-                  try {
-                    recognitionRef.current.abort();
-                    debug('iOS: Additional abort call on end event', 'ios');
-                  } catch (e) {
-                    debug(`iOS: Error in end event cleanup: ${e}`, 'ios');
-                  }
+              debug('iOS: Recognition ended - forcing microphone cleanup', 'ios');
+              setIsListening(false);
+              
+              // Additional aggressive cleanup for iOS
+              if (recognitionRef.current) {
+                try {
+                  recognitionRef.current.continuous = false;
+                  recognitionRef.current.abort();
+                  debug('iOS: Final abort call on end event', 'ios');
+                } catch (e) {
+                  debug(`iOS: Error in end event cleanup: ${e}`, 'ios');
                 }
-              }, 100);
+              }
             }
             
             // If we haven't processed any transcript but we were listening,
@@ -640,14 +631,21 @@ export default function VoiceSearch({
     if (disabled) return;
 
     if (isListening) {
-      // iOS-specific immediate stop when user taps to cancel
+      // iOS-specific aggressive stop when user taps to cancel
       if (iosDetected && recognitionRef.current) {
-        debug('iOS: User manually stopping - immediate cleanup', 'ios');
+        debug('iOS: User manually stopping - aggressive cleanup', 'ios');
         try {
+          // iOS Safari workaround: set continuous to false and stop
+          recognitionRef.current.continuous = false;
           recognitionRef.current.stop();
           recognitionRef.current.abort();
+          
+          // Additional iOS-specific cleanup
+          setIsListening(false);
+          
+          debug('iOS: Manual stop cleanup completed', 'ios');
         } catch (e) {
-          debug(`iOS: Error in manual stop cleanup: ${e}`, 'ios');
+          debug(`iOS: Error in manual stop aggressive cleanup: ${e}`, 'ios');
         }
       }
       
