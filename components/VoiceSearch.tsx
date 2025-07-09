@@ -62,9 +62,17 @@ export default function VoiceSearch({
         setIsSupported(true);
         
         const recognition = new SpeechRecognition();
-        recognition.continuous = false;
+        recognition.continuous = false; // iOS Safari often ignores this anyway
         recognition.interimResults = true;
         recognition.lang = 'en-US';
+        
+        // Adding explicit iOS Safari handling
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+        if (isIOS) {
+          console.log('iOS device detected, applying special handling');
+          // For iOS, we need to be more aggressive with our handling
+          recognition.maxAlternatives = 5; // Try to get more alternatives
+        }
         
         recognition.onstart = () => {
           setIsListening(true);
@@ -93,23 +101,54 @@ export default function VoiceSearch({
         };
         
         recognition.onresult = (event: any) => {
+          console.log('Speech recognition result received:', event);
           let finalTranscript = '';
           let interimTranscript = '';
           
           for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
+              console.log('Final transcript:', transcript);
               finalTranscript += transcript;
             } else {
+              console.log('Interim transcript:', transcript);
               interimTranscript += transcript;
             }
+          }
+          
+          // On iOS Safari, sometimes we never get isFinal=true
+          // So we'll use what we have after a short delay
+          if (interimTranscript && !finalTranscript) {
+            console.log('Got interim transcript, waiting briefly for final version');
+            setTimeout(() => {
+              // If we still don't have a final transcript, use the interim one
+              if (isListening && !finalTranscript) {
+                console.log('No final transcript received, using interim');
+                onResult(interimTranscript.trim());
+                // On iOS, we need to manually stop since onend might not fire
+                try {
+                  recognitionRef.current?.stop();
+                } catch (e) {
+                  console.log('Error stopping recognition:', e);
+                }
+                setIsListening(false);
+              }
+            }, 1500); // Wait 1.5s for final transcript before using interim
           }
           
           setTranscript(finalTranscript || interimTranscript);
           
           if (finalTranscript) {
+            console.log('Using final transcript:', finalTranscript);
             onResult(finalTranscript.trim());
             setIsListening(false);
+            
+            // On iOS, explicitly stop recognition
+            try {
+              recognitionRef.current?.stop();
+            } catch (e) {
+              console.log('Error stopping recognition after final result:', e);
+            }
           }
         };
         
@@ -196,6 +235,25 @@ export default function VoiceSearch({
         };
         
         recognition.onend = () => {
+          console.log('Speech recognition ended');
+          
+          // If we haven't processed any transcript but we were listening,
+          // this might be an iOS Safari issue where onresult never fired
+          if (isListening && !transcript) {
+            console.log('Recognition ended without results - possible iOS issue');
+            
+            // Only show an error if we've been listening for a while
+            const listeningDuration = Date.now() - listeningStartTime;
+            if (listeningDuration > 2000) {
+              addToast({
+                title: 'No Speech Detected',
+                description: 'Try speaking louder or check microphone permissions',
+                variant: 'default',
+                duration: 3000
+              });
+            }
+          }
+          
           setIsListening(false);
         };
         
@@ -270,9 +328,31 @@ export default function VoiceSearch({
       
       // Start speech recognition
       console.log('Starting speech recognition...');
-      recognitionRef.current?.start();
       
-      // Don't show listening toast here - it will be shown in onstart if successful
+      // iOS Safari workaround - on iOS, sometimes we need to restart recognition
+      // if it seems stuck or not receiving results
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      if (isIOS) {
+        // iOS sometimes needs an extra stop/start cycle to work properly
+        try {
+          recognitionRef.current?.stop();
+        } catch (e) {
+          console.log('iOS pre-stop error (can be ignored):', e);
+        }
+        
+        // Short delay before starting on iOS
+        setTimeout(() => {
+          try {
+            recognitionRef.current?.start();
+            console.log('iOS: Started recognition after stop/start cycle');
+          } catch (iosError) {
+            console.log('iOS start error:', iosError);
+          }
+        }, 100);
+      } else {
+        // Non-iOS devices can just start normally
+        recognitionRef.current?.start();
+      }
       
     } catch (error) {
       console.log('Permission or recognition failed:', error);

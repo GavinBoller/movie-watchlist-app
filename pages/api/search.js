@@ -343,6 +343,13 @@ export default async function handler(req, res) {
   
   } catch (error) {
     console.error('Search API Error:', error);
-    res.status(500).json({ error: 'Failed to fetch search results' });
+    // Return more detailed error information for debugging
+    res.status(500).json({ 
+      error: 'Failed to fetch search results', 
+      message: error.message,
+      info: error.info || null,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : null,
+      tmdbKeyPresent: !!process.env.TMDB_API_KEY
+    });
   }
 }
