@@ -7,7 +7,6 @@ import Head from 'next/head';
 import { SessionProvider } from "next-auth/react";
 import { SWRConfig } from 'swr';
 import type { AppProps } from 'next/app';
-import { registerServiceWorker, handleOfflineActions } from '../lib/serviceWorker';
 import { initPWA, isPWAMode } from '../utils/pwa';
 import dynamic from 'next/dynamic';
 
@@ -45,7 +44,8 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
       
       // Handle offline actions when coming back online
       window.addEventListener('online', () => {
-        handleOfflineActions();
+        // If you implement offline capabilities, handle them here
+        console.log('App is back online');
       });
     }
   }, []);
@@ -58,8 +58,6 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         <meta name="description" content="Search and manage your movie and TV watchlist" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        {/* apple-touch-icon is now explicitly defined here */}
-        {/* removed unsupported theme-color meta tag; color is defined in manifest.json instead */}
         <meta name="msapplication-TileColor" content="#667eea" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
