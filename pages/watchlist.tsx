@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Film, Tv, Edit, Trash2, List, ExternalLink, Clock, Star, X, AlertCircle, RefreshCcw } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import clientFetcher from '../utils/clientFetcher';
-import { watchlistFetcher } from '../utils/watchlist-fallback';
+import { watchlistFetcher } from '../utils/watchlist-fallback.js';
 import { useDebouncedSearch } from '../utils/useDebounce';
 import { WatchlistResponse } from '../types';
 

@@ -8,7 +8,7 @@ import { SessionProvider } from "next-auth/react";
 import { SWRConfig } from 'swr';
 import type { AppProps } from 'next/app';
 import { initPWA, isPWAMode } from '../utils/pwa';
-import { debugAuthState } from '../utils/auth-debug';
+import { debugAuthState } from '../utils/auth-debug.js';
 import dynamic from 'next/dynamic';
 
 const PWAInstallBanner = dynamic(() => import('../components/PWAInstallBanner'), {
