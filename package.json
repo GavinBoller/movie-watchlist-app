@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "npm run build:sw && next dev",
+    "dev:https": "npm run build:sw && node server.js",
     "build": "npm run build:sw && node scripts/generate-splash-screens.js && npx prisma generate && next build",
     "build:sw": "npx tsc --project tsconfig.sw.json",
     "start": "next start -p 3000 -H 0.0.0.0",

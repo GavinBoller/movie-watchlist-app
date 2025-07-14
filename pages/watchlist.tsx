@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Film, Tv, Edit, Trash2, List, ExternalLink, Clock, Star, X, AlertCircle, RefreshCcw } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import clientFetcher from '../utils/clientFetcher';
+import { watchlistFetcher } from '../utils/watchlist-fallback';
 import { useDebouncedSearch } from '../utils/useDebounce';
 import { WatchlistResponse } from '../types';
 
@@ -254,7 +255,66 @@ export default function WatchlistPage() {
   useEffect(() => {
     console.log('Watchlist - Auth status:', status);
     
-    if (status === 'unauthenticated') {
+    // If still loading, don't do anything yet
+    if (status === 'loading') {
+      return;
+    }
+    
+    // If authenticated, clear any redirect protection flags
+    if (status === 'authenticated') {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('lastSignInAttempt');
+        sessionStorage.removeItem('lastWatchlistRedirect');
+        sessionStorage.setItem('isAuthenticated', 'true');
+      }
+      return;
+    }
+    
+    // At this point, we know status is 'unauthenticated'
+    // Check if we have a recorded authenticated session in sessionStorage
+    // This helps prevent flashes of unauthenticated state
+    if (typeof window !== 'undefined') {
+      const isStoredAuthenticated = sessionStorage.getItem('isAuthenticated') === 'true';
+      const authTime = parseInt(sessionStorage.getItem('authRedirectTime') || '0');
+      const now = Date.now();
+      
+      // If we were recently authenticated (within last 30 seconds), don't redirect
+      if (isStoredAuthenticated && authTime && (now - authTime < 30000)) {
+        console.log('Recently authenticated according to sessionStorage, waiting for session to load');
+        return;
+      }
+      
+      // Check for recent redirect attempts to prevent loops
+      const lastSignInAttempt = parseInt(sessionStorage.getItem('lastSignInAttempt') || '0');
+      const timeSinceLastAttempt = now - lastSignInAttempt;
+      
+      // If it's been less than 10 seconds since our last attempt, don't try again
+      if (lastSignInAttempt && timeSinceLastAttempt < 10000) {
+        console.log('Preventing redirect loop - last attempt was', timeSinceLastAttempt, 'ms ago');
+        
+        // If we're in a persistent loop, redirect to home instead
+        if (timeSinceLastAttempt < 2000) {
+          console.log('Detected very rapid redirect cycle, breaking loop by redirecting to home');
+          
+          addToast({
+            id: Date.now(),
+            title: 'Authentication Issue',
+            description: 'We encountered an issue with your session. Please try signing in again from the home page.',
+            variant: 'destructive',
+          });
+          
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
+          return;
+        }
+        
+        return;
+      }
+      
+      // Store the timestamp of this sign-in attempt
+      sessionStorage.setItem('lastSignInAttempt', now.toString());
+      // Show toast with sign-in button instead of auto-redirecting
       addToast({
         id: Date.now(),
         title: 'Authentication Required',
@@ -284,7 +344,7 @@ export default function WatchlistPage() {
     [status, sortOrder, search, mediaFilter, statusFilter, page, WATCHLIST_LIMIT]
   );
   
-  const { data, error, mutate, isValidating } = useSWR(swrKey, fetcher, {
+  const { data, error, mutate, isValidating } = useSWR(swrKey, watchlistFetcher, {
     revalidateOnFocus: false,
     dedupingInterval: 10000, // 10 seconds (watchlist changes frequently by user)
     keepPreviousData: true, // Maintain previous data while loading new data

@@ -50,6 +50,9 @@ export default function Document(): React.ReactElement {
       <body>
         <Main />
         <NextScript />
+        
+        {/* Safari authentication loop breaker script - helps break infinite redirects */}
+        <script defer src="/loop-breaker.js"></script>
       </body>
     </Html>
   )

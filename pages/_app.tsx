@@ -8,11 +8,17 @@ import { SessionProvider } from "next-auth/react";
 import { SWRConfig } from 'swr';
 import type { AppProps } from 'next/app';
 import { initPWA, isPWAMode } from '../utils/pwa';
+import { debugAuthState } from '../utils/auth-debug';
 import dynamic from 'next/dynamic';
 
 const PWAInstallBanner = dynamic(() => import('../components/PWAInstallBanner'), {
   ssr: false
 });
+
+// Load debug utility only in development and only on client side
+const SafariPWADebug = process.env.NODE_ENV === 'development' 
+  ? dynamic(() => import('../utils/safari-pwa-debug'), { ssr: false })
+  : null;
 
 export default function MyApp({ Component, pageProps: { session, ...pageProps } }: AppProps): React.ReactElement {
   const [isPWA, setIsPWA] = useState(false);
@@ -34,8 +40,15 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
       originalError.apply(console, args);
     };
     
-    // Register Service Worker only in production and if supported
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+    // Initialize PWA features including service worker registration
+    // Modified to work in both dev and prod for testing
+    const shouldRegisterSW = typeof window !== 'undefined' && 
+                            'serviceWorker' in navigator && 
+                            (process.env.NODE_ENV === 'production' || 
+                             process.env.NEXT_PUBLIC_USE_HTTPS === 'true');
+    
+    if (shouldRegisterSW) {
+      console.log('Initializing PWA features');
       // Initialize PWA features including service worker registration
       initPWA();
       
@@ -47,6 +60,36 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         // If you implement offline capabilities, handle them here
         console.log('App is back online');
       });
+    } else {
+      console.log('PWA features not initialized:', { 
+        environment: process.env.NODE_ENV,
+        serviceWorkerSupported: typeof window !== 'undefined' && 'serviceWorker' in navigator,
+        useHttps: process.env.NEXT_PUBLIC_USE_HTTPS
+      });
+    }
+    
+    // Debug auth state in development with HTTPS enabled
+    if (typeof window !== 'undefined') {
+      console.log('Debug mode: Monitoring authentication state');
+      debugAuthState();
+      
+      // Debug auth on navigation events
+      const handleRouteChange = () => {
+        console.log('Route changed, checking auth state');
+        debugAuthState();
+      };
+      
+      // Add route change listener
+      if (typeof window.next !== 'undefined' && window.next.router) {
+        window.next.router.events.on('routeChangeComplete', handleRouteChange);
+      }
+      
+      return () => {
+        // Remove route change listener
+        if (typeof window.next !== 'undefined' && window.next.router) {
+          window.next.router.events.off('routeChangeComplete', handleRouteChange);
+        }
+      };
     }
   }, []);
 

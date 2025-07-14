@@ -4,6 +4,8 @@ import useSWR from 'swr';
 import { X, Save, XCircle, Loader2 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 import { WatchlistItem, Platform } from '../types';
+import WhereToWatch from './WhereToWatch';
+import { useWatchProviders } from './useWatchProviders';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -24,6 +26,12 @@ export default function EditModal({ item, onSave, onClose }: EditModalProps): Re
   const [seasonNumber, setSeasonNumber] = useState<string>(item.seasonNumber?.toString() || '');
   const [saving, setSaving] = useState<boolean>(false);
   const { addToast } = useToast();
+
+  // Add watch providers
+  const { providers, isLoading: isLoadingProviders } = useWatchProviders(
+    item.tmdbId, 
+    item.mediaType
+  );
 
   // Fetch platforms dynamically using SWR
   const { data: platformsData, error: platformsError } = useSWR<{platforms: Platform[]}>('/api/platforms', fetcher, {
@@ -195,6 +203,11 @@ export default function EditModal({ item, onSave, onClose }: EditModalProps): Re
                 )}
               </select>
             </div>
+          </div>
+
+          {/* Where to Watch - Available Streaming Options */}
+          <div className="mb-4">
+            <WhereToWatch providers={providers} isLoading={isLoadingProviders} />
           </div>
 
           {/* Notes */}

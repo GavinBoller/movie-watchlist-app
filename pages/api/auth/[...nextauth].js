@@ -21,8 +21,57 @@ export const authOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 24 * 60 * 60, // 24 hours
   },
+  // Safari-friendly cookie configuration
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === 'production'
+        ? `__Secure-next-auth.session-token`
+        : `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_USE_HTTPS === 'true',
+        // Safari requires these to be explicit, even with secure=true
+        domain: undefined, // default to current domain
+      },
+    },
+    callbackUrl: {
+      name: process.env.NODE_ENV === 'production'
+        ? `__Secure-next-auth.callback-url`
+        : `next-auth.callback-url`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_USE_HTTPS === 'true',
+        domain: undefined, // default to current domain
+      },
+    },
+    csrfToken: {
+      name: process.env.NODE_ENV === 'production'
+        ? `__Secure-next-auth.csrf-token`
+        : `next-auth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_USE_HTTPS === 'true',
+        domain: undefined, // default to current domain
+      },
+    },
+  },
   // Add error handling
   events: {
+    async signIn(message) {
+      console.log("User sign in attempt:", 
+        message.user?.email ? `${message.user.email}` : "unknown user");
+      
+      // Log provider information
+      if (message.account) {
+        console.log("Provider:", message.account.provider);
+      }
+    },
     async signOut() {
       // Clean up any session data on sign out
       console.log("User signed out successfully");
@@ -30,11 +79,28 @@ export const authOptions = {
     async error(message) {
       // Log but don't throw errors during auth transitions
       console.error("NextAuth error:", message);
+      
+      // Enhanced error logging for OAuth errors
+      if (message.error) {
+        if (typeof message.error === 'object') {
+          console.error("OAuth Error Details:", JSON.stringify(message.error, null, 2));
+        } else {
+          console.error("OAuth Error:", message.error);
+        }
+      }
     },
   },
   // Custom logger to suppress client errors
   logger: {
     error: (code, metadata) => {
+      // Log the full environment configuration for auth-related errors (only in development)
+      if (process.env.NODE_ENV === 'development' && 
+          (code === 'oauth_error' || code === 'SIGNIN_OAUTH_ERROR')) {
+        console.error(`Auth Config Debug - NEXTAUTH_URL: ${process.env.NEXTAUTH_URL}`);
+        console.error(`Auth Config Debug - GOOGLE_CLIENT_ID set: ${!!process.env.GOOGLE_CLIENT_ID}`);
+        console.error(`Auth Config Debug - GOOGLE_CLIENT_SECRET set: ${!!process.env.GOOGLE_CLIENT_SECRET}`);
+      }
+      
       // Suppress the specific client fetch error during sign out
       if (code === 'CLIENT_FETCH_ERROR' && metadata?.message?.includes('Cannot convert undefined or null to object')) {
         console.log('NextAuth: Suppressed client fetch error during sign out transition');
@@ -191,13 +257,34 @@ export const authOptions = {
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        secure: process.env.NODE_ENV !== "development",
+        secure: process.env.NODE_ENV !== "development" || process.env.NEXT_PUBLIC_USE_HTTPS === "true",
+      },
+    },
+    callbackUrl: {
+      name: process.env.NODE_ENV === "development" 
+        ? `next-auth.callback-url` 
+        : `__Secure-next-auth.callback-url`,
+      options: {
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV !== "development" || process.env.NEXT_PUBLIC_USE_HTTPS === "true",
+      },
+    },
+    csrfToken: {
+      name: process.env.NODE_ENV === "development" 
+        ? `next-auth.csrf-token` 
+        : `__Secure-next-auth.csrf-token`,
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV !== "development" || process.env.NEXT_PUBLIC_USE_HTTPS === "true",
       },
     },
   },
   
   // CSRF protection
-  useSecureCookies: process.env.NODE_ENV !== "development",
+  useSecureCookies: process.env.NODE_ENV !== "development" || process.env.NEXT_PUBLIC_USE_HTTPS === "true",
 }
 
 export default NextAuth(authOptions)

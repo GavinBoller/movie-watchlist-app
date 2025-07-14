@@ -45,9 +45,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void>
       resultsForCountry.free.forEach(p => uniqueProviders.add(p.provider_name));
     }
 
+    // Create a providers object compatible with both implementations
     const providersArray = Array.from(uniqueProviders).sort();
-    providersCache.set(cacheKey, providersArray);
-    res.status(200).json({ providers: providersArray });
+    
+    // Return both the array format and the complex object format to support both implementations
+    const providersData = {
+      ...resultsForCountry,  // Include all original data
+      flatrate: resultsForCountry.flatrate || [],
+      free: resultsForCountry.free || [],
+      buy: resultsForCountry.buy || [],
+      rent: resultsForCountry.rent || []
+    };
+    
+    providersCache.set(cacheKey, providersData);
+    res.status(200).json({ providers: providersData });
 
   } catch (error) {
     console.error('Error fetching TMDB provider data:', error);

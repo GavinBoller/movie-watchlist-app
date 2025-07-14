@@ -13,20 +13,36 @@ const WhereToWatch: React.FC<WhereToWatchProps> = ({ providers, isLoading }) => 
   const { data: session } = useSession();
   const displayCountry = session?.user?.country || 'AU';
 
-  // This logic now handles the rich provider object from /api/details
+  // Handle different provider data formats
   let streamingAndFreeProviders = [];
-  if (providers && typeof providers === 'object' && !Array.isArray(providers)) {
-    const flatrate = providers.flatrate?.map(p => p.provider_name) || [];
-    const free = providers.free?.map(p => p.provider_name) || [];
-    // Combine and get unique providers, then sort them alphabetically
-    streamingAndFreeProviders = [...new Set([...flatrate, ...free])].sort();
-  } else if (Array.isArray(providers)) {
-    // Fallback for the old API format (simple array of strings)
-    streamingAndFreeProviders = providers;
+  let hasRentOrBuy = false;
+  
+  if (providers) {
+    if (Array.isArray(providers)) {
+      // Simple array format (old format)
+      streamingAndFreeProviders = providers;
+    } else if (typeof providers === 'object') {
+      // Check if it's the standard TMDB format with flatrate/free properties
+      if (providers.flatrate || providers.free) {
+        const flatrate = providers.flatrate?.map(p => p.provider_name) || [];
+        const free = providers.free?.map(p => p.provider_name) || [];
+        // Combine and get unique providers, then sort them alphabetically
+        streamingAndFreeProviders = [...new Set([...flatrate, ...free])].sort();
+        
+        // Check if there are options to rent or buy
+        hasRentOrBuy = (providers.rent?.length > 0 || providers.buy?.length > 0);
+      } 
+      // Handle other object formats
+      else if (providers.providers || providers.results) {
+        // Try to extract from nested objects
+        const countryData = providers.results?.[displayCountry] || {};
+        const flatrate = countryData.flatrate?.map(p => p.provider_name) || [];
+        const free = countryData.free?.map(p => p.provider_name) || [];
+        streamingAndFreeProviders = [...new Set([...flatrate, ...free])].sort();
+        hasRentOrBuy = (countryData.rent?.length > 0 || countryData.buy?.length > 0);
+      }
+    }
   }
-
-  // Check if there are options to rent or buy, even if streaming is not available.
-  const hasRentOrBuy = providers && typeof providers === 'object' && (providers.rent?.length > 0 || providers.buy?.length > 0);
 
   return (
     <div className="mt-3">

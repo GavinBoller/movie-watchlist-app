@@ -41,11 +41,12 @@ const AddToWatchlistModal = function AddToWatchlistModal({ item, onSaveSuccess, 
   const [seasonNumber, setSeasonNumber] = useState<string>(item?.seasonNumber?.toString() || '');
 
   const isEditing = mode === 'edit';
-  const tmdbId = isEditing ? (item as WatchlistItem)?.movieId : (item as TMDBMovie)?.id;
+  const tmdbId = isEditing ? (item as WatchlistItem)?.movie_id : (item as TMDBMovie)?.id;
+  const mediaType = isEditing ? (item as WatchlistItem)?.media_type : (item as TMDBMovie)?.media_type;
   
   // Use SWR to fetch full details, which includes watch providers, unifying the data source.
   const { data: details, error: detailsError } = useSWR<TMDBMovie & { watch_providers?: ProvidersData }>(
-    tmdbId && item?.mediaType ? `/api/details?id=${tmdbId}&media_type=${item.mediaType}` : null,
+    tmdbId && mediaType ? `/api/details?id=${tmdbId}&media_type=${mediaType}` : null,
     fetcher,
     {
       revalidateOnFocus: false,
