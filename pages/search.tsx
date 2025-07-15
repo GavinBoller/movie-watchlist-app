@@ -411,19 +411,6 @@ export default function SearchPage() {
   const { mutate } = useSWRConfig();
   const { watchlist, isLoading: isWatchlistLoading, mutate: mutateWatchlist, error: watchlistError } = useWatchlist();
 
-  // Effect to set mounted state
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  // Determine if the item selected for the modal is in the watchlist
-  const selectedItemIsInWatchlist = useMemo(() => {
-    if (!selectedItem || !Array.isArray(watchlist)) {
-      return false;
-    }
-    return watchlist.some((item) => String(item.movie_id) === String(selectedItem.id));
-  }, [selectedItem, watchlist]);
-  
   // State for filter counts from API
   const [totalAllCount, setTotalAllCount] = useState(0); 
   const [movieCount, setMovieCount] = useState(0);
@@ -527,13 +514,6 @@ export default function SearchPage() {
     setWatchlistItem(null);
   }, [mutate]);
 
-  // Effect to trigger search when debounced query changes
-  useEffect(() => {
-    if (searchQuery) {
-      handleSearch(searchQuery);
-    }
-  }, [searchQuery, handleSearch]);
-
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -595,25 +575,21 @@ export default function SearchPage() {
     fetchGenres();
   }, []);
 
+  // Unified effect: when any filter (including excludeWatchlist) changes, reset page to 1 and trigger search
   useEffect(() => {
-    // Clear search query when switching from text mode to a discovery mode
-    if (discoveryMode !== 'text' && searchQuery !== '') {
-      setSearchInput('');
-      // The useEffect below will handle triggering handleSearch with the new discoveryMode
-      return; 
-    }
-
-    // Debounce for text search, immediate for discovery mode changes
+    setPage(1);
+    // Immediately trigger search for new filter state
     const delay = discoveryMode === 'text' ? 500 : 0;
     const timeoutId = setTimeout(() => handleSearch(searchQuery), delay);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, mediaFilter, selectedGenreId, minRating, sortOrder, page, excludeWatchlist, discoveryMode]);
-  
-  // This effect resets the page to 1 whenever a filter changes.
-  useEffect(() => {
-    setPage(1);
-  }, [searchQuery, mediaFilter, selectedGenreId, minRating, sortOrder, excludeWatchlist, discoveryMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaFilter, selectedGenreId, minRating, sortOrder, excludeWatchlist, discoveryMode, searchQuery, handleSearch]);
 
+  // When only page changes (not filters), trigger search for new page
+  useEffect(() => {
+    handleSearch(searchQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
   if (watchlistError) {
     return (
