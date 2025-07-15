@@ -164,6 +164,13 @@ const DetailsModal = function DetailsModal({ item, onClose, onAddToWatchlist, is
                   )}
                 </Button>
               </div>
+
+              {/* Watched Date for items in watchlist */}
+              {isInWatchlist && item.status === 'watched' && item.watchedDate && (
+                <div className="text-gray-300 text-sm mb-2">
+                  <strong>Watched on:</strong> {new Date(item.watchedDate).toLocaleDateString()}
+                </div>
+              )}
             </div>
           </div>
         )}

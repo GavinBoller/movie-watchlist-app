@@ -6,6 +6,10 @@ import { platformCreateSchema, platformUpdateSchema, platformDeleteSchema } from
 
 async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
   const sql = neon(process.env.DATABASE_URL);
+  // Debug logging for session
+  console.log('[API/platforms] req.session:', req.session);
+  console.log('[API/platforms] req.session.user:', req.session?.user);
+  console.log('[API/platforms] req.session.user.id:', req.session?.user?.id);
   const authenticatedUserId = req.session.user.id;
 
   try {

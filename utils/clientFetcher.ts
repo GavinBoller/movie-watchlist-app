@@ -36,7 +36,8 @@ export const clientFetcher = async (
       
       const fetchOptions: RequestInit = {
         ...options,
-        signal: controller.signal
+        signal: controller.signal,
+        credentials: 'same-origin', // Ensure cookies are sent for same-origin requests
       };
       
       try {

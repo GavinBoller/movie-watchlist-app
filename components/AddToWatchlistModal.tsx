@@ -76,11 +76,12 @@ const AddToWatchlistModal = function AddToWatchlistModal({ item, onSaveSuccess, 
     if (status !== 'watched' && watchedDate) {
       setWatchedDate('');
     }
-    // If status is changed to 'watched' and there's no date, set it to today.
-    else if (status === 'watched' && !watchedDate) {
+    // Only auto-set today if adding a new item (not editing) and status is changed to 'watched' and no date is set
+    else if (status === 'watched' && !watchedDate && mode !== 'edit') {
       setWatchedDate(new Date().toISOString().split('T')[0]);
     }
-  }, [status]);
+    // In edit mode, do not auto-set today; keep the DB value
+  }, [status, mode]);
 
   // Effect to handle Escape key press
   useEffect(() => {

@@ -27,9 +27,17 @@ const invalidateUserCache = (userId) => {
 };
 
 export default async function handler(req, res) {
+  // Debug: Log cookies and headers
+  console.log('Cookies:', req.cookies);
+  console.log('Authorization header:', req.headers['authorization']);
+  console.log('All headers:', req.headers);
+
   // Use getToken to extract JWT from cookies or Authorization header
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  console.log('Decoded JWT token:', token);
+
   if (!token || !token.sub) {
+    console.error('401 Unauthorized: No valid JWT token found');
     return res.status(401).json({ error: 'Unauthorized' });
   }
   const userId = token.sub;

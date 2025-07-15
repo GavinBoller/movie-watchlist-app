@@ -62,6 +62,8 @@ export interface WatchlistResponse {
 export interface Platform {
   id: number;
   name: string;
+  logoUrl?: string | null;
+  isDefault: boolean;
   logo_path?: string | null;
   provider_id?: number | null;
   userId?: string;

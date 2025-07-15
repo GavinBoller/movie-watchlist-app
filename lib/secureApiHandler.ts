@@ -46,13 +46,12 @@ export function secureApiHandler(handler: ApiHandler, options: SecureApiHandlerO
     if (requireAuth) {
       try {
         const { getServerSession } = await import("next-auth/next");
-        const { authOptions } = await import("../pages/api/auth/[...nextauth]");
+        // Import the exported authOptions from your NextAuth config
+        const { authOptions } = await import("../pages/api/auth/[...nextauth].js");
         const session = await getServerSession(req, res, authOptions);
-        
         if (!session || !session.user) {
           return res.status(401).json({ error: 'Unauthorized' });
         }
-        
         // Attach session to request for handler's use
         req.session = session;
       } catch (error) {

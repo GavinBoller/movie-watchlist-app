@@ -55,8 +55,14 @@ export default function PlatformManagementModal({ isOpen, onClose }: PlatformMan
     try {
       const res = await fetch(`/api/platforms`); // userId no longer needed in query
       if (!res.ok) throw new Error('Failed to fetch platforms');
-      const data: Platform[] = await res.json();
-      setPlatforms(data.sort((a, b) => a.name.localeCompare(b.name)));
+      const data = await res.json();
+      // Map is_default (API) to isDefault (UI)
+      const mapped = data.map((p: any) => ({
+        ...p,
+        isDefault: p.is_default,
+        logoUrl: p.logo_url || '',
+      }));
+      setPlatforms(mapped.sort((a, b) => a.name.localeCompare(b.name)));
       setError('');
     } catch (err: any) {
       setError('Failed to load platforms');
@@ -86,8 +92,13 @@ export default function PlatformManagementModal({ isOpen, onClose }: PlatformMan
         const errorData = await res.json();
         throw new Error(errorData.error || 'Failed to add platform');
       }
-      const platform: Platform = await res.json();
-      setPlatforms([...platforms, platform].sort((a, b) => a.name.localeCompare(b.name)));
+      const platform = await res.json();
+      const mapped = {
+        ...platform,
+        isDefault: platform.is_default,
+        logoUrl: platform.logo_url || '',
+      };
+      setPlatforms([...platforms, mapped].sort((a, b) => a.name.localeCompare(b.name)));
       setNewPlatform({ name: '', logoUrl: '', isDefault: false });
       setError('');
       addToast({
@@ -122,10 +133,15 @@ export default function PlatformManagementModal({ isOpen, onClose }: PlatformMan
         const errorData = await res.json();
         throw new Error(errorData.error || 'Failed to update platform');
       }
-      const updatedPlatform: Platform = await res.json();
+      const updatedPlatform = await res.json();
+      const mapped = {
+        ...updatedPlatform,
+        isDefault: updatedPlatform.is_default,
+        logoUrl: updatedPlatform.logo_url || '',
+      };
       setPlatforms(
         platforms
-          .map((p) => (p.id === editingId ? updatedPlatform : p))
+          .map((p) => (p.id === editingId ? mapped : p))
           .sort((a, b) => a.name.localeCompare(b.name))
       );
       setEditingId(null);

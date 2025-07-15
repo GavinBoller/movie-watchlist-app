@@ -553,6 +553,7 @@ export default function WatchlistPage() {
     setEditingItem({
       ...item,
       seasonNumber: item.seasonNumber ?? item.seasonnumber ?? '',
+      watchedDate: item.watchedDate || item.watched_date || '', // Ensure watchedDate is always set
     });
   }, []);
 
