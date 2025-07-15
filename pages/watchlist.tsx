@@ -9,7 +9,6 @@ import Header from '../components/Header';
 import DynamicAddToWatchlistModal from '../components/DynamicAddToWatchlistModal';
 import DynamicConfirmationModal from '../components/DynamicConfirmationModal';
 import KeyboardShortcutsHelp from '../components/KeyboardShortcutsHelp';
-import VoiceSearch from '../components/VoiceSearch';
 import { Skeleton } from '../components/ui/skeleton';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -585,9 +584,9 @@ export default function WatchlistPage() {
         
         {status === 'authenticated' && (
           <>
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
-              {/* Search Input with embedded Voice Search */}
-              <div className="relative w-full md:flex-1">
+            <div className="flex flex-col md:flex-row gap-4 mb-6 justify-center items-center">
+              {/* Search Input */}
+              <div className="relative w-full sm:max-w-2xl">
                 <Input
                   type="text"
                   placeholder="Search your watchlist..."
@@ -595,7 +594,6 @@ export default function WatchlistPage() {
                   onChange={handleSearchChange}
                   onKeyDown={(e) => {
                     if (e.key === 'Escape') {
-                      // Only blur the input, don't clear it
                       e.preventDefault();
                       e.stopPropagation();
                       e.currentTarget.blur();
@@ -608,37 +606,28 @@ export default function WatchlistPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setSearchInput('')}
-                    className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
                     aria-label="Clear search"
                   >
                     <X className="h-4 w-4" />
                   </Button>
                 )}
-                <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                  <VoiceSearch 
-                    onResult={(transcript) => {
-                      setSearchInput(transcript);
-                    }}
-                    placeholder="Click to start voice search"
-                    className="flex-shrink-0"
-                    // Debug mode disabled for production
-                    // initialDebugMode={typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)}
-                  />
-                </div>
               </div>
-              <Select onValueChange={setSortOrder} defaultValue={sortOrder}>
-                <SelectTrigger className="w-full md:w-[200px] bg-gray-800 border-gray-700 min-h-[44px]">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-800 text-white border-gray-700">
-                  <SelectItem value="added_at_desc" className="min-h-[40px]">Recently Added</SelectItem>
-                  <SelectItem value="release_date_desc" className="min-h-[40px]">Release Date (Newest)</SelectItem>
-                  <SelectItem value="release_date_asc" className="min-h-[40px]">Release Date (Oldest)</SelectItem>
-                  <SelectItem value="title_asc" className="min-h-[40px]">Title (A-Z)</SelectItem>
-                  <SelectItem value="title_desc" className="min-h-[40px]">Title (Z-A)</SelectItem>
-                  <SelectItem value="vote_average_desc" className="min-h-[40px]">Rating (High-Low)</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="w-full sm:w-auto sm:max-w-xs">
+                <Select onValueChange={setSortOrder} defaultValue={sortOrder}>
+                  <SelectTrigger className="w-full md:w-[200px] bg-gray-800 border-gray-700 min-h-[44px]">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-800 text-white border-gray-700">
+                    <SelectItem value="added_at_desc" className="min-h-[40px]">Recently Added</SelectItem>
+                    <SelectItem value="release_date_desc" className="min-h-[40px]">Release Date (Newest)</SelectItem>
+                    <SelectItem value="release_date_asc" className="min-h-[40px]">Release Date (Oldest)</SelectItem>
+                    <SelectItem value="title_asc" className="min-h-[40px]">Title (A-Z)</SelectItem>
+                    <SelectItem value="title_desc" className="min-h-[40px]">Title (Z-A)</SelectItem>
+                    <SelectItem value="vote_average_desc" className="min-h-[40px]">Rating (High-Low)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="mb-4 flex justify-center gap-2 flex-wrap">

@@ -685,7 +685,7 @@ export default function SearchPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => setSearchInput('')}
-                  className="absolute right-12 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
                   aria-label="Clear search"
                 >
                   <X className="h-4 w-4" />
