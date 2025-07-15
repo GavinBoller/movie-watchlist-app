@@ -451,22 +451,19 @@ export default function SearchPage() {
 
       // All filtering and sorting is now handled by the backend API.
       setSearchResults(filteredResults);
-      setTotalPages(Math.ceil((apiData.total || 0) / SEARCH_LIMIT));
-      
+      setTotalPages(Math.ceil((apiData.total || apiData.counts?.all || 0) / SEARCH_LIMIT));
+      console.log('API /api/search response:', apiData);
+      console.log('Results shown to user (after excludeWatchlist filter):', filteredResults.length);
       // Update counts based on filtered results when excluding watchlist items
       if (excludeWatchlist) {
-        // When excluding watchlist items, we calculate counts based on what's actually shown
-        // This gives users accurate feedback about the current page results
+        // Only update visible counts, not pagination
         const allCount = filteredResults.length;
         const movieCount = filteredResults.filter(item => item.media_type === 'movie').length;
         const tvCount = filteredResults.filter(item => item.media_type === 'tv').length;
-        
-        // Show the counts for the filtered results
         setTotalAllCount(allCount);
         setMovieCount(movieCount);
         setTvCount(tvCount);
       } else {
-        // Use original counts from API response when not excluding watchlist
         setTotalAllCount(apiData.counts?.all || 0);
         setMovieCount(apiData.counts?.movie || 0);
         setTvCount(apiData.counts?.tv || 0);
@@ -499,11 +496,28 @@ export default function SearchPage() {
 
   const handleShowDetails = useCallback((item) => {
     // Normalize the item from TMDB to match the structure DetailsModal expects,
-    // which is similar to our database schema (e.g., using 'poster' instead of 'poster_path').
-    setSelectedItem({ 
-      ...item, 
-      poster: item.poster_path, // Map poster_path to poster
-      media_type: item.media_type || 'movie' });
+    // and provide safe fallbacks for all required fields.
+    setSelectedItem({
+      id: item.id,
+      title: item.title || item.name || '',
+      name: item.name || item.title || '',
+      poster: item.poster || item.poster_path || '/placeholder-image.svg',
+      poster_path: item.poster_path || item.poster || '',
+      media_type: item.media_type || 'movie',
+      release_date: item.release_date || item.first_air_date || '',
+      overview: item.overview || '',
+      vote_average: typeof item.vote_average === 'number' ? item.vote_average : 0,
+      genres: item.genres || [],
+      number_of_seasons: item.number_of_seasons || null,
+      number_of_episodes: item.number_of_episodes || null,
+      runtime: item.runtime || null,
+      external_ids: item.external_ids || {},
+      watch_providers: item.watch_providers || undefined,
+      status: item.status || undefined,
+      watchedDate: item.watchedDate || item.watched_date || undefined,
+      // ...spread any other properties for safety
+      ...item
+    });
   }, []);
 
   const handleSaveNewItemSuccess = useCallback(async (savedItem) => {
@@ -575,21 +589,33 @@ export default function SearchPage() {
     fetchGenres();
   }, []);
 
-  // Unified effect: when any filter (including excludeWatchlist) changes, reset page to 1 and trigger search
+  // Group all filters into a single object for dependency tracking
+  const filters = useMemo(() => ({
+    mediaFilter,
+    selectedGenreId,
+    minRating,
+    sortOrder,
+    excludeWatchlist,
+    discoveryMode
+  }), [mediaFilter, selectedGenreId, minRating, sortOrder, excludeWatchlist, discoveryMode]);
+
+  // Only reset page to 1 when filters change
   useEffect(() => {
     setPage(1);
-    // Immediately trigger search for new filter state
+  }, [filters]);
+
+  // Always trigger search when filters, searchQuery, or page changes
+  useEffect(() => {
     const delay = discoveryMode === 'text' ? 500 : 0;
     const timeoutId = setTimeout(() => handleSearch(searchQuery), delay);
     return () => clearTimeout(timeoutId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mediaFilter, selectedGenreId, minRating, sortOrder, excludeWatchlist, discoveryMode, searchQuery, handleSearch]);
+  }, [filters, searchQuery, page, handleSearch, discoveryMode]);
 
-  // When only page changes (not filters), trigger search for new page
-  useEffect(() => {
-    handleSearch(searchQuery);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+  // Determine if the selected item is in the watchlist
+  const selectedItemIsInWatchlist = useMemo(() => {
+    if (!selectedItem || !Array.isArray(watchlist)) return false;
+    return watchlist.some(w => String(w.movie_id) === String(selectedItem.id));
+  }, [selectedItem, watchlist]);
 
   if (watchlistError) {
     return (
@@ -872,12 +898,15 @@ export default function SearchPage() {
         )}
       </div>
       {selectedItem && (
-        <DynamicDetailsModal
-          item={selectedItem}
-          onClose={() => setSelectedItem(null)}
-          onAddToWatchlist={() => handleAddToWatchlist(selectedItem)}
-          isInWatchlist={selectedItemIsInWatchlist}
-        />
+        console.log('Rendering DetailsModal with selectedItem:', selectedItem),
+        <ErrorBoundary>
+          <DynamicDetailsModal
+            item={selectedItem}
+            onClose={() => setSelectedItem(null)}
+            onAddToWatchlist={() => handleAddToWatchlist(selectedItem)}
+            isInWatchlist={selectedItemIsInWatchlist}
+          />
+        </ErrorBoundary>
       )}
       {watchlistItem && (
         <DynamicAddToWatchlistModal
@@ -892,4 +921,24 @@ export default function SearchPage() {
       <DesktopOnlyKeyboardShortcuts />
     </div>
   );
+}
+
+// ErrorBoundary component for catching errors in modal rendering
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    // You can log errorInfo here if needed
+  }
+  render() {
+    if (this.state.hasError) {
+      return <div style={{ color: 'red', padding: 16 }}>Error: {this.state.error?.message || 'Unknown error'}</div>;
+    }
+    return this.props.children;
+  }
 }

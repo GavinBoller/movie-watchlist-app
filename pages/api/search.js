@@ -312,19 +312,18 @@ export default async function handler(req, res) {
     // 2. Standardize, filter, and apply relevance scoring
     const filteredAndScoredResults = standardizeAndFilterResults(initialResults, { query, media_type, genre_id, min_rating });
 
-    // 3. Enhance top results with detailed information
-    const enhancedResults = await enhanceTopResults(filteredAndScoredResults);
-
-    // 4. Sort the final results
-    const finalSortedResults = sortFinalResults(enhancedResults, { query, sort_by });
+    // 3. Sort the final results
+    const finalSortedResults = sortFinalResults(filteredAndScoredResults, { query, sort_by });
     
-    // 5. Prepare final response
+    // 4. Paginate BEFORE enhancing
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const startIndex = (pageNum - 1) * limitNum;
     const endIndex = startIndex + limitNum;
+    const pageResults = finalSortedResults.slice(startIndex, endIndex);
 
-    const finalResultsForDisplay = finalSortedResults.slice(startIndex, endIndex);
+    // 5. Enhance only the current page's results
+    const enhancedPageResults = await enhanceTopResults(pageResults);
     const totalResults = finalSortedResults.length;
     
     // Recalculate counts based on the *filtered* results for accuracy
@@ -333,7 +332,7 @@ export default async function handler(req, res) {
     const tvCount = filteredAndScoredResults.filter(item => item.media_type === 'tv').length;
     
     const responseData = {
-      data: finalResultsForDisplay,
+      data: enhancedPageResults,
       total: totalResults,
       counts: { all: allCount, movie: movieCount, tv: tvCount }
     };
