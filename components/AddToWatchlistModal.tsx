@@ -30,7 +30,11 @@ const AddToWatchlistModal = function AddToWatchlistModal({ item, onSaveSuccess, 
   }
 
   const [status, setStatus] = useState<string>(item?.status || 'to_watch');
-  const [watchedDate, setWatchedDate] = useState<string>(item?.watchedDate ? new Date(item.watchedDate).toISOString().split('T')[0] : '');
+  const [watchedDate, setWatchedDate] = useState<string>(
+    item?.watchedDate || item?.watched_date
+      ? new Date(item.watchedDate || item.watched_date).toISOString().split('T')[0]
+      : ''
+  );
   const [selectedPlatformId, setSelectedPlatformId] = useState<string>('none');
   const [notes, setNotes] = useState<string>(item?.notes || '');
   const [platforms, setPlatforms] = useState<Platform[]>([]);
