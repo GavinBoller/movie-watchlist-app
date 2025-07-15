@@ -1,7 +1,7 @@
 // watchlist.js
 import { Pool, types } from '@neondatabase/serverless';
 import NodeCache from 'node-cache';
-import { getServerSession } from "next-auth/next"
+import { getToken } from "next-auth/jwt";
 import { authOptions } from "./auth/[...nextauth]" // Adjust path if needed
 import { sanitizeInput, validateInput } from '../../lib/security';
 
@@ -27,13 +27,12 @@ const invalidateUserCache = (userId) => {
 };
 
 export default async function handler(req, res) {
-  const session = await getServerSession(req, res, authOptions)
-
-  if (!session || !session.user || !session.user.id) {
+  // Use getToken to extract JWT from cookies or Authorization header
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  if (!token || !token.sub) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-
-  const userId = session.user.id;
+  const userId = token.sub;
 
   try {
     if (req.method === 'GET') {      

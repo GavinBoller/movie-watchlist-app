@@ -57,3 +57,5 @@ middleware.js
 !import-*.js
 !public/*.js
 !utils/pwa.js
+!utils/auth-debug.js
+!utils/watchlist-fallback.js

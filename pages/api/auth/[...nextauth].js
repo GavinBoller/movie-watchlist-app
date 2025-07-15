@@ -21,43 +21,39 @@ export const authOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
     updateAge: 24 * 60 * 60, // 24 hours
   },
-  // Safari-friendly cookie configuration
+  // Enhanced security settings (single cookies config)
   cookies: {
     sessionToken: {
-      name: process.env.NODE_ENV === 'production'
-        ? `__Secure-next-auth.session-token`
-        : `next-auth.session-token`,
+      name: process.env.NODE_ENV === "development" 
+        ? `next-auth.session-token` 
+        : `__Secure-next-auth.session-token`,
       options: {
         httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_USE_HTTPS === 'true',
-        // Safari requires these to be explicit, even with secure=true
-        domain: undefined, // default to current domain
+        sameSite: 'lax',
+        path: '/',
+        // Only set secure: true if running in production or HTTPS is explicitly enabled
+        secure: process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_USE_HTTPS === "true",
       },
     },
     callbackUrl: {
-      name: process.env.NODE_ENV === 'production'
-        ? `__Secure-next-auth.callback-url`
-        : `next-auth.callback-url`,
+      name: process.env.NODE_ENV === "development" 
+        ? `next-auth.callback-url` 
+        : `__Secure-next-auth.callback-url`,
       options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_USE_HTTPS === 'true',
-        domain: undefined, // default to current domain
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_USE_HTTPS === "true",
       },
     },
     csrfToken: {
-      name: process.env.NODE_ENV === 'production'
-        ? `__Secure-next-auth.csrf-token`
-        : `next-auth.csrf-token`,
+      name: process.env.NODE_ENV === "development" 
+        ? `next-auth.csrf-token` 
+        : `__Secure-next-auth.csrf-token`,
       options: {
         httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === 'production' || process.env.NEXT_PUBLIC_USE_HTTPS === 'true',
-        domain: undefined, // default to current domain
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_USE_HTTPS === "true",
       },
     },
   },
@@ -154,9 +150,9 @@ export const authOptions = {
     // The session callback is called whenever a session is checked.
     // It receives the JWT token and is used to populate the session object.
     async session({ session, token }) {
-      // Handle null or undefined session gracefully
+      // Always return an object, never null, to avoid client errors
       if (!session) {
-        return null;
+        return { user: null };
       }
       
       // Handle null or undefined token gracefully
@@ -247,44 +243,7 @@ export const authOptions = {
     error: '/auth/error',
   },
   
-  // Enhanced security settings
-  cookies: {
-    sessionToken: {
-      name: process.env.NODE_ENV === "development" 
-        ? `next-auth.session-token` 
-        : `__Secure-next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV !== "development" || process.env.NEXT_PUBLIC_USE_HTTPS === "true",
-      },
-    },
-    callbackUrl: {
-      name: process.env.NODE_ENV === "development" 
-        ? `next-auth.callback-url` 
-        : `__Secure-next-auth.callback-url`,
-      options: {
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV !== "development" || process.env.NEXT_PUBLIC_USE_HTTPS === "true",
-      },
-    },
-    csrfToken: {
-      name: process.env.NODE_ENV === "development" 
-        ? `next-auth.csrf-token` 
-        : `__Secure-next-auth.csrf-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: process.env.NODE_ENV !== "development" || process.env.NEXT_PUBLIC_USE_HTTPS === "true",
-      },
-    },
-  },
-  
-  // CSRF protection
-  useSecureCookies: process.env.NODE_ENV !== "development" || process.env.NEXT_PUBLIC_USE_HTTPS === "true",
+  useSecureCookies: process.env.NODE_ENV === "production" || process.env.NEXT_PUBLIC_USE_HTTPS === "true",
 }
 
 export default NextAuth(authOptions)

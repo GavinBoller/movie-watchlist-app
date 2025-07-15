@@ -22,8 +22,25 @@ import { useDebouncedSearch } from '../utils/useDebounce';
 import { WatchlistResponse } from '../types';
 
 const fetcher = async (url: string): Promise<WatchlistResponse> => {
+  // Get the session JWT from next-auth
+  const session = typeof window !== 'undefined' ? JSON.parse(sessionStorage.getItem('nextauth.session') || 'null') : null;
+  let token = null;
+  if (session && session.token) {
+    token = session.token;
+  } else {
+    // fallback: try to get token from /api/auth/session
+    try {
+      const res = await fetch('/api/auth/session');
+      const data = await res.json();
+      token = data?.token || null;
+    } catch {}
+  }
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   try {
-    const data = await clientFetcher(url);
+    const data = await clientFetcher(url, { headers });
     return data;
   } catch (error) {
     console.error("Error fetching data:", error);
@@ -180,9 +197,23 @@ const WatchlistItemCard = React.memo<WatchlistItemCardProps>(({ item, onEdit, on
         {isMounted && isTouchDevice && showInfo ? (
           <div className="flex flex-col mt-3 space-y-2">
             <div className="flex flex-wrap gap-2">
+              {item.imdb_id && (
+                <Button
+                  asChild
+                  size="sm"
+                  className="bg-[#F5C518] text-black text-xs rounded-full py-1 px-3 hover:bg-yellow-400 min-w-[80px] min-h-[40px]"
+                  aria-label="View on IMDb"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <a href={`https://www.imdb.com/title/${item.imdb_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} aria-label="View on IMDb">
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    IMDb
+                  </a>
+                </Button>
+              )}
               <Button
                 onClick={(e) => { e.stopPropagation(); onEdit(item); }}
-                className="bg-[#E50914] text-white text-sm rounded-lg py-2 flex items-center justify-center"
+                className="bg-indigo-700 hover:bg-indigo-600 text-white text-sm rounded-lg py-2 flex items-center justify-center"
                 size="sm"
               >
                 <Edit className="h-4 w-4 mr-1" />
@@ -190,7 +221,7 @@ const WatchlistItemCard = React.memo<WatchlistItemCardProps>(({ item, onEdit, on
               </Button>
               <Button
                 onClick={(e) => { e.stopPropagation(); onDelete(item); }}
-                className="bg-red-600 text-white text-sm rounded-lg py-2 flex items-center justify-center"
+                className="bg-red-800 hover:bg-red-700 text-white text-sm rounded-lg py-2 flex items-center justify-center"
                 size="sm"
               >
                 <Trash2 className="h-4 w-4 mr-1" />
