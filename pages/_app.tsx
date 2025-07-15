@@ -10,7 +10,6 @@ import type { AppProps } from 'next/app';
 import { initPWA, isPWAMode } from '../utils/pwa';
 import { debugAuthState } from '../utils/auth-debug.js';
 import dynamic from 'next/dynamic';
-import IOSSafariScrollBanner from '../components/IOSSafariScrollBanner';
 
 const PWAInstallBanner = dynamic(() => import('../components/PWAInstallBanner'), {
   ssr: false
@@ -127,8 +126,6 @@ export default function MyApp({ Component, pageProps: { session, ...pageProps } 
         >
           <ToastProvider>
             <WatchlistProvider>
-              {/* iOS Safari scroll banner for best experience */}
-              <IOSSafariScrollBanner />
               <Component {...pageProps} />
               {/* Show PWA Install Banner only if not already in PWA mode */}
               {typeof window !== 'undefined' && !isPWA && <PWAInstallBanner />}

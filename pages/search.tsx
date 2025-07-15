@@ -7,7 +7,6 @@ import dynamic from 'next/dynamic';
 import Header from '../components/Header';
 import DynamicDetailsModal from '../components/DynamicDetailsModal';
 import DynamicAddToWatchlistModal from '../components/DynamicAddToWatchlistModal';
-import VoiceSearch from '../components/VoiceSearch';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Skeleton } from '../components/ui/skeleton';
@@ -692,18 +691,6 @@ export default function SearchPage() {
                   <X className="h-4 w-4" />
                 </Button>
               )}
-              <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                <VoiceSearch 
-                  onResult={(transcript) => {
-                    setSearchInput(transcript);
-                    handleSearch(transcript);
-                  }}
-                  placeholder="Click to start voice search"
-                  className="flex-shrink-0"
-                  // Debug mode disabled for production
-                  // initialDebugMode={typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)}
-                />
-              </div>
             </div>
           </div>
         )}
