@@ -107,18 +107,23 @@ const AddToWatchlistModal = function AddToWatchlistModal({ item, onSaveSuccess, 
       try {
         const res = await fetch(`/api/platforms`);
         if (!res.ok) throw new Error('Failed to fetch platforms');
-        const data: Platform[] = await res.json();
+        const rawData = await res.json();
+        // Map `is_default` from the API to `isDefault` for the UI state
+        const data: Platform[] = rawData.map((p: any) => ({
+          ...p,
+          isDefault: p.is_default,
+        }));
         const sortedPlatforms = data.sort((a, b) => {
           if (a.isDefault) return -1;
           if (b.isDefault) return 1;
           return a.name.localeCompare(b.name);
         });
         setPlatforms(sortedPlatforms);
-
         if (item?.platform) {
           const platform = sortedPlatforms.find((p) => p.name === item.platform);
           setSelectedPlatformId(platform ? platform.id.toString() : 'none');
-        } else {
+        } else if (mode === 'add') {
+          // Only set a default platform when adding a new item
           const defaultPlatform = sortedPlatforms.find((p) => p.isDefault);
           setSelectedPlatformId(defaultPlatform ? defaultPlatform.id.toString() : 'none');
         }
@@ -136,7 +141,7 @@ const AddToWatchlistModal = function AddToWatchlistModal({ item, onSaveSuccess, 
       }
     }
     fetchPlatforms();
-  }, [item?.platform, addToast]);
+  }, [item?.platform, addToast, mode]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -416,7 +421,7 @@ const AddToWatchlistModal = function AddToWatchlistModal({ item, onSaveSuccess, 
                     <SelectItem value="none" className="min-h-[40px]">No platform</SelectItem>
                     {platforms.map((platform) => (
                       <SelectItem key={platform.id} value={platform.id.toString()} className="min-h-[40px]">
-                        {platform.name} {platform.is_default && '(Default)'}
+                        {platform.name} {platform.isDefault && '(Default)'}
                       </SelectItem>
                     ))}
                   </SelectContent>
