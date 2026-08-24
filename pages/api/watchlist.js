@@ -1,6 +1,5 @@
 // watchlist.js
 import { Pool, types } from '@neondatabase/serverless';
-import NodeCache from 'node-cache';
 import { getToken } from "next-auth/jwt";
 import { authOptions } from "./auth/[...nextauth]" // Adjust path if needed
 import { sanitizeInput, validateInput } from '../../lib/security';
@@ -9,22 +8,12 @@ import { sanitizeInput, validateInput } from '../../lib/security';
 // This returns them as "YYYY-MM-DD" strings, avoiding timezone issues.
 types.setTypeParser(types.builtins.DATE, (val) => val);
 
-const cache = new NodeCache({ stdTTL: 600 }); // 10 minutes TTL
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
 });
-
-const invalidateUserCache = (userId) => {
-  const keys = cache.keys();
-  const userKeys = keys.filter(key => key.startsWith(`watchlist:${userId}:`));
-  if (userKeys.length > 0) {
-    cache.del(userKeys);
-    console.log(`Invalidated ${userKeys.length} cache entries for user ${userId}`);
-  }
-};
 
 export default async function handler(req, res) {
   // Debug: Log cookies and headers
@@ -85,14 +74,7 @@ export default async function handler(req, res) {
       // Sanitize search input to prevent SQL injection and XSS
       const sanitizedSearch = sanitizeInput(search);
       
-      const cacheKey = `watchlist:${userId}:${pageNum}:${safeLimit}:${media}:${status}:${sanitizedSearch}:${sort_by}`;
       const timerLabel = `Database query page ${pageNum} ${Date.now()}`;
-      
-      const cachedResult = cache.get(cacheKey);
-      if (cachedResult) {
-        console.log(`Cache hit for ${cacheKey} in ${Date.now() - cachedResult.start}ms`);
-        return res.status(200).json(cachedResult.data);
-      }
 
       console.time(timerLabel);
       const start = Date.now();
@@ -183,7 +165,6 @@ export default async function handler(req, res) {
           },
         };
 
-        cache.set(cacheKey, { data, start: Date.now() });
         return res.status(200).json(data);
       } finally {
         client.release();
@@ -280,7 +261,6 @@ export default async function handler(req, res) {
             req.body.seasonNumber || null,
           ]
         );
-        invalidateUserCache(userId);
         return res.status(201).json({ message: 'Added to watchlist', item: rows[0] });
       } catch (error) {
         console.error('Error adding to watchlist:', error);
@@ -383,7 +363,6 @@ export default async function handler(req, res) {
         if (result.rows.length === 0) {
           return res.status(404).json({ error: 'Item not found' });
         }
-        invalidateUserCache(userId);
         return res.status(200).json({ message: 'Updated watchlist', item: result.rows[0] });
       } catch (error) {
         console.error('Error updating watchlist:', error);
@@ -422,7 +401,6 @@ export default async function handler(req, res) {
         if (result.rows.length === 0) {
           return res.status(404).json({ error: 'Item not found' });
         }
-        invalidateUserCache(userId);
         return res.status(200).json({ message: 'success' });
       } catch (e) {
         console.error(e);
